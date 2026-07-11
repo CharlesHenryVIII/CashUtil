@@ -1,0 +1,224 @@
+#define WIN32_LEAN_AND_MEAN
+#include <Windows.h>
+
+#include "WinInterop_File.h"
+#include "System.h"
+
+
+
+File::File() :
+    m_handleIsValid     (0),
+    m_textIsValid       (0),
+    m_timeIsValid       (0),
+    m_binaryDataIsValid (0),
+    m_time              (0),
+    m_handle            (0),
+    m_accessType        (0),
+    m_shareType         (0),
+    m_openType          (0)
+{
+    m_filename.clear();
+    m_dataString.clear();
+    m_dataBinary.clear();
+    ASSERT(false);
+}
+
+File::File(char const* filename, FileMode fileMode, bool createIfNotFound)
+{
+    std::wstring wide_string;
+    SysConvertMultibyteToWideChar(wide_string, filename);
+    Init(wide_string, fileMode, createIfNotFound);
+}
+
+File::File(const std::string& filename, FileMode fileMode, bool createIfNotFound)
+{
+    std::wstring wide_string;
+    SysConvertMultibyteToWideChar(wide_string, filename);
+    Init(wide_string, fileMode, createIfNotFound);
+}
+
+File::File(wchar_t const* filename, FileMode fileMode, bool createIfNotFound)
+{
+    std::wstring wide_string = std::wstring(filename);
+    Init(filename, fileMode, createIfNotFound);
+}
+File::File(const std::wstring& filename, FileMode fileMode, bool createIfNotFound)
+{
+    Init(filename, fileMode, createIfNotFound);
+}
+
+void File::GetHandle()
+{
+    m_handle = CreateFile(m_filename.c_str(), m_accessType, m_shareType,
+        NULL, m_openType, FILE_ATTRIBUTE_NORMAL, NULL);
+}
+
+void File::Init(const std::wstring& filename, FileMode fileMode, bool createIfNotFound)
+{
+    m_filename = filename;
+    m_accessType = GENERIC_READ;
+    m_shareType  = FILE_SHARE_READ;
+    m_openType   = OPEN_EXISTING;
+    //m_fileAttribute = FILE_ATTRIBUTE_NORMAL;
+
+    switch (fileMode)
+    {
+    case FileMode_Read:
+        m_accessType = GENERIC_READ;
+        m_shareType  = FILE_SHARE_READ;
+        //m_fileAttribute = FILE_ATTRIBUTE_READONLY;
+        break;
+    case FileMode_Write:
+        m_openType = TRUNCATE_EXISTING;
+        //[[fallthrough]];
+    //case File::Mode::Append:
+        m_accessType = GENERIC_WRITE;
+        m_shareType = FILE_SHARE_WRITE;
+        break;
+    default:
+        break;
+    }
+    GetHandle();
+
+    if (createIfNotFound && m_handle == INVALID_HANDLE_VALUE)
+    {
+        m_openType = CREATE_NEW;
+        GetHandle();
+    }
+    m_handleIsValid = (m_handle != INVALID_HANDLE_VALUE);
+    //ASSERT(m_handleIsValid);
+    auto filePointerLocation = FILE_END;
+
+    if (m_handleIsValid)
+    {
+        switch (fileMode)
+        {
+        case FileMode_Read:
+            filePointerLocation = FILE_BEGIN;
+            [[fallthrough]];
+        //case File::Mode::Append:
+        //    break;
+        default:
+            break;
+        }
+    }
+
+    DWORD newFilePointer = SetFilePointer(m_handle, 0, NULL, filePointerLocation);
+}
+
+bool File::FileDestructor()
+{
+    return CloseHandle(m_handle);
+}
+
+File::~File()
+{
+    if (m_handleIsValid)
+    {
+        FileDestructor();
+    }
+}
+
+
+void File::GetText()
+{
+    if (!m_handleIsValid)
+        return;
+
+    u32 bytesRead;
+    static_assert(sizeof(DWORD) == sizeof(u32));
+    static_assert(sizeof(LPVOID) == sizeof(void*));
+
+    LARGE_INTEGER file_size;
+    if (!GetFileSizeEx(m_handle, &file_size))
+    {
+        DWORD error = GetLastError();
+        ASSERT(false);
+        return;
+    }
+    ASSERT(file_size.HighPart == 0);  //ReadFile Does not support large files
+    if (file_size.QuadPart == 0)
+        return;
+    m_dataString.resize((u32)file_size.QuadPart, 0);
+    m_textIsValid = true;
+    if (!ReadFile(m_handle, (LPVOID)m_dataString.c_str(), file_size.LowPart, reinterpret_cast<LPDWORD>(&bytesRead), NULL))
+    {
+        m_textIsValid = false;
+        DWORD file_error = GetLastError();
+        ASSERT(file_error == ERROR_SUCCESS);
+    }
+}
+
+void File::GetData()
+{
+    if (!m_handleIsValid)
+        return;
+
+    u32 bytesRead;
+    static_assert(sizeof(DWORD) == sizeof(u32));
+    static_assert(sizeof(LPVOID) == sizeof(void*));
+
+    const u32 fileSize = GetFileSize(m_handle, NULL);
+    m_dataBinary.resize(fileSize, 0);
+    m_binaryDataIsValid = true;
+    if (ReadFile(m_handle, (LPVOID)m_dataBinary.data(), (DWORD)fileSize, reinterpret_cast<LPDWORD>(&bytesRead), NULL) == 0)
+    {
+        m_binaryDataIsValid = false;
+        DWORD error = GetLastError();
+    }
+}
+bool File::Write(void* data, size_t sizeInBytes)
+{
+    DWORD bytesWritten = {};
+    BOOL result = WriteFile(m_handle, data, (DWORD)sizeInBytes, &bytesWritten, NULL);
+    return result != 0;
+}
+
+bool File::Write(const void* data, size_t sizeInBytes)
+{
+    DWORD bytesWritten = {};
+    BOOL result = WriteFile(m_handle, data, (DWORD)sizeInBytes, &bytesWritten, NULL);
+    return result != 0;
+}
+
+bool File::Write(const std::string& text)
+{
+    DWORD bytesWritten = {};
+    BOOL result = WriteFile(m_handle, text.c_str(), (DWORD)text.size(), &bytesWritten, NULL);
+    return result != 0;
+    //int32 result = fputs(text.c_str(), m_handle);
+    //return (!(result == EOF));
+    //return false;
+}
+
+void File::GetTime()
+{
+    FILETIME creationTime;
+    FILETIME lastAccessTime;
+    FILETIME lastWriteTime;
+    if (!GetFileTime(m_handle, &creationTime, &lastAccessTime, &lastWriteTime))
+    {
+        DebugPrint("GetFileTime failed with %d\n", GetLastError());
+        m_timeIsValid = false;
+    }
+    else
+    {
+        ULARGE_INTEGER actualResult;
+        actualResult.LowPart = lastWriteTime.dwLowDateTime;
+        actualResult.HighPart = lastWriteTime.dwHighDateTime;
+        m_time = actualResult.QuadPart;
+        m_timeIsValid = true;
+    }
+}
+
+bool File::Delete()
+{
+    if (m_handleIsValid)
+    {
+        FileDestructor();
+        bool result = DeleteFile(m_filename.c_str());
+        m_handleIsValid = false;
+        return result;
+    }
+    return false;
+}
