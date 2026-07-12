@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Math.h"
-#include "Debug.h"
 
 template <typename T>
 struct ArrayView {

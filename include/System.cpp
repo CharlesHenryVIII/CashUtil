@@ -7,7 +7,6 @@
 #include "OSWindows.h"
 #endif
 
-#include "ImguiHelper.h"
 #include "ImGui/backends/imgui_impl_sdl3.h"
 #include "ImGui/backends/imgui_impl_sdlrenderer3.h"
 
@@ -139,6 +138,10 @@ bool SysSetNetAdapterDNS(const std::string& adapter_guid, const SysNetAdapterCon
     return OSSetNetAdapterDNS(adapter_guid, adapter, src_adapter);
 }
 
+void SysAssert(bool expr, const char* message, const char* file, int line)
+{
+    OsAssert(expr, message, file, line);
+}
 void SysSleep(u64 _ms)
 {
     ZoneScoped;
@@ -378,7 +381,7 @@ void SysProcessEvents()
     SDL_Event event;
     while (SDL_PollEvent(&event))
     {
-        ImguiProcessEvent(&event);
+        ImGui_ImplSDL3_ProcessEvent(&event);
         //DebugPrint("Event: %i", event.type);
         if (event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED && event.window.windowID == SDL_GetWindowID(gfx.window))
             g_running = true;

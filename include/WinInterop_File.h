@@ -4,6 +4,9 @@
 #include <string>
 #include <vector>
 
+//TODO(CSH): Rewrite to use the rest of the system.h api and use some sort of
+//"FileHandle*" and "FileHandler" to make file processing easier to work with
+
 enum FileMode {
     FileMode_Read,  //Read:   Open file for read access.
     FileMode_Write, //Write:  Open and empty file for output.

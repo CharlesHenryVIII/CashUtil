@@ -1,4 +1,5 @@
 #include "Math.h"
+#include "System.h"
 
 u32 PCG_Random(u64 state)
 {

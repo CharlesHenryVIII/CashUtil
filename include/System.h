@@ -2,17 +2,18 @@
 #include "Threading.h"
 #include "Math.h"
 #include "ArrayView.h"
-#include "Settings.h"
 #include "String.h"
 
 #include "SDL3/SDL.h"
 //#include "SDL3/SDL_events.h"
+#include "Imgui.h"
 
 #include <string>
 #include <unordered_map>
 
 #define PWSH_MAX_COLUMNS 16
 typedef std::vector<std::array<std::string, PWSH_MAX_COLUMNS>> PowershellResponse;
+
 
 enum RunProcessFlags : u32 {
     RunProcess_None = 0,
@@ -239,6 +240,7 @@ struct SysNetworkAdapterInfo
     bool multicast_enabled;
 };
 
+
 bool SysInit(SDL_Window* window);
 void SysDestroy(SDL_Window* window);
 void* SysGetWindowHandle(SDL_Window* window);
@@ -264,6 +266,7 @@ bool SysHasAdminPrivledge();
 bool SysSetNetAdapterIP(const std::string& adapter_guid, const SysNetAdapterConfig& adapter, const SysNetAdapterConfig& src_adapter);
 bool SysSetNetAdapterDNS(const std::string& adapter_guid, const SysNetAdapterConfig& adapter, const SysNetAdapterConfig& src_adapter);
 
+void SysAssert(bool expr, const char* message, const char* file, int line);
 void SysSleep(u64 ms);
 double SysGetTime();
 float SysMonitorScale();

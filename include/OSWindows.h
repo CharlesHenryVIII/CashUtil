@@ -3,7 +3,6 @@
 #include "imgui.h"
 #include "Math.h"
 #include "ArrayView.h"
-#include "Settings.h"
 #include "String.h"
 #include "System.h"
 
