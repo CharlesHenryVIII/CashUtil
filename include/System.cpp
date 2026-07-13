@@ -516,10 +516,10 @@ void RunProcessJob::RunJob()
     const wchar_t* wpath = path.size() ? path.c_str() : nullptr;
     const wchar_t* wargs = args.size() ? args.c_str() : nullptr;
     i32 result = SysRunProcess(wpath, wargs, output);
-    //if (result)
-    //{
-    //    Threading::GetInstance().RunAndClearJobs();
-    //}
+    if (result && m_run_all_jobs)
+    {
+        Threading::GetInstance().RunAndClearJobs();
+    }
 }
 
 void RunProcessLogToFileJob::RunJob()

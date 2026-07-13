@@ -352,6 +352,7 @@ struct RunProcessJob : Job
     std::wstring path;
     std::wstring args;
     AsyncData<std::string>* output;
+    bool m_run_all_jobs = false;
     virtual void RunJob() override;
 };
 
