@@ -11,3 +11,4 @@
 
 //TODO(CSH): redo wininterop_file
 //TODO(CSH): move this project to a seperate dependency in premake
+//TODO(CSH): Fix ArrayView.h and logging so that ArrayView.h can have access to logging

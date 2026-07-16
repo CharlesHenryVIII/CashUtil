@@ -1,5 +1,7 @@
 #include "System.h"
 #include "Rendering.h"
+#include "ArrayView.h"
+
 #include <array>
 
 
@@ -296,6 +298,81 @@ void SysScanDirectoryForFileNames(const std::wstring& dir, ScannedFiles& out, Sc
 bool SysGetDirectoryFromUser(const std::wstring& currentDir, std::wstring& dir)
 {
     return OSGetDirectoryFromUser(currentDir, dir);
+}
+
+//WARNING(CSH): Data here is a bit wacky and using new and delete be warned
+struct OpenSystemNavUserData {
+    Path* path;
+    SDL_DialogFileFilter filter[2];
+    std::function<void(void)> on_complete;
+};
+void SDLCALL OnFolderSelectedCallback(void* userdata, const char* const* filelist, int filter)
+{
+    VALIDATE(userdata);
+    OpenSystemNavUserData* user_data = static_cast<OpenSystemNavUserData*>(userdata);
+    if (filelist && filelist[0])
+    {
+        *user_data->path = filelist[0];
+    }
+    if (user_data->on_complete)
+        user_data->on_complete();
+    if (user_data->filter[0].pattern)
+        delete user_data->filter[0].pattern;
+    delete user_data;
+}
+void SysOpenSystemNavigation(Path* out_folder_path, const Path* starting_path, ArrayView<std::string> filters, std::function<void(void)> on_complete, SysFileNavigationFlags flags)
+{
+    if (!out_folder_path)
+        return;
+
+    std::string utf8_start_path = "";
+    if (starting_path && !starting_path->empty())
+        utf8_start_path = starting_path->string();
+
+    OpenSystemNavUserData* user_data = new OpenSystemNavUserData();
+    user_data->path = out_folder_path;
+    user_data->on_complete = on_complete;
+
+    SDL_PropertiesID props = SDL_CreateProperties();
+    if (!utf8_start_path.empty())
+        VERIFY(SDL_SetStringProperty(props, SDL_PROP_FILE_DIALOG_LOCATION_STRING, utf8_start_path.c_str()));
+    if (filters.size())
+    {
+        std::string filter_list = "";
+        for (i32 i = 0; i < filters.size(); i++)
+        {
+            filter_list = filter_list + filters[i] + ";";
+        }
+        filter_list.pop_back();
+        char* filter_data = new char[filter_list.size() + 1];
+        memset(filter_data, 0, filter_list.size() + 1);
+        ArrayView<char> filter_list_array = CreateArrayView(filter_list);
+        ArrayView<char> filter_data_array = CreateArrayView(filter_data, filter_list.size());
+        CopyArrayView(filter_list_array, filter_data_array);
+
+        user_data->filter[0] = {
+            .name = "EXE Filter",
+            .pattern = filter_data,
+        };
+        user_data->filter[1] = {
+            .name = "All Files",
+            .pattern = "*",
+        };
+
+        VERIFY(SDL_SetPointerProperty(props, SDL_PROP_FILE_DIALOG_FILTERS_POINTER, user_data->filter));
+        VERIFY(SDL_SetNumberProperty(props, SDL_PROP_FILE_DIALOG_NFILTERS_NUMBER, arrsize(user_data->filter)));
+    }
+
+    //SDL_FILEDIALOG_SAVEFILE,
+    SDL_FileDialogType type;
+    if (FlagIntersects(flags, SysFileNavigationFlags_OnlyFolders))
+        type = SDL_FILEDIALOG_OPENFOLDER;
+    else if (FlagIntersects(flags, SysFileNavigationFlags_OnlyFiles))
+        type = SDL_FILEDIALOG_OPENFILE;
+    VERIFY(SDL_SetBooleanProperty(props, SDL_PROP_FILE_DIALOG_MANY_BOOLEAN, !(FlagIntersects(flags, SysFileNavigationFlags_MultiSelect))));
+
+    SDL_ShowFileDialogWithProperties(type, OnFolderSelectedCallback, user_data, props);
+    SDL_DestroyProperties(props);
 }
 
 void SysConvertMultibyteToWideChar(std::wstring& out, const std::string& in)

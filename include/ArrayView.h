@@ -2,6 +2,8 @@
 
 #include "Math.h"
 
+//#include <format>
+
 template <typename T>
 struct ArrayView {
     u64 count = 0;
@@ -50,13 +52,15 @@ struct ArrayView {
         return sizeof(T);
     }
 
-    void CopyFrom(const ArrayView<T> source)
+    bool CopyFrom(const ArrayView<T> source)
     {
         if (Bytes() != source.Bytes())
         {
-            std::string msg = ToString("Trying to CopyArrayView but memory size is missmatched source: %u dest: %u", source.Bytes(), Bytes());
-            DebugPrint(msg.c_str());
-            ASSERT_MSG(false, msg.c_str());
+            //TODO(CSH): Fix this
+            //std::string msg = std::format("Trying to create SubArrayView with start + length: {} longer than the source: {}", source.Bytes(), Bytes());
+            //DebugPrint(msg.c_str());
+            //ASSERT_MSG(false, msg.c_str());
+            FAIL;
             return;
         }
         memmove((void*)data, (void*)source.data, source.Bytes());
@@ -119,9 +123,11 @@ template<typename T>
     ArrayView<T> view;
     if (length > source.count)
     {
-        std::string msg = ToString("Trying to create SubArrayView with length: %u(%i) longer than the source: %u(%i)", length, length, source.count, source.count);
-        DebugPrint(msg.c_str());
-        ASSERT_MSG(false, msg.c_str());
+        //TODO(CSH): Fix this
+        //std::string msg = std::format("Trying to create SubArrayView with start + length: {} longer than the source: {}", length, source.count);
+        //DebugPrint(msg.c_str());
+        //ASSERT_MSG(false, msg.c_str());
+        FAIL;
         return source;
     }
 
@@ -140,17 +146,22 @@ template<typename T>
     const u64 end = start + length;
     if (end > source.count)
     {
-        std::string msg = ToString("Trying to create SubArrayView with start + length: %u(%i) longer than the source: %u(%i)", end, end, source.count, source.count);
-        DebugPrint(msg.c_str());
-        ASSERT_MSG(false, msg.c_str());
+
+        //TODO(CSH): Fix this
+        //std::string msg = std::format("Trying to create SubArrayView with start + length: {} longer than the source: {}", end, source.count);
+        //DebugPrint(msg.c_str());
+        //ASSERT_MSG(false, msg.c_str());
+        FAIL;
         return source;
     }
 
     if (length < 0)
     {
-        std::string msg = ToString("Trying to create SubArrayView with length: %u(%i) shorter than the source: %u(%i)", length, length, source.count, source.count);
-        DebugPrint(msg.c_str());
-        ASSERT_MSG(false, msg.c_str());
+        //TODO(CSH): Fix this
+        //std::string msg = std::format("Trying to create SubArrayView with length: {} shorter than the source: {}", length, source.count);
+        //DebugPrint(msg.c_str());
+        //ASSERT_MSG(false, msg.c_str());
+        FAIL;
         return {};
     }
 
@@ -164,9 +175,11 @@ void CopyArrayView(const ArrayView<T> source, ArrayView<T>& dest)
 {
     if (dest.Bytes() != source.Bytes())
     {
-        std::string msg = ToString("Trying to CopyArrayView but memory size is missmatched source: %u dest: %u", source.Bytes(), dest.Bytes());
-        DebugPrint(msg.c_str());
-        ASSERT_MSG(false, msg.c_str());
+        //TODO(CSH): Fix this
+        //std::string msg = std::format("Trying to CopyArrayView but memory size is missmatched source: %{} dest: %{}", source.Bytes(), dest.Bytes());
+        //DebugPrint(msg.c_str());
+        //ASSERT_MSG(false, msg.c_str());
+        FAIL;
         return;
     }
     ASSERT(source.count == dest.count);//what do we do here if this isn't true?

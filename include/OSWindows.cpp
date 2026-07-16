@@ -287,15 +287,15 @@ i32 OSRunProcess(const std::wstring& path, const std::wstring& args, AsyncData<s
         .hStdError = writePipe,
     };
 
-    std::wstring real_path;
+    std::wstring cmdline;
     if (path.size() > 1)
-        real_path = path;
+        cmdline = path;
     else
-        real_path = L"cmd.exe /C";
-
-    std::wstring cmdline = real_path;
-    if (args.size())
-        cmdline += real_path + L" " + args;
+    {
+        cmdline = L"cmd.exe /C";
+        if (args.size())
+            cmdline += std::format(L" \"{}\"", args);
+    }
 
     PROCESS_INFORMATION pi = {};
     BOOL r = CreateProcessW(
@@ -312,7 +312,7 @@ i32 OSRunProcess(const std::wstring& path, const std::wstring& args, AsyncData<s
     {
         std::wstring errorBoxTitle = ToString(L"CreateProcess() Error: %i", GetLastError());
         std::wstring errorText     = ToString(L"Application Path: %s\n"
-                                              L"Command Line Params: %s", real_path.c_str(), args.c_str());
+                                              L"Command Line Params: %s", cmdline.c_str(), args.c_str());
         DebugPrint("%s\n", errorBoxTitle.c_str());
         DebugPrint(errorText.c_str());
         DebugPrint("\n");
@@ -325,6 +325,7 @@ i32 OSRunProcess(const std::wstring& path, const std::wstring& args, AsyncData<s
 
     if (output)
     {
+        output->state = AsyncStatus_Fetching;
         char buffer[4096];
         DWORD bytesRead;
         while (ReadFile(readPipe, buffer, sizeof(buffer), &bytesRead, nullptr))
@@ -332,6 +333,7 @@ i32 OSRunProcess(const std::wstring& path, const std::wstring& args, AsyncData<s
             TRACY_LOCK(output->lock);
             output->data.append(buffer, bytesRead);
         }
+        output->state = AsyncStatus_FetchedSuccess;
     }
     if (output_file)
     {

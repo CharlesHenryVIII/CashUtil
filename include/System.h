@@ -10,6 +10,7 @@
 
 #include <string>
 #include <unordered_map>
+#include <functional>
 
 #define PWSH_MAX_COLUMNS 16
 typedef std::vector<std::array<std::string, PWSH_MAX_COLUMNS>> PowershellResponse;
@@ -299,6 +300,13 @@ enum MessageBoxResponse : i32 {
     MessageBoxResponse_Quit,
     MessageBoxResponse_Count,
 };
+enum SysFileNavigationFlags : u32 {
+    SysFileNavigationFlags_None = 0,
+    SysFileNavigationFlags_OnlyFolders = BIT(0),
+    SysFileNavigationFlags_OnlyFiles = BIT(1),
+    SysFileNavigationFlags_MultiSelect = BIT(2),
+};
+void SysOpenSystemNavigation(Path* out_folder_path, const Path* starting_path, ArrayView<std::string> filters, std::function<void(void)> on_complete, SysFileNavigationFlags flags);
 
 void SysConvertMultibyteToWideChar(std::wstring& out, const std::string& in);
 void SysConvertWideCharToMultiByte(std::string& out, const std::wstring& in);
