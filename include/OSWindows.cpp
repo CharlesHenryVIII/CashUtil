@@ -288,8 +288,12 @@ i32 OSRunProcess(const std::wstring& path, const std::wstring& args, AsyncData<s
     };
 
     std::wstring cmdline;
+    std::wstring program;
     if (path.size() > 1)
-        cmdline = path;
+    {
+        program = path;
+        cmdline = std::format(L"\"{}\" {}", path, args);
+    }
     else
     {
         cmdline = L"cmd.exe /C";
@@ -299,7 +303,7 @@ i32 OSRunProcess(const std::wstring& path, const std::wstring& args, AsyncData<s
 
     PROCESS_INFORMATION pi = {};
     BOOL r = CreateProcessW(
-        nullptr,
+        program.size() ? program.c_str() : nullptr,
         (LPWSTR)cmdline.c_str(),
         nullptr, nullptr,
         TRUE, // inherit handles
