@@ -1,8 +1,8 @@
 #pragma once
 
-#include "Math.h"
-#include "Debug.h"
-#include "ArrayView.h"
+#include "CashMath.h"
+#include "CashDebug.h"
+#include "CashArrayView.h"
 
 #include <string>
 #include <filesystem>

@@ -1,10 +1,10 @@
 #pragma once
-#include "Threading.h"
+#include "CashThreading.h"
 #include "imgui.h"
-#include "Math.h"
-#include "ArrayView.h"
-#include "String.h"
-#include "System.h"
+#include "CashMath.h"
+#include "CashArrayView.h"
+#include "CashString.h"
+#include "CashSystem.h"
 
 struct SDL_Window;
 

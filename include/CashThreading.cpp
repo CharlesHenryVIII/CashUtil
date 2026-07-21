@@ -1,6 +1,6 @@
-#include "Threading.h"
-#include "Math.h"
-#include "System.h"
+#include "CashThreading.h"
+#include "CashMath.h"
+#include "CashSystem.h"
 
 #include "Tracy.hpp"
 

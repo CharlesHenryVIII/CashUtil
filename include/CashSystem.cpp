@@ -1,12 +1,12 @@
-#include "System.h"
-#include "Rendering.h"
-#include "ArrayView.h"
+#include "CashSystem.h"
+#include "CashRendering.h"
+#include "CashArrayView.h"
 
 #include <array>
 
 
 #if WIN32
-#include "OSWindows.h"
+#include "CashOSWindows.h"
 #endif
 
 #include "ImGui/backends/imgui_impl_sdl3.h"

@@ -9,18 +9,18 @@
 #include <comdef.h>
 #include <Wbemidl.h>
 
-#include "OSWindows.h"
-#include "WinInterop_File.h"
-#include "Math.h"
-#include "String.h"
+#include "CashOSWindows.h"
+#include "CashWinInterop_File.h"
+#include "CashMath.h"
+#include "CashString.h"
 #include "resource.h"
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb/stb_image.h"
 #include "Json.hpp"
-#include "Rendering.h"
+#include "CashRendering.h"
 #include "Tracy.hpp"
 //#include "Networking.h"
-#include "System.h"
+#include "CashSystem.h"
 
 #include <fstream>
 #include <filesystem>

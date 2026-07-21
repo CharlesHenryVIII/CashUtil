@@ -1,6 +1,6 @@
-#include "Rendering.h"
-#include "Debug.h"
-#include "System.h"
+#include "CashRendering.h"
+#include "CashDebug.h"
+#include "CashSystem.h"
 #include "resource.h"
 
 //#define STB_IMAGE_IMPLEMENTATION

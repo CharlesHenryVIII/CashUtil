@@ -1,5 +1,5 @@
-#include "String.h"
-#include "System.h"
+#include "CashString.h"
+#include "CashSystem.h"
 
 const char* ReadEntireFileAsString(const char* fileName)
 {

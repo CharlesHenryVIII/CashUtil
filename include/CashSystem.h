@@ -1,8 +1,8 @@
 #pragma once
-#include "Threading.h"
-#include "Math.h"
-#include "ArrayView.h"
-#include "String.h"
+#include "CashThreading.h"
+#include "CashMath.h"
+#include "CashArrayView.h"
+#include "CashString.h"
 
 #include "SDL3/SDL.h"
 //#include "SDL3/SDL_events.h"

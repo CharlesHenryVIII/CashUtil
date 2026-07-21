@@ -1,6 +1,6 @@
 #pragma once
 #include "gb_math.h"
-#include "Debug.h"
+#include "CashDebug.h"
 
 #include <cmath>
 #include <cstdlib>

@@ -1,6 +1,6 @@
 #pragma once
-#include "Math.h"
-#include "Debug.h"
+#include "CashMath.h"
+#include "CashDebug.h"
 
 #include "Tracy.hpp"
 
