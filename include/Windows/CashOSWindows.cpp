@@ -1,14 +1,13 @@
-
-#include "CashOS.h"
-#include "CashWinInterop_File.h"
-#include "CashMath.h"
-#include "CashString.h"
+#include "../CashOS.h"
+#include "../CashWinInterop_File.h"
+#include "../CashMath.h"
+#include "../CashString.h"
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb/stb_image.h"
 #include "Json.hpp"
-#include "CashRendering.h"
+#include "../CashRendering.h"
 #include "Tracy.hpp"
-#include "CashSystem.h"
+#include "../CashSystem.h"
 
 #include <fstream>
 #include <filesystem>
