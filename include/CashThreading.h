@@ -47,7 +47,7 @@ struct Job
 struct Threading {
 private:
     TRACY_MUTEX(m_jobVectorMutex);
-    Semaphore<PTRDIFF_MAX>      m_semaphore;
+    Semaphore<INT32_MAX>      m_semaphore;
     Atomic<i32>                 m_jobsInFlight = {};
     Atomic<bool>                m_running;
     std::vector<Job*>           m_jobs;
