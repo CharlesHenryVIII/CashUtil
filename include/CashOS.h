@@ -32,8 +32,8 @@ bool OSIsConsoleVisible();
 
 void OSShowErrorWindow(const std::wstring& title, const std::wstring& text);
 void OSFlashWindow(SDL_Window* window);
-void OSScanDirectoryForFileNames(const std::wstring& dir, ScannedFiles& out, ScanDirectoryFlags flags);
-bool OSGetDirectoryFromUser(const std::wstring& currentDir, std::wstring& dir);
+void OSScanDirectoryForFileNames(const Path& dir, ScannedFiles& out, ScanDirectoryFlags flags);
+bool OSGetDirectoryFromUser(const Path& currentDir, std::wstring& dir);
 
 void OSConvertMultibyteToWideChar(std::wstring& out, const std::string& in);
 void OSConvertWideCharToMultiByte(std::string& out, const std::wstring& in);

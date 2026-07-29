@@ -1,25 +1,13 @@
-#define WIN32_LEAN_AND_MEAN
-#define _WIN32_DCOM
-#include <Windows.h>
-#include <shellapi.h>
-#include <combaseapi.h>
-#include <winsock2.h>
-#include <ws2tcpip.h>
-#include <iphlpapi.h>
-#include <comdef.h>
-#include <Wbemidl.h>
 
-#include "CashOSWindows.h"
+#include "CashOS.h"
 #include "CashWinInterop_File.h"
 #include "CashMath.h"
 #include "CashString.h"
-#include "resource.h"
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb/stb_image.h"
 #include "Json.hpp"
 #include "CashRendering.h"
 #include "Tracy.hpp"
-//#include "Networking.h"
 #include "CashSystem.h"
 
 #include <fstream>
@@ -727,7 +715,7 @@ VARIANT CreateSafeArray(const ArrayView<std::string>& strings)
 {
     VARIANT var;
     VariantInit(&var);
-    var.vt = VT_ARRAY | VT_BSTR; 
+    var.vt = VT_ARRAY | VT_BSTR;
     SAFEARRAY* safe_array = SafeArrayCreateVector(VT_BSTR, 0, (ULONG)strings.size());
     for (LONG i = 0; i < strings.size(); i++)
     {
@@ -932,7 +920,7 @@ struct WinFunc
         }
         return true;
     }
-    
+
 
     bool Execute(i32* return_val = nullptr)
     {
@@ -1002,13 +990,13 @@ bool OSSetNetAdapterIP(const std::string& adapter_guid, const SysNetAdapterConfi
 
     const wchar_t* wmi_class_str = L"Win32_NetworkAdapterConfiguration";
     const std::wstring class_inst_name = ToString(L"%s.Index=%i", wmi_class_str, adapter_index);
-    if (adapter.dhcp_enabled) 
+    if (adapter.dhcp_enabled)
     {
         WinFunc enable_dhcp_func(&service, class_inst_name, wmi_class_str, L"EnableDHCP");
         if (!enable_dhcp_func.Execute())
             return false;
     }
-    else 
+    else
     {
         WinFunc enable_static_func(&service, class_inst_name, wmi_class_str, L"EnableStatic");
         if (!enable_static_func.AddInputParam(L"IPAddress", adapter.ip.ip.ToString().c_str()))
@@ -1026,7 +1014,7 @@ bool OSSetNetAdapterIP(const std::string& adapter_guid, const SysNetAdapterConfi
             FAIL;
         }
 
-        if (adapter.gateway.IsValid()) 
+        if (adapter.gateway.IsValid())
         {
             WinFunc set_gatway_fun(&service, class_inst_name, wmi_class_str, L"SetGateways");
             if (!set_gatway_fun.is_valid)
@@ -1275,7 +1263,7 @@ void _ScanDirectoryForFileNames(const std::wstring& root, const std::wstring& di
     }
 }
 
-void OSScanDirectoryForFileNames(const std::wstring& dir, ScannedFiles& out, ScanDirectoryFlags flags)
+void OSScanDirectoryForFileNames(const Path& dir, ScannedFiles& out, ScanDirectoryFlags flags)
 {
     out.clear();
     _ScanDirectoryForFileNames(dir, L"", out, flags);
@@ -1292,7 +1280,7 @@ static int CALLBACK BrowseFolderCallback(HWND hwnd, UINT uMsg, LPARAM lParam, LP
     return 0;
 }
 
-bool OSGetDirectoryFromUser(const std::wstring& currentDir, std::wstring& dir)
+bool OSGetDirectoryFromUser(const Path& currentDir, std::wstring& dir)
 {
     std::wstring baseDir = currentDir;
     if (currentDir.size() == 0)
@@ -1414,7 +1402,7 @@ void OSExpandEnvironemntVariable(std::wstring& out, const std::wstring& in)
     out.resize(size - 1); //Remove trailing null inserted by API
 }
 
-#if FEATURE_CUSTOM_ASSERT
+#ifdef FEATURE_CUSTOM_ASSERT
 #pragma comment(lib, "Comctl32.lib")
 #include <commctrl.h>
 #include <signal.h> // raise

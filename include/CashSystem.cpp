@@ -1,13 +1,10 @@
 #include "CashSystem.h"
 #include "CashRendering.h"
 #include "CashArrayView.h"
+#include "CashOS.h"
 
 #include <array>
 
-
-#if WIN32
-#include "CashOSWindows.h"
-#endif
 
 #include "ImGui/backends/imgui_impl_sdl3.h"
 #include "ImGui/backends/imgui_impl_sdlrenderer3.h"
@@ -47,7 +44,7 @@ void DebugPrint(const char* fmt, ...)
     va_list list;
     va_start(list, fmt);
     char buffer[4096] = {};
-    vsnprintf_s(buffer, arrsize(buffer), _TRUNCATE, fmt, list);
+    SYS_VSNPRINTF(buffer, arrsize(buffer), fmt, list);
     OSDebugOutput(buffer);
     OSDebugOutput("\n");
     va_end(list);
@@ -59,7 +56,7 @@ void DebugPrint(const wchar_t* fmt, ...)
     va_list list;
     va_start(list, fmt);
     wchar_t buffer[4096] = {};
-    _vsnwprintf_s(buffer, arrsize(buffer), _TRUNCATE, fmt, list);
+    SYS_VSNWPRINTF(buffer, arrsize(buffer), fmt, list);
     OSDebugOutput(buffer);
     va_end(list);
 
@@ -290,12 +287,12 @@ i32 SysShowCustomErrorWindow(const std::string& title, const std::string& text)
     return 1;
 }
 
-void SysScanDirectoryForFileNames(const std::wstring& dir, ScannedFiles& out, ScanDirectoryFlags flags)
+void SysScanDirectoryForFileNames(const Path& dir, ScannedFiles& out, ScanDirectoryFlags flags)
 {
     OSScanDirectoryForFileNames(dir, out, flags);
 }
 
-bool SysGetDirectoryFromUser(const std::wstring& currentDir, std::wstring& dir)
+bool SysGetDirectoryFromUser(const Path& currentDir, std::wstring& dir)
 {
     return OSGetDirectoryFromUser(currentDir, dir);
 }
@@ -415,7 +412,6 @@ ImFont* SysLoadFontForImgui(int resource_id, float fontSize)
 }
 
 
-
 std::string Guid::ToString() const
 {
     return ::ToString("%08X-%04X-%04X-%04X-%04X%08X", a, b >> 16, b & 0XFFFF, c >> 16, c & 0XFFFF, d);
@@ -424,7 +420,7 @@ std::string Guid::ToString() const
 Guid GuidFromString(const char* s)
 {
     Guid r = {};
-    const size_t char_len = strnlen_s(s, 38);
+    const size_t char_len = SYS_STRNLEN(s, 38);
     if (char_len != 36)
     {
         FAIL;

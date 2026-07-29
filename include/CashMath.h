@@ -6,6 +6,7 @@
 #include <cstdlib>
 #include <vector>
 #include <cstdint>
+#include <limits.h>
 
 #define BIT(num) (1<<(num))
 #define HasBit(n, pos) ((n) & (1 << (pos)))
@@ -939,7 +940,7 @@ template<typename T>
 MATH_PREFIX gbVec3<T> GetLeft(const gbMat4<T>& matrix)    { return matrix.y.xyz; }
 
 template<typename T = float>
-constexpr [[nodiscard]] gbMat4<T> CreateModelMatrix(const gbVec3<T>& position, const gbQuat<T>& rotation, const gbVec3<T>& scale)
+[[nodiscard]] constexpr gbMat4<T> CreateModelMatrix(const gbVec3<T>& position, const gbQuat<T>& rotation, const gbVec3<T>& scale)
 {
     const Mat4 t = gb_mat4_translate(position);
     const Mat4 r = gb_mat4_from_quat(rotation);
@@ -949,7 +950,7 @@ constexpr [[nodiscard]] gbMat4<T> CreateModelMatrix(const gbVec3<T>& position, c
 }
 
 template<typename T = float>
-constexpr [[nodiscard]] gbMat4<T> CreateModelMatrix(const STransform& t)
+[[nodiscard]] constexpr gbMat4<T> CreateModelMatrix(const STransform& t)
 {
     return CreateModelMatrix(t.pos, t.rot, t.scale);
 }

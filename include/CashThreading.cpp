@@ -4,7 +4,7 @@
 
 #include "Tracy.hpp"
 
-#include <Chrono>
+#include <chrono>
 
 #define ASYNC
 

@@ -1,5 +1,5 @@
 #include "CashThemes.h"
-#include "imgui/imgui.h"
+#include "ImGui/imgui.h"
 
 Theme g_ThemeColorOptions[ThemeColor_Count] = {};
 Theme g_ThemeStyleOptions[ThemeStyle_Count] = {};
@@ -309,7 +309,7 @@ void FThemeColor_Quantum()
     colors[ImGuiCol_Text]                   = ImVec4(1.00f, 1.00f, 1.00f, 1.00f);
     colors[ImGuiCol_TextDisabled]           = ImVec4(0.50f, 0.50f, 0.50f, 1.00f);
 #if 0
-    colors[ImGuiCol_WindowBg]               = ImVec4(0.11f, 0.15f, 0.26f, 1.00f); 
+    colors[ImGuiCol_WindowBg]               = ImVec4(0.11f, 0.15f, 0.26f, 1.00f);
 #else
     colors[ImGuiCol_WindowBg]               = ImVec4(0.13f, 0.14f, 0.15f, 1.00f);
 #endif

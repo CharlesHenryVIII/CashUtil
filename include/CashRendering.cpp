@@ -3,7 +3,7 @@
 #include "CashSystem.h"
 #include "resource.h"
 
-//#define STB_IMAGE_IMPLEMENTATION
+#define STB_IMAGE_IMPLEMENTATION
 #include "stb/stb_image.h"
 #include "ImGui/backends/imgui_impl_sdl3.h"
 #include "ImGui/backends/imgui_impl_sdlrenderer3.h"
@@ -46,7 +46,13 @@ bool RenderInit()
         DebugPrint("Failed to create window");
         return false;
     }
+#if defined(WIN32)
     SDL_SetHint(SDL_HINT_RENDER_DRIVER, "direct3d11");
+#elif defined(LINUX)
+    SDL_SetHint(SDL_HINT_RENDER_DRIVER, "vulkan");
+#else
+    #error "Unsupported platform for render driver configuration!"
+#endif
     gfx.context = SDL_CreateRenderer(gfx.window, nullptr);
     if (!gfx.context)
     {

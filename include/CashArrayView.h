@@ -1,6 +1,8 @@
 #pragma once
 
-#include "Math.h"
+#include "CashMath.h"
+
+#include <cstring>
 
 //#include <format>
 
@@ -9,45 +11,45 @@ struct ArrayView {
     u64 count = 0;
     T* data = 0;
 
-    inline [[nodiscard]] T& operator[](const u64 index) const
+    [[nodiscard]] inline T& operator[](const u64 index) const
     {
         ASSERT(index < count);
         return data[index];
     }
 
-    inline [[nodiscard]] u64 size() const
+    [[nodiscard]] inline u64 size() const
     {
         return count;
     }
-    inline [[nodiscard]] u64 Bytes() const
+    [[nodiscard]] inline u64 Bytes() const
     {
         return sizeof(T) * count;
     }
-    inline [[nodiscard]] T* begin() const
+    [[nodiscard]] inline T* begin() const
     {
         return data;
     }
-    inline [[nodiscard]] T* end() const
+    [[nodiscard]] inline T* end() const
     {
         return data + count;
     }
-    inline [[nodiscard]] T& First() const
+    [[nodiscard]] inline T& First() const
     {
         ASSERT(count);
         ASSERT(data);
         return data[0];
     }
-    inline [[nodiscard]] T& Last() const
+    [[nodiscard]] inline T& Last() const
     {
         ASSERT(count);
         ASSERT(data);
         return data[count - 1];
     }
-    inline [[nodiscard]] bool IsValid() const
+    [[nodiscard]] inline bool IsValid() const
     {
         return count && data;
     }
-    inline [[nodiscard]] u64 ElementBytes() const
+    [[nodiscard]] inline u64 ElementBytes() const
     {
         return sizeof(T);
     }
@@ -61,7 +63,7 @@ struct ArrayView {
             //DebugPrint(msg.c_str());
             //ASSERT_MSG(false, msg.c_str());
             FAIL;
-            return;
+            return false;
         }
         memmove((void*)data, (void*)source.data, source.Bytes());
         count = source.count;
@@ -192,6 +194,6 @@ void CopyArrayViewMismatched(const ArrayView<T>& source, ArrayView<T>& dest)
 {
     const u64 src_size = source.Bytes();
     const u64 dst_size = dest.Bytes();
-    u64 size = Min(src_size, dst_size);
-    memmove((void*)dest.data, (void*)source.data, size);
+    const u64 size = Min(src_size, dst_size);
+    std::memmove((void*)dest.data, (void*)source.data, size);
 }

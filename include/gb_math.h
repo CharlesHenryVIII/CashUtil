@@ -65,7 +65,8 @@ CONTENTS
     #include <intrin.h>
 #endif
 
-#define GB_MATH_DEF [[nodiscard]]
+#define GB_MATH_DEF_TYPE [[nodiscard]]
+#define GB_MATH_DEF_VOID
 
 #if defined(_MSC_VER)
 #pragma warning(push)
@@ -266,11 +267,11 @@ typedef short gbHalf;
 #endif
 
 
-GB_MATH_DEF float gb_to_radians(const float degrees);
-GB_MATH_DEF float gb_to_degrees(const float radians);
+GB_MATH_DEF_TYPE float gb_to_radians(const float degrees);
+GB_MATH_DEF_TYPE float gb_to_degrees(const float radians);
 
 /* NOTE(bill): Because to interpolate angles */
-GB_MATH_DEF float gb_angle_diff(const float radians_a, const float radians_b);
+GB_MATH_DEF_TYPE float gb_angle_diff(const float radians_a, const float radians_b);
 
 #ifndef gb_min
 #define gb_min(a, b) ((a) < (b) ? (a) : (b))
@@ -288,48 +289,48 @@ GB_MATH_DEF float gb_angle_diff(const float radians_a, const float radians_b);
 #endif
 
 
-GB_MATH_DEF float gb_copy_sign  (const float x, const float y);
-GB_MATH_DEF float gb_remainder  (const float x, const float y);
-GB_MATH_DEF float gb_mod        (const float x, float y);
-GB_MATH_DEF float gb_sqrt       (const float a);
-GB_MATH_DEF float gb_rsqrt      (const float a);
-GB_MATH_DEF float gb_quake_rsqrt(const float a); /* NOTE(bill): It's probably better to use 1.0f/gb_sqrt(a)
+GB_MATH_DEF_TYPE float gb_copy_sign  (const float x, const float y);
+GB_MATH_DEF_TYPE float gb_remainder  (const float x, const float y);
+GB_MATH_DEF_TYPE float gb_mod        (const float x, float y);
+GB_MATH_DEF_TYPE float gb_sqrt       (const float a);
+GB_MATH_DEF_TYPE float gb_rsqrt      (const float a);
+GB_MATH_DEF_TYPE float gb_quake_rsqrt(const float a); /* NOTE(bill): It's probably better to use 1.0f/gb_sqrt(a)
                                             * And for simd, there is usually isqrt functions too!
                                             */
-GB_MATH_DEF float gb_sin    (const float radians);
-GB_MATH_DEF float gb_cos    (const float radians);
-GB_MATH_DEF float gb_tan    (const float radians);
-GB_MATH_DEF float gb_arcsin (const float a);
-GB_MATH_DEF float gb_arccos (const float a);
-GB_MATH_DEF float gb_arctan (const float a);
-GB_MATH_DEF float gb_arctan2(const float y, const float x);
+GB_MATH_DEF_TYPE float gb_sin    (const float radians);
+GB_MATH_DEF_TYPE float gb_cos    (const float radians);
+GB_MATH_DEF_TYPE float gb_tan    (const float radians);
+GB_MATH_DEF_TYPE float gb_arcsin (const float a);
+GB_MATH_DEF_TYPE float gb_arccos (const float a);
+GB_MATH_DEF_TYPE float gb_arctan (const float a);
+GB_MATH_DEF_TYPE float gb_arctan2(const float y, const float x);
 
-GB_MATH_DEF float gb_exp      (const float x);
-GB_MATH_DEF float gb_exp2     (const float x);
-GB_MATH_DEF float gb_log      (const float x);
-GB_MATH_DEF float gb_log2     (const float x);
-GB_MATH_DEF float gb_fast_exp (const float x);  /* NOTE(bill): Only valid from -1 <= x <= +1 */
-GB_MATH_DEF float gb_fast_exp2(const float x); /* NOTE(bill): Only valid from -1 <= x <= +1 */
-GB_MATH_DEF float gb_pow      (const float x, const float y); /* x^y */
+GB_MATH_DEF_TYPE float gb_exp      (const float x);
+GB_MATH_DEF_TYPE float gb_exp2     (const float x);
+GB_MATH_DEF_TYPE float gb_log      (const float x);
+GB_MATH_DEF_TYPE float gb_log2     (const float x);
+GB_MATH_DEF_TYPE float gb_fast_exp (const float x);  /* NOTE(bill): Only valid from -1 <= x <= +1 */
+GB_MATH_DEF_TYPE float gb_fast_exp2(const float x); /* NOTE(bill): Only valid from -1 <= x <= +1 */
+GB_MATH_DEF_TYPE float gb_pow      (const float x, const float y); /* x^y */
 
-GB_MATH_DEF float gb_round(const float x);
-GB_MATH_DEF float gb_floor(const float x);
-GB_MATH_DEF float gb_ceil (const float x);
+GB_MATH_DEF_TYPE float gb_round(const float x);
+GB_MATH_DEF_TYPE float gb_floor(const float x);
+GB_MATH_DEF_TYPE float gb_ceil (const float x);
 
-GB_MATH_DEF float  gb_half_to_float(const gbHalf value);
-GB_MATH_DEF gbHalf gb_float_to_half(const float value);
+GB_MATH_DEF_TYPE float  gb_half_to_float(const gbHalf value);
+GB_MATH_DEF_TYPE gbHalf gb_float_to_half(const float value);
 
-template<typename T> GB_MATH_DEF gbVec2<T> gb_vec2_zero(void)   { gbVec2<T> v = { };             return v; }
-template<typename T> GB_MATH_DEF gbVec2<T> gb_vec2(T x, T y)    { gbVec2<T> v; v.x = x;    v.y = y;    return v; }
-template<typename T> GB_MATH_DEF gbVec2<T> gb_vec2v(T x[2])     { gbVec2<T> v; v.x = x[0]; v.y = x[1]; return v; }
+template<typename T> GB_MATH_DEF_TYPE gbVec2<T> gb_vec2_zero(void)   { gbVec2<T> v = { };             return v; }
+template<typename T> GB_MATH_DEF_TYPE gbVec2<T> gb_vec2(T x, T y)    { gbVec2<T> v; v.x = x;    v.y = y;    return v; }
+template<typename T> GB_MATH_DEF_TYPE gbVec2<T> gb_vec2v(T x[2])     { gbVec2<T> v; v.x = x[0]; v.y = x[1]; return v; }
 
-template<typename T> GB_MATH_DEF gbVec3<T> gb_vec3_zero(void)       { gbVec3<T> v = {0, 0, 0};                         return v; }
-template<typename T> GB_MATH_DEF gbVec3<T> gb_vec3(T x, T y, T z)   { gbVec3<T> v; v.x = x; v.y = y; v.z = z;          return v; }
-template<typename T> GB_MATH_DEF gbVec3<T> gb_vec3v(T x[3])         { gbVec3<T> v; v.x = x[0]; v.y = x[1]; v.z = x[2]; return v; }
+template<typename T> GB_MATH_DEF_TYPE gbVec3<T> gb_vec3_zero(void)       { gbVec3<T> v = {0, 0, 0};                         return v; }
+template<typename T> GB_MATH_DEF_TYPE gbVec3<T> gb_vec3(T x, T y, T z)   { gbVec3<T> v; v.x = x; v.y = y; v.z = z;          return v; }
+template<typename T> GB_MATH_DEF_TYPE gbVec3<T> gb_vec3v(T x[3])         { gbVec3<T> v; v.x = x[0]; v.y = x[1]; v.z = x[2]; return v; }
 
-template<typename T> GB_MATH_DEF gbVec4<T> gb_vec4_zero(void)           { gbVec4<T> v = {0, 0, 0, 0};                                  return v; }
-template<typename T> GB_MATH_DEF gbVec4<T> gb_vec4(T x, T y, T z, T w)  { gbVec4<T> v; v.x = x; v.y = y; v.z = z; v.w = w;             return v; }
-template<typename T> GB_MATH_DEF gbVec4<T> gb_vec4v(T x[4])             { gbVec4<T> v; v.x = x[0]; v.y = x[1]; v.z = x[2]; v.w = x[3]; return v; }
+template<typename T> GB_MATH_DEF_TYPE gbVec4<T> gb_vec4_zero(void)           { gbVec4<T> v = {0, 0, 0, 0};                                  return v; }
+template<typename T> GB_MATH_DEF_TYPE gbVec4<T> gb_vec4(T x, T y, T z, T w)  { gbVec4<T> v; v.x = x; v.y = y; v.z = z; v.w = w;             return v; }
+template<typename T> GB_MATH_DEF_TYPE gbVec4<T> gb_vec4v(T x[4])             { gbVec4<T> v; v.x = x[0]; v.y = x[1]; v.z = x[2]; v.w = x[3]; return v; }
 
 #define GB_VEC2_2OP(a,c,post)  \
     a.x =         c.x post;    \
@@ -362,42 +363,42 @@ template<typename T> GB_MATH_DEF gbVec4<T> gb_vec4v(T x[4])             { gbVec4
     a.z = b.z op c.z post;        \
     a.w = b.w op c.w post;
 
-template<typename T> GB_MATH_DEF gbVec2<T> gb_vec2_add(const gbVec2<T>& v0, const gbVec2<T>& v1){ gbVec2<T> r; GB_VEC2_3OP(r,v0,+,v1,+0); return r; }
-template<typename T> GB_MATH_DEF gbVec2<T> gb_vec2_sub(const gbVec2<T>& v0, const gbVec2<T>& v1){ gbVec2<T> r; GB_VEC2_3OP(r,v0,-,v1,+0); return r; }
-template<typename T> GB_MATH_DEF gbVec2<T> gb_vec2_add(const gbVec2<T>& v,  const T s)          { gbVec2<T> r; GB_VEC2_2OP(r,v,+ s);      return r; }
-template<typename T> GB_MATH_DEF gbVec2<T> gb_vec2_sub(const gbVec2<T>& v,  const T s)          { gbVec2<T> r; GB_VEC2_2OP(r,v,- s);      return r; }
-template<typename T> GB_MATH_DEF gbVec2<T> gb_vec2_mul(const gbVec2<T>& v,  const T s)          { gbVec2<T> r; GB_VEC2_2OP(r,v,* s);      return r; }
-template<typename T> GB_MATH_DEF gbVec2<T> gb_vec2_div(const gbVec2<T>& v,  const T s)          { gbVec2<T> r; GB_VEC2_2OP(r,v,/ s);      return r; }
+template<typename T> GB_MATH_DEF_TYPE gbVec2<T> gb_vec2_add(const gbVec2<T>& v0, const gbVec2<T>& v1){ gbVec2<T> r; GB_VEC2_3OP(r,v0,+,v1,+0); return r; }
+template<typename T> GB_MATH_DEF_TYPE gbVec2<T> gb_vec2_sub(const gbVec2<T>& v0, const gbVec2<T>& v1){ gbVec2<T> r; GB_VEC2_3OP(r,v0,-,v1,+0); return r; }
+template<typename T> GB_MATH_DEF_TYPE gbVec2<T> gb_vec2_add(const gbVec2<T>& v,  const T s)          { gbVec2<T> r; GB_VEC2_2OP(r,v,+ s);      return r; }
+template<typename T> GB_MATH_DEF_TYPE gbVec2<T> gb_vec2_sub(const gbVec2<T>& v,  const T s)          { gbVec2<T> r; GB_VEC2_2OP(r,v,- s);      return r; }
+template<typename T> GB_MATH_DEF_TYPE gbVec2<T> gb_vec2_mul(const gbVec2<T>& v,  const T s)          { gbVec2<T> r; GB_VEC2_2OP(r,v,* s);      return r; }
+template<typename T> GB_MATH_DEF_TYPE gbVec2<T> gb_vec2_div(const gbVec2<T>& v,  const T s)          { gbVec2<T> r; GB_VEC2_2OP(r,v,/ s);      return r; }
 
-template<typename T> GB_MATH_DEF gbVec3<T> gb_vec3_add(const gbVec3<T>& v0, const gbVec3<T>& v1){ gbVec3<T> r; GB_VEC3_3OP(r,v0,+,v1,+0); return r; }
-template<typename T> GB_MATH_DEF gbVec3<T> gb_vec3_sub(const gbVec3<T>& v0, const gbVec3<T>& v1){ gbVec3<T> r; GB_VEC3_3OP(r,v0,-,v1,+0); return r; }
-template<typename T> GB_MATH_DEF gbVec3<T> gb_vec3_add(const gbVec3<T>& v,  const T s)          { gbVec3<T> r; GB_VEC3_2OP(r,v,+ s);      return r; }
-template<typename T> GB_MATH_DEF gbVec3<T> gb_vec3_sub(const gbVec3<T>& v,  const T s)          { gbVec3<T> r; GB_VEC3_2OP(r,v,- s);      return r; }
-template<typename T> GB_MATH_DEF gbVec3<T> gb_vec3_mul(const gbVec3<T>& v,  const T s)          { gbVec3<T> r; GB_VEC3_2OP(r,v,* s);      return r; }
-template<typename T> GB_MATH_DEF gbVec3<T> gb_vec3_div(const gbVec3<T>& v,  const T s)          { gbVec3<T> r; GB_VEC3_2OP(r,v,/ s);      return r; }
+template<typename T> GB_MATH_DEF_TYPE gbVec3<T> gb_vec3_add(const gbVec3<T>& v0, const gbVec3<T>& v1){ gbVec3<T> r; GB_VEC3_3OP(r,v0,+,v1,+0); return r; }
+template<typename T> GB_MATH_DEF_TYPE gbVec3<T> gb_vec3_sub(const gbVec3<T>& v0, const gbVec3<T>& v1){ gbVec3<T> r; GB_VEC3_3OP(r,v0,-,v1,+0); return r; }
+template<typename T> GB_MATH_DEF_TYPE gbVec3<T> gb_vec3_add(const gbVec3<T>& v,  const T s)          { gbVec3<T> r; GB_VEC3_2OP(r,v,+ s);      return r; }
+template<typename T> GB_MATH_DEF_TYPE gbVec3<T> gb_vec3_sub(const gbVec3<T>& v,  const T s)          { gbVec3<T> r; GB_VEC3_2OP(r,v,- s);      return r; }
+template<typename T> GB_MATH_DEF_TYPE gbVec3<T> gb_vec3_mul(const gbVec3<T>& v,  const T s)          { gbVec3<T> r; GB_VEC3_2OP(r,v,* s);      return r; }
+template<typename T> GB_MATH_DEF_TYPE gbVec3<T> gb_vec3_div(const gbVec3<T>& v,  const T s)          { gbVec3<T> r; GB_VEC3_2OP(r,v,/ s);      return r; }
 
-template<typename T> GB_MATH_DEF gbVec4<T> gb_vec4_add(const gbVec4<T>& v0, const gbVec4<T>& v1){ gbVec4<T> r; GB_VEC4_3OP(r,v0,+,v1,+0); return r; }
-template<typename T> GB_MATH_DEF gbVec4<T> gb_vec4_sub(const gbVec4<T>& v0, const gbVec4<T>& v1){ gbVec4<T> r; GB_VEC4_3OP(r,v0,-,v1,+0); return r; }
-template<typename T> GB_MATH_DEF gbVec4<T> gb_vec4_add(const gbVec4<T>& v,  const T s)          { gbVec4<T> r; GB_VEC4_2OP(r,v,+ s);      return r; }
-template<typename T> GB_MATH_DEF gbVec4<T> gb_vec4_sub(const gbVec4<T>& v,  const T s)          { gbVec4<T> r; GB_VEC4_2OP(r,v,- s);      return r; }
-template<typename T> GB_MATH_DEF gbVec4<T> gb_vec4_mul(const gbVec4<T>& v,  const T s)          { gbVec4<T> r; GB_VEC4_2OP(r,v,* s);      return r; }
-template<typename T> GB_MATH_DEF gbVec4<T> gb_vec4_div(const gbVec4<T>& v,  const T s)          { gbVec4<T> r; GB_VEC4_2OP(r,v,/ s);      return r; }
+template<typename T> GB_MATH_DEF_TYPE gbVec4<T> gb_vec4_add(const gbVec4<T>& v0, const gbVec4<T>& v1){ gbVec4<T> r; GB_VEC4_3OP(r,v0,+,v1,+0); return r; }
+template<typename T> GB_MATH_DEF_TYPE gbVec4<T> gb_vec4_sub(const gbVec4<T>& v0, const gbVec4<T>& v1){ gbVec4<T> r; GB_VEC4_3OP(r,v0,-,v1,+0); return r; }
+template<typename T> GB_MATH_DEF_TYPE gbVec4<T> gb_vec4_add(const gbVec4<T>& v,  const T s)          { gbVec4<T> r; GB_VEC4_2OP(r,v,+ s);      return r; }
+template<typename T> GB_MATH_DEF_TYPE gbVec4<T> gb_vec4_sub(const gbVec4<T>& v,  const T s)          { gbVec4<T> r; GB_VEC4_2OP(r,v,- s);      return r; }
+template<typename T> GB_MATH_DEF_TYPE gbVec4<T> gb_vec4_mul(const gbVec4<T>& v,  const T s)          { gbVec4<T> r; GB_VEC4_2OP(r,v,* s);      return r; }
+template<typename T> GB_MATH_DEF_TYPE gbVec4<T> gb_vec4_div(const gbVec4<T>& v,  const T s)          { gbVec4<T> r; GB_VEC4_2OP(r,v,/ s);      return r; }
 
 
-template<typename T> GB_MATH_DEF void gb_vec2_addeq(gbVec2<T>& d, const gbVec2<T>& v)   { GB_VEC2_3OP(d,d,+,v,+0); }
-template<typename T> GB_MATH_DEF void gb_vec2_subeq(gbVec2<T>& d, const gbVec2<T>& v)   { GB_VEC2_3OP(d,d,-,v,+0); }
-template<typename T> GB_MATH_DEF void gb_vec2_muleq(gbVec2<T>& d, const T s)            { GB_VEC2_2OP(d,d,* s);    }
-template<typename T> GB_MATH_DEF void gb_vec2_diveq(gbVec2<T>& d, const T s)            { GB_VEC2_2OP(d,d,/ s);    }
+template<typename T> GB_MATH_DEF_VOID void gb_vec2_addeq(gbVec2<T>& d, const gbVec2<T>& v)   { GB_VEC2_3OP(d,d,+,v,+0); }
+template<typename T> GB_MATH_DEF_VOID void gb_vec2_subeq(gbVec2<T>& d, const gbVec2<T>& v)   { GB_VEC2_3OP(d,d,-,v,+0); }
+template<typename T> GB_MATH_DEF_VOID void gb_vec2_muleq(gbVec2<T>& d, const T s)            { GB_VEC2_2OP(d,d,* s);    }
+template<typename T> GB_MATH_DEF_VOID void gb_vec2_diveq(gbVec2<T>& d, const T s)            { GB_VEC2_2OP(d,d,/ s);    }
 
-template<typename T> GB_MATH_DEF void gb_vec3_addeq(gbVec3<T>& d, const gbVec3<T>& v)   { GB_VEC3_3OP(d,d,+,v,+0); }
-template<typename T> GB_MATH_DEF void gb_vec3_subeq(gbVec3<T>& d, const gbVec3<T>& v)   { GB_VEC3_3OP(d,d,-,v,+0); }
-template<typename T> GB_MATH_DEF void gb_vec3_muleq(gbVec3<T>& d, const T s)            { GB_VEC3_2OP(d,d,* s);    }
-template<typename T> GB_MATH_DEF void gb_vec3_diveq(gbVec3<T>& d, const T s)            { GB_VEC3_2OP(d,d,/ s);    }
+template<typename T> GB_MATH_DEF_VOID void gb_vec3_addeq(gbVec3<T>& d, const gbVec3<T>& v)   { GB_VEC3_3OP(d,d,+,v,+0); }
+template<typename T> GB_MATH_DEF_VOID void gb_vec3_subeq(gbVec3<T>& d, const gbVec3<T>& v)   { GB_VEC3_3OP(d,d,-,v,+0); }
+template<typename T> GB_MATH_DEF_VOID void gb_vec3_muleq(gbVec3<T>& d, const T s)            { GB_VEC3_2OP(d,d,* s);    }
+template<typename T> GB_MATH_DEF_VOID void gb_vec3_diveq(gbVec3<T>& d, const T s)            { GB_VEC3_2OP(d,d,/ s);    }
 
-template<typename T> GB_MATH_DEF void gb_vec4_addeq(gbVec4<T>& d, const gbVec4<T>& v)   { GB_VEC4_3OP(d,d,+,v,+0); }
-template<typename T> GB_MATH_DEF void gb_vec4_subeq(gbVec4<T>& d, const gbVec4<T>& v)   { GB_VEC4_3OP(d,d,-,v,+0); }
-template<typename T> GB_MATH_DEF void gb_vec4_muleq(gbVec4<T>& d, const T s)            { GB_VEC4_2OP(d,d,* s);    }
-template<typename T> GB_MATH_DEF void gb_vec4_diveq(gbVec4<T>& d, const T s)            { GB_VEC4_2OP(d,d,/ s);    }
+template<typename T> GB_MATH_DEF_VOID void gb_vec4_addeq(gbVec4<T>& d, const gbVec4<T>& v)   { GB_VEC4_3OP(d,d,+,v,+0); }
+template<typename T> GB_MATH_DEF_VOID void gb_vec4_subeq(gbVec4<T>& d, const gbVec4<T>& v)   { GB_VEC4_3OP(d,d,-,v,+0); }
+template<typename T> GB_MATH_DEF_VOID void gb_vec4_muleq(gbVec4<T>& d, const T s)            { GB_VEC4_2OP(d,d,* s);    }
+template<typename T> GB_MATH_DEF_VOID void gb_vec4_diveq(gbVec4<T>& d, const T s)            { GB_VEC4_2OP(d,d,/ s);    }
 
 #undef GB_VEC2_2OP
 #undef GB_VEC2_3OP
@@ -406,50 +407,50 @@ template<typename T> GB_MATH_DEF void gb_vec4_diveq(gbVec4<T>& d, const T s)    
 #undef GB_VEC4_2OP
 #undef GB_VEC4_3OP
 
-template<typename T> GB_MATH_DEF T gb_vec2_dot(const gbVec2<T>& v0, const gbVec2<T>& v1) { return v0.x*v1.x + v0.y*v1.y; }
-template<typename T> GB_MATH_DEF T gb_vec3_dot(const gbVec3<T>& v0, const gbVec3<T>& v1) { return v0.x*v1.x + v0.y*v1.y + v0.z*v1.z; }
-template<typename T> GB_MATH_DEF T gb_vec4_dot(const gbVec4<T>& v0, const gbVec4<T>& v1) { return v0.x*v1.x + v0.y*v1.y + v0.z*v1.z + v0.w*v1.w; }
+template<typename T> GB_MATH_DEF_TYPE T gb_vec2_dot(const gbVec2<T>& v0, const gbVec2<T>& v1) { return v0.x*v1.x + v0.y*v1.y; }
+template<typename T> GB_MATH_DEF_TYPE T gb_vec3_dot(const gbVec3<T>& v0, const gbVec3<T>& v1) { return v0.x*v1.x + v0.y*v1.y + v0.z*v1.z; }
+template<typename T> GB_MATH_DEF_TYPE T gb_vec4_dot(const gbVec4<T>& v0, const gbVec4<T>& v1) { return v0.x*v1.x + v0.y*v1.y + v0.z*v1.z + v0.w*v1.w; }
 
-template<typename T> GB_MATH_DEF T  gb_vec2_cross(const gbVec2<T>& v0, const gbVec2<T>& v1)  { return v0.x*v1.y - v1.x*v0.y; }
-template<typename T> GB_MATH_DEF gbVec3<T> gb_vec3_cross(const gbVec3<T>& v0, const gbVec3<T>& v1) { return { v0.y * v1.z - v0.z * v1.y,
+template<typename T> GB_MATH_DEF_TYPE T  gb_vec2_cross(const gbVec2<T>& v0, const gbVec2<T>& v1)  { return v0.x*v1.y - v1.x*v0.y; }
+template<typename T> GB_MATH_DEF_TYPE gbVec3<T> gb_vec3_cross(const gbVec3<T>& v0, const gbVec3<T>& v1) { return { v0.y * v1.z - v0.z * v1.y,
                                                                     v0.z * v1.x - v0.x * v1.z,
                                                                     v0.x * v1.y - v0.y * v1.x }; }
 
-template<typename T> GB_MATH_DEF T gb_vec2_mag2(const gbVec2<T>& v) { return gb_vec2_dot(v, v); }
-template<typename T> GB_MATH_DEF T gb_vec3_mag2(const gbVec3<T>& v) { return gb_vec3_dot(v, v); }
-template<typename T> GB_MATH_DEF T gb_vec4_mag2(const gbVec4<T>& v) { return gb_vec4_dot(v, v); }
+template<typename T> GB_MATH_DEF_TYPE T gb_vec2_mag2(const gbVec2<T>& v) { return gb_vec2_dot(v, v); }
+template<typename T> GB_MATH_DEF_TYPE T gb_vec3_mag2(const gbVec3<T>& v) { return gb_vec3_dot(v, v); }
+template<typename T> GB_MATH_DEF_TYPE T gb_vec4_mag2(const gbVec4<T>& v) { return gb_vec4_dot(v, v); }
 
 /* TODO(bill): Create custom sqrt function */
-template<typename T> GB_MATH_DEF T gb_vec2_mag(const gbVec2<T>& v) { return gb_sqrt(gb_vec2_dot(v, v)); }
-template<typename T> GB_MATH_DEF T gb_vec3_mag(const gbVec3<T>& v) { return gb_sqrt(gb_vec3_dot(v, v)); }
-template<typename T> GB_MATH_DEF T gb_vec4_mag(const gbVec4<T>& v) { return gb_sqrt(gb_vec4_dot(v, v)); }
+template<typename T> GB_MATH_DEF_TYPE T gb_vec2_mag(const gbVec2<T>& v) { return gb_sqrt(gb_vec2_dot(v, v)); }
+template<typename T> GB_MATH_DEF_TYPE T gb_vec3_mag(const gbVec3<T>& v) { return gb_sqrt(gb_vec3_dot(v, v)); }
+template<typename T> GB_MATH_DEF_TYPE T gb_vec4_mag(const gbVec4<T>& v) { return gb_sqrt(gb_vec4_dot(v, v)); }
 
-template<typename T> GB_MATH_DEF gbVec2<T> gb_vec2_norm(const gbVec2<T>& v) {
+template<typename T> GB_MATH_DEF_TYPE gbVec2<T> gb_vec2_norm(const gbVec2<T>& v) {
     T inv_mag = gb_rsqrt(gb_vec2_dot(v, v));
     return gb_vec2_mul(v, inv_mag);
 }
-template<typename T> GB_MATH_DEF gbVec3<T> gb_vec3_norm(const gbVec3<T>& v) {
+template<typename T> GB_MATH_DEF_TYPE gbVec3<T> gb_vec3_norm(const gbVec3<T>& v) {
     T mag = gb_vec3_mag(v);
     return gb_vec3_div(v, mag);
 }
-template<typename T> GB_MATH_DEF gbVec4<T> gb_vec4_norm(const gbVec4<T>& v) {
+template<typename T> GB_MATH_DEF_TYPE gbVec4<T> gb_vec4_norm(const gbVec4<T>& v) {
     T mag = gb_vec4_mag(v);
     return gb_vec4_div(v, mag);
 }
 
-template<typename T> GB_MATH_DEF gbVec2<T> gb_vec2_norm0(const gbVec2<T>& v) {
+template<typename T> GB_MATH_DEF_TYPE gbVec2<T> gb_vec2_norm0(const gbVec2<T>& v) {
     T mag = gb_vec2_mag(v);
     if (mag > 0)
         return gb_vec2_div(v, mag);
     return gb_vec2_zero<T>();
 }
-template<typename T> GB_MATH_DEF gbVec3<T> gb_vec3_norm0(const gbVec3<T>& v) {
+template<typename T> GB_MATH_DEF_TYPE gbVec3<T> gb_vec3_norm0(const gbVec3<T>& v) {
     T mag = gb_vec3_mag(v);
     if (mag > 0)
         return gb_vec3_div(v, mag);
     return gb_vec3_zero<T>();
 }
-template<typename T> GB_MATH_DEF gbVec4<T> gb_vec4_norm0(const gbVec4<T>& v) {
+template<typename T> GB_MATH_DEF_TYPE gbVec4<T> gb_vec4_norm0(const gbVec4<T>& v) {
     T mag = gb_vec4_mag(v);
     if (mag > 0)
         return gb_vec4_div(v, mag);
@@ -458,17 +459,17 @@ template<typename T> GB_MATH_DEF gbVec4<T> gb_vec4_norm0(const gbVec4<T>& v) {
 }
 
 
-template<typename T> GB_MATH_DEF gbVec2<T> gb_vec2_reflect(const gbVec2<T>& i, gbVec2<T> n) {
+template<typename T> GB_MATH_DEF_TYPE gbVec2<T> gb_vec2_reflect(const gbVec2<T>& i, gbVec2<T> n) {
     gb_vec2_muleq(n, 2.0f*gb_vec2_dot(n, i));
     return gb_vec2_sub(i, n);
 }
 
-template<typename T> GB_MATH_DEF gbVec3<T> gb_vec3_reflect(const gbVec3<T>& i, gbVec3<T> n) {
+template<typename T> GB_MATH_DEF_TYPE gbVec3<T> gb_vec3_reflect(const gbVec3<T>& i, gbVec3<T> n) {
     gb_vec3_muleq(n, 2.0f*gb_vec3_dot(n, i));
     return gb_vec3_sub(i, n);
 }
 
-template<typename T> GB_MATH_DEF gbVec2<T> gb_vec2_refract(const gbVec2<T>& i, const gbVec2<T>& n, const T eta) {
+template<typename T> GB_MATH_DEF_TYPE gbVec2<T> gb_vec2_refract(const gbVec2<T>& i, const gbVec2<T>& n, const T eta) {
     T dv = gb_vec2_dot(n, i);
     T k = 1.0f - eta*eta * (1.0f - dv*dv);
     gbVec2<T> a = gb_vec2_mul(i, eta);
@@ -478,7 +479,7 @@ template<typename T> GB_MATH_DEF gbVec2<T> gb_vec2_refract(const gbVec2<T>& i, c
     return r;
 }
 
-template<typename T> GB_MATH_DEF gbVec3<T> gb_vec3_refract(const gbVec3<T>& i, const gbVec3<T>& n, const T eta) {
+template<typename T> GB_MATH_DEF_TYPE gbVec3<T> gb_vec3_refract(const gbVec3<T>& i, const gbVec3<T>& n, const T eta) {
     T dv = gb_vec3_dot(n, i);
     T k = 1.0f - eta*eta * (1.0f - dv*dv);
     gbVec3<T> a = gb_vec3_mul(i, eta);
@@ -490,17 +491,17 @@ template<typename T> GB_MATH_DEF gbVec3<T> gb_vec3_refract(const gbVec3<T>& i, c
 
 
 
-template<typename T> GB_MATH_DEF T gb_vec2_aspect_ratio(const gbVec2<T>& v) { return (v.y < 0.0001f) ? 0.0f : v.x/v.y; }
+template<typename T> GB_MATH_DEF_TYPE T gb_vec2_aspect_ratio(const gbVec2<T>& v) { return (v.y < 0.0001f) ? 0.0f : v.x/v.y; }
 
 
 /*******
 // MAT2
 ********/
-template<typename T> GB_MATH_DEF void gb_mat2_identity(gbMat2<T>& m) {
+template<typename T> GB_MATH_DEF_VOID void gb_mat2_identity(gbMat2<T>& m) {
     m.d[0][0] = 1; m.d[0][1] = 0;
     m.d[1][0] = 0; m.d[1][1] = 1;
 }
-template<typename T> GB_MATH_DEF void gb_mat2_transpose(gbMat2<T>& mat) {
+template<typename T> GB_MATH_DEF_VOID void gb_mat2_transpose(gbMat2<T>& mat) {
     for (int j = 0; j < 2; j++) {
         for (int i = j + 1; i < 2; i++) {
             T t		= mat.d[i][j];
@@ -510,7 +511,7 @@ template<typename T> GB_MATH_DEF void gb_mat2_transpose(gbMat2<T>& mat) {
     }
 }
 
-template<typename T> GB_MATH_DEF gbMat2<T> gb_mat2_mul(const gbMat2<T>& mat1, const gbMat2<T>& mat2) {
+template<typename T> GB_MATH_DEF_TYPE gbMat2<T> gb_mat2_mul(const gbMat2<T>& mat1, const gbMat2<T>& mat2) {
     gbMat2<T> r;
     r.d[0][0] = (mat1.d[0][0] * mat2.d[0][0]) + (mat1.d[1][0] * mat2.d[0][1]);
     r.d[0][1] = (mat1.d[0][1] * mat2.d[0][0]) + (mat1.d[1][1] * mat2.d[0][1]);
@@ -519,13 +520,13 @@ template<typename T> GB_MATH_DEF gbMat2<T> gb_mat2_mul(const gbMat2<T>& mat1, co
     return r;
 }
 
-template<typename T> GB_MATH_DEF gbVec2<T> gb_mat2_mul_vec2(const gbMat2<T>& m, const gbVec2<T>& v)
+template<typename T> GB_MATH_DEF_TYPE gbVec2<T> gb_mat2_mul_vec2(const gbMat2<T>& m, const gbVec2<T>& v)
 {
     return {m.d[0][0] * v.x + m.d[0][1] * v.y,
             m.d[1][0] * v.x + m.d[1][1] * v.y };
 }
 
-template<typename T> GB_MATH_DEF gbMat2<T> gb_mat2_inverse(const gbMat2<T>& in) {
+template<typename T> GB_MATH_DEF_TYPE gbMat2<T> gb_mat2_inverse(const gbMat2<T>& in) {
     T ood = 1.0f / gb_mat2_determinate(in);
     gbMat2<T> r;
     r.d[0][0] = +in.d[1][1] * ood;
@@ -535,7 +536,7 @@ template<typename T> GB_MATH_DEF gbMat2<T> gb_mat2_inverse(const gbMat2<T>& in) 
     return r;
 }
 
-template<typename T> GB_MATH_DEF T gb_mat2_determinate(const gbMat2<T>& m) {
+template<typename T> GB_MATH_DEF_TYPE T gb_mat2_determinate(const gbMat2<T>& m) {
     return m.d[0][0]*m.d[1][1] - m.d[1][0]*m.d[0][1];
 }
 
@@ -544,13 +545,13 @@ template<typename T> GB_MATH_DEF T gb_mat2_determinate(const gbMat2<T>& m) {
 // MAT3
 ********/
 
-template<typename T> GB_MATH_DEF void gb_mat3_identity(gbMat3<T>& m)  {
+template<typename T> GB_MATH_DEF_VOID void gb_mat3_identity(gbMat3<T>& m)  {
     m.d[0][0] = 1; m.d[0][1] = 0; m.d[0][2] = 0;
     m.d[1][0] = 0; m.d[1][1] = 1; m.d[1][2] = 0;
     m.d[2][0] = 0; m.d[2][1] = 0; m.d[2][2] = 1;
 }
 
-template<typename T> GB_MATH_DEF void gb_mat3_transpose(gbMat3<T>& m) {
+template<typename T> GB_MATH_DEF_VOID void gb_mat3_transpose(gbMat3<T>& m) {
     for (int j = 0; j < 3; j++) {
         for (int i = j + 1; i < 3; i++) {
             T t = m.d[i][j];
@@ -560,7 +561,7 @@ template<typename T> GB_MATH_DEF void gb_mat3_transpose(gbMat3<T>& m) {
     }
 }
 
-template<typename T> GB_MATH_DEF gbMat3<T> gb_mat3_mul(const gbMat3<T>& m1, const gbMat3<T>& m2) {
+template<typename T> GB_MATH_DEF_TYPE gbMat3<T> gb_mat3_mul(const gbMat3<T>& m1, const gbMat3<T>& m2) {
     gbMat3<T> r;
     for (int j = 0; j < 3; j++) {
         for (int i = 0; i < 3; i++) {
@@ -572,7 +573,7 @@ template<typename T> GB_MATH_DEF gbMat3<T> gb_mat3_mul(const gbMat3<T>& m1, cons
     return r;
 }
 
-template<typename T> GB_MATH_DEF gbVec3<T> gb_mat3_mul_vec3(const gbMat3<T>& m, const gbVec3<T>& v) {
+template<typename T> GB_MATH_DEF_TYPE gbVec3<T> gb_mat3_mul_vec3(const gbMat3<T>& m, const gbVec3<T>& v) {
     gbVec3<T> r;
     r.x = m.d[0][0]*v.x + m.d[0][1]*v.y + m.d[0][2]*v.z;
     r.y = m.d[1][0]*v.x + m.d[1][1]*v.y + m.d[1][2]*v.z;
@@ -580,7 +581,7 @@ template<typename T> GB_MATH_DEF gbVec3<T> gb_mat3_mul_vec3(const gbMat3<T>& m, 
     return r;
 }
 
-template<typename T> GB_MATH_DEF gbMat3<T> gb_mat3_inverse(const gbMat3<T>& in) {
+template<typename T> GB_MATH_DEF_TYPE gbMat3<T> gb_mat3_inverse(const gbMat3<T>& in) {
     T ood = 1.0f / gb_mat3_determinate(in);
 
     gbMat3<T> r;
@@ -596,7 +597,7 @@ template<typename T> GB_MATH_DEF gbMat3<T> gb_mat3_inverse(const gbMat3<T>& in) 
     return r;
 }
 
-template<typename T> GB_MATH_DEF T gb_mat3_determinate(const gbMat3<T>& m) {
+template<typename T> GB_MATH_DEF_TYPE T gb_mat3_determinate(const gbMat3<T>& m) {
     T r = +m.d[0][0] * (m.d[1][1] * m.d[2][2] - m.d[1][2] * m.d[2][1])
               -m.d[0][1] * (m.d[1][0] * m.d[2][2] - m.d[1][2] * m.d[2][0])
               +m.d[0][2] * (m.d[1][0] * m.d[2][1] - m.d[1][1] * m.d[2][0]);
@@ -608,19 +609,19 @@ template<typename T> GB_MATH_DEF T gb_mat3_determinate(const gbMat3<T>& m) {
 // MAT4
 ********/
 
-template<typename T = float> constexpr GB_MATH_DEF gbMat4<T> gb_mat4_identity()  {
+template<typename T = float> GB_MATH_DEF_TYPE constexpr gbMat4<T> gb_mat4_identity()  {
     return { 1, 0, 0, 0,
              0, 1, 0, 0,
              0, 0, 1, 0,
              0, 0, 0, 1 };
 }
-template<typename T> GB_MATH_DEF void gb_mat4_identity(gbMat4<T>& m)  {
+template<typename T> GB_MATH_DEF_VOID void gb_mat4_identity(gbMat4<T>& m)  {
     m.d[0][0] = 1; m.d[0][1] = 0; m.d[0][2] = 0; m.d[0][3] = 0;
     m.d[1][0] = 0; m.d[1][1] = 1; m.d[1][2] = 0; m.d[1][3] = 0;
     m.d[2][0] = 0; m.d[2][1] = 0; m.d[2][2] = 1; m.d[2][3] = 0;
     m.d[3][0] = 0; m.d[3][1] = 0; m.d[3][2] = 0; m.d[3][3] = 1;
 }
-template<typename T> GB_MATH_DEF void gb_mat4_transpose(gbMat4<T>& m) {
+template<typename T> GB_MATH_DEF_VOID void gb_mat4_transpose(gbMat4<T>& m) {
     T tmp;
     tmp = m.d[1][0]; m.d[1][0] = m.d[0][1]; m.d[0][1] = tmp;
     tmp = m.d[2][0]; m.d[2][0] = m.d[0][2]; m.d[0][2] = tmp;
@@ -629,7 +630,7 @@ template<typename T> GB_MATH_DEF void gb_mat4_transpose(gbMat4<T>& m) {
     tmp = m.d[3][1]; m.d[3][1] = m.d[1][3]; m.d[1][3] = tmp;
     tmp = m.d[3][2]; m.d[3][2] = m.d[2][3]; m.d[2][3] = tmp;
 }
-template<typename T> GB_MATH_DEF gbMat4<T> gb_mat4_mul(const gbMat4<T>& m1, const gbMat4<T>& m2) {
+template<typename T> GB_MATH_DEF_TYPE gbMat4<T> gb_mat4_mul(const gbMat4<T>& m1, const gbMat4<T>& m2) {
     gbMat4<T> r;
     for (int j = 0; j < 4; j++) {
         for (int i = 0; i < 4; i++) {
@@ -643,7 +644,7 @@ template<typename T> GB_MATH_DEF gbMat4<T> gb_mat4_mul(const gbMat4<T>& m1, cons
 }
 
 
-template<typename T> GB_MATH_DEF gbVec4<T> gb_mat4_mul_vec4(const gbMat4<T>& m, const gbVec4<T>& v) {
+template<typename T> GB_MATH_DEF_TYPE gbVec4<T> gb_mat4_mul_vec4(const gbMat4<T>& m, const gbVec4<T>& v) {
     gbVec4<T> r;
     r.x = m.d[0][0]*v.x + m.d[1][0]*v.y + m.d[2][0]*v.z + m.d[3][0]*v.w;
     r.y = m.d[0][1]*v.x + m.d[1][1]*v.y + m.d[2][1]*v.z + m.d[3][1]*v.w;
@@ -655,7 +656,7 @@ template<typename T> GB_MATH_DEF gbVec4<T> gb_mat4_mul_vec4(const gbMat4<T>& m, 
 
 
 
-template<typename T> GB_MATH_DEF gbMat4<T> gb_mat4_inverse(const gbMat4<T>& m) {
+template<typename T> GB_MATH_DEF_TYPE gbMat4<T> gb_mat4_inverse(const gbMat4<T>& m) {
     T sf00 = m.d[2][2] * m.d[3][3] - m.d[3][2] * m.d[2][3];
     T sf01 = m.d[2][1] * m.d[3][3] - m.d[3][1] * m.d[2][3];
     T sf02 = m.d[2][1] * m.d[3][2] - m.d[3][1] * m.d[2][2];
@@ -727,7 +728,7 @@ template<typename T> GB_MATH_DEF gbMat4<T> gb_mat4_inverse(const gbMat4<T>& m) {
 
 
 
-template<typename T> GB_MATH_DEF gbMat4<T> gb_mat4_translate(const gbVec3<T>& v) {
+template<typename T> GB_MATH_DEF_TYPE gbMat4<T> gb_mat4_translate(const gbVec3<T>& v) {
     gbMat4<T> r;
     gb_mat4_identity(r);
     gb_mat4_translate(v, r);
@@ -739,7 +740,7 @@ template<typename T> void gb_mat4_translate(const gbVec3<T>& v, gbMat4<T>& m) {
     m.col[3].w  = 1;
 }
 
-template<typename T> GB_MATH_DEF gbMat4<T> gb_mat4_rotate(const gbVec3<T>& v, const T angle_radians) {
+template<typename T> GB_MATH_DEF_TYPE gbMat4<T> gb_mat4_rotate(const gbVec3<T>& v, const T angle_radians) {
     T c = gb_cos(angle_radians);
     T s = gb_sin(angle_radians);
 
@@ -766,7 +767,7 @@ template<typename T> GB_MATH_DEF gbMat4<T> gb_mat4_rotate(const gbVec3<T>& v, co
     return r;
 }
 
-template<typename T> GB_MATH_DEF gbMat4<T> gb_mat4_scale(const gbVec3<T>& v) {
+template<typename T> GB_MATH_DEF_TYPE gbMat4<T> gb_mat4_scale(const gbVec3<T>& v) {
     gbMat4<T> r;
     gb_mat4_identity(r);
     r.e[0]  = v.x;
@@ -775,7 +776,7 @@ template<typename T> GB_MATH_DEF gbMat4<T> gb_mat4_scale(const gbVec3<T>& v) {
     return r;
 }
 
-template<typename T> GB_MATH_DEF gbMat4<T> gb_mat4_scalef(const T s) {
+template<typename T> GB_MATH_DEF_TYPE gbMat4<T> gb_mat4_scalef(const T s) {
     gbMat4<T> r;
     gb_mat4_identity(r);
     r.e[0]  = s;
@@ -785,7 +786,7 @@ template<typename T> GB_MATH_DEF gbMat4<T> gb_mat4_scalef(const T s) {
 }
 
 
-template<typename T> GB_MATH_DEF gbMat4<T> gb_mat4_ortho2d(const T left, const T right, const T bottom, const T top) {
+template<typename T> GB_MATH_DEF_TYPE gbMat4<T> gb_mat4_ortho2d(const T left, const T right, const T bottom, const T top) {
     gbMat4<T> r;
     gb_mat4_identity(r);
 
@@ -797,7 +798,7 @@ template<typename T> GB_MATH_DEF gbMat4<T> gb_mat4_ortho2d(const T left, const T
     return r;
 }
 
-template<typename T> GB_MATH_DEF gbMat4<T> gb_mat4_ortho3d_opengl_rh(const T left, const T right, const T bottom, const T top, const T z_near, const T z_far) {
+template<typename T> GB_MATH_DEF_TYPE gbMat4<T> gb_mat4_ortho3d_opengl_rh(const T left, const T right, const T bottom, const T top, const T z_near, const T z_far) {
     gbMat4<T> r;
     gb_mat4_identity(r);
     r.d[0][0] = +2.0f / (right - left);
@@ -809,7 +810,7 @@ template<typename T> GB_MATH_DEF gbMat4<T> gb_mat4_ortho3d_opengl_rh(const T lef
     return r;
 }
 
-template<typename T> GB_MATH_DEF void gb_mat4_from_mine_to_dx_lh(gbMat4<T>& v)
+template<typename T> GB_MATH_DEF_VOID void gb_mat4_from_mine_to_dx_lh(gbMat4<T>& v)
 {
     //Mine RH:
     //x+ forward
@@ -827,7 +828,7 @@ template<typename T> GB_MATH_DEF void gb_mat4_from_mine_to_dx_lh(gbMat4<T>& v)
     v.y = up;
     v.z = forward;
 }
-template<typename T> GB_MATH_DEF gbMat4<T> gb_mat4_ortho3d_directx_rh(const T left, const T right, const T bottom, const T top, const T z_near, const T z_far)
+template<typename T> GB_MATH_DEF_TYPE gbMat4<T> gb_mat4_ortho3d_directx_rh(const T left, const T right, const T bottom, const T top, const T z_near, const T z_far)
 {
     gbMat4<T> r;
     gb_mat4_identity(r);
@@ -844,7 +845,7 @@ template<typename T> GB_MATH_DEF gbMat4<T> gb_mat4_ortho3d_directx_rh(const T le
 }
 
 
-template<typename T> GB_MATH_DEF gbMat4<T> gb_mat4_perspective_opengl_rh(const T fovy, const T aspect, const T z_near, const T z_far) {
+template<typename T> GB_MATH_DEF_TYPE gbMat4<T> gb_mat4_perspective_opengl_rh(const T fovy, const T aspect, const T z_near, const T z_far) {
     T tan_half_fovy = gb_tan(0.5f * fovy);
     gbMat4<T> r = {0};
 
@@ -856,7 +857,7 @@ template<typename T> GB_MATH_DEF gbMat4<T> gb_mat4_perspective_opengl_rh(const T
     return r;
 }
 
-template <typename T> GB_MATH_DEF gbMat4<T> gb_mat4_perspective_directx_rh(T fovy, T aspect, T z_near, T z_far) {
+template <typename T> GB_MATH_DEF_TYPE gbMat4<T> gb_mat4_perspective_directx_rh(T fovy, T aspect, T z_near, T z_far) {
     T tan_half_fovy = gb_tan(0.5f * fovy);
     gbMat4<T> out = {};
     float yscale = 1.0f / tan_half_fovy;
@@ -868,7 +869,7 @@ template <typename T> GB_MATH_DEF gbMat4<T> gb_mat4_perspective_directx_rh(T fov
     return out;
 }
 
-template <typename T> GB_MATH_DEF gbMat4<T> gb_mat4_perspective_directx_lh(T fovy, T aspect, T z_near, T z_far) {
+template <typename T> GB_MATH_DEF_TYPE gbMat4<T> gb_mat4_perspective_directx_lh(T fovy, T aspect, T z_near, T z_far) {
     T tan_half_fovy = gb_tan(0.5f * fovy);
     gbMat4<T> out = {};
     float yscale = 1.0f / tan_half_fovy;
@@ -880,7 +881,7 @@ template <typename T> GB_MATH_DEF gbMat4<T> gb_mat4_perspective_directx_lh(T fov
     return out;
 }
 
-template<typename T> GB_MATH_DEF gbMat4<T> gb_mat4_infinite_perspective(const T fovy, const T aspect, const T z_near) {
+template<typename T> GB_MATH_DEF_TYPE gbMat4<T> gb_mat4_infinite_perspective(const T fovy, const T aspect, const T z_near) {
     T range  = gb_tan(0.5f * fovy) * z_near;
     T left   = -range * aspect;
     T right  =  range * aspect;
@@ -896,7 +897,7 @@ template<typename T> GB_MATH_DEF gbMat4<T> gb_mat4_infinite_perspective(const T 
     return r;
 }
 
-template<typename T> GB_MATH_DEF gbMat4<T> gb_mat4_look_at(const gbVec3<T>& eye, const gbVec3<T>& centre, const gbVec3<T>& up) {
+template<typename T> GB_MATH_DEF_TYPE gbMat4<T> gb_mat4_look_at(const gbVec3<T>& eye, const gbVec3<T>& centre, const gbVec3<T>& up) {
     gbVec3<T> f = gb_vec3_sub(centre, eye);
     f = gb_vec3_norm(f);
 
@@ -931,17 +932,17 @@ template<typename T> GB_MATH_DEF gbMat4<T> gb_mat4_look_at(const gbVec3<T>& eye,
 // QUAT
 ********/
 
-template<typename T> GB_MATH_DEF gbQuat<T> gb_quat(const T x, const T y, const T z, const T w)
+template<typename T> GB_MATH_DEF_TYPE gbQuat<T> gb_quat(const T x, const T y, const T z, const T w)
 { gbQuat<T> q; q.x = x; q.y = y; q.z = z; q.w = w; return q; }
 
-template<typename T> GB_MATH_DEF gbQuat<T> gb_quat_axis_angle(const gbVec3<T>& axis, const T angle_radians) {
+template<typename T> GB_MATH_DEF_TYPE gbQuat<T> gb_quat_axis_angle(const gbVec3<T>& axis, const T angle_radians) {
     gbQuat<T> q;
     q.xyz = gb_vec3_norm(axis) * gb_sin(0.5f * angle_radians);
     q.w = gb_cos(0.5f * angle_radians);
     return q;
 }
 
-template<typename T> GB_MATH_DEF gbQuat<T> gb_quat_euler_angles(T pitch, T yaw, T roll) {
+template<typename T> GB_MATH_DEF_TYPE gbQuat<T> gb_quat_euler_angles(T pitch, T yaw, T roll) {
     /* TODO(bill): Do without multiplication, i.e. make it faster */
     gbQuat<T> p = gb_quat_axis_angle(gb_vec3(0.0f,-1.0f, 0.0f), pitch);
     gbQuat<T> y = gb_quat_axis_angle(gb_vec3(0.0f, 0.0f, 1.0f), yaw);
@@ -953,11 +954,11 @@ template<typename T> GB_MATH_DEF gbQuat<T> gb_quat_euler_angles(T pitch, T yaw, 
     return q;
 }
 
-template<typename T = float> GB_MATH_DEF gbQuat<T> gb_quat_identity(void) { gbQuat<T> q = {0, 0, 0, 1}; return q; }
+template<typename T = float> GB_MATH_DEF_TYPE gbQuat<T> gb_quat_identity(void) { gbQuat<T> q = {0, 0, 0, 1}; return q; }
 
-template<typename T> GB_MATH_DEF gbQuat<T> gb_quat_add(const gbQuat<T>& q0, const gbQuat<T>& q1) { gbQuat<T> r; r.xyzw = gb_vec4_add(q0.xyzw, q1.xyzw); return r; }
-template<typename T> GB_MATH_DEF gbQuat<T> gb_quat_sub(const gbQuat<T>& q0, const gbQuat<T>& q1) { gbQuat<T> r; r.xyzw = gb_vec4_sub(q0.xyzw, q1.xyzw); return r; }
-template<typename T> GB_MATH_DEF gbQuat<T> gb_quat_mul(const gbQuat<T>& q0, const gbQuat<T>& q1) {
+template<typename T> GB_MATH_DEF_TYPE gbQuat<T> gb_quat_add(const gbQuat<T>& q0, const gbQuat<T>& q1) { gbQuat<T> r; r.xyzw = gb_vec4_add(q0.xyzw, q1.xyzw); return r; }
+template<typename T> GB_MATH_DEF_TYPE gbQuat<T> gb_quat_sub(const gbQuat<T>& q0, const gbQuat<T>& q1) { gbQuat<T> r; r.xyzw = gb_vec4_sub(q0.xyzw, q1.xyzw); return r; }
+template<typename T> GB_MATH_DEF_TYPE gbQuat<T> gb_quat_mul(const gbQuat<T>& q0, const gbQuat<T>& q1) {
     gbQuat<T> d;
     d.x = q0.w * q1.x + q0.x * q1.w + q0.y * q1.z - q0.z * q1.y;
     d.y = q0.w * q1.y - q0.x * q1.z + q0.y * q1.w + q0.z * q1.x;
@@ -965,40 +966,40 @@ template<typename T> GB_MATH_DEF gbQuat<T> gb_quat_mul(const gbQuat<T>& q0, cons
     d.w = q0.w * q1.w - q0.x * q1.x - q0.y * q1.y - q0.z * q1.z;
     return d;
 }
-template<typename T> GB_MATH_DEF gbQuat<T> gb_quat_div(const gbQuat<T>& q0, const gbQuat<T>& q1){ return gb_quat_mul(q0, gb_quat_inverse(q1)); }
-template<typename T> GB_MATH_DEF gbQuat<T> gb_quat_mulf(const gbQuat<T>& q0, const T s) { gbQuat<T> r; r.xyzw = gb_vec4_mul(q0.xyzw, s); return r; }
-template<typename T> GB_MATH_DEF gbQuat<T> gb_quat_divf(const gbQuat<T>& q0, const T s) { gbQuat<T> r; r.xyzw = gb_vec4_div(q0.xyzw, s); return r; }
+template<typename T> GB_MATH_DEF_TYPE gbQuat<T> gb_quat_div(const gbQuat<T>& q0, const gbQuat<T>& q1){ return gb_quat_mul(q0, gb_quat_inverse(q1)); }
+template<typename T> GB_MATH_DEF_TYPE gbQuat<T> gb_quat_mulf(const gbQuat<T>& q0, const T s) { gbQuat<T> r; r.xyzw = gb_vec4_mul(q0.xyzw, s); return r; }
+template<typename T> GB_MATH_DEF_TYPE gbQuat<T> gb_quat_divf(const gbQuat<T>& q0, const T s) { gbQuat<T> r; r.xyzw = gb_vec4_div(q0.xyzw, s); return r; }
 
-template<typename T> GB_MATH_DEF void gb_quat_addeq(gbQuat<T>& d, const gbQuat<T>& q) { gb_vec4_addeq(d.xyzw, q.xyzw); }
-template<typename T> GB_MATH_DEF void gb_quat_subeq(gbQuat<T>& d, const gbQuat<T>& q) { gb_vec4_subeq(d.xyzw, q.xyzw); }
-template<typename T> GB_MATH_DEF void gb_quat_muleq(gbQuat<T>& d, const gbQuat<T>& q) { d = gb_quat_mul(d, q); }
-template<typename T> GB_MATH_DEF void gb_quat_diveq(gbQuat<T>& d, const gbQuat<T>& q) { d = gb_quat_div(d, q); }
+template<typename T> GB_MATH_DEF_VOID void gb_quat_addeq(gbQuat<T>& d, const gbQuat<T>& q) { gb_vec4_addeq(d.xyzw, q.xyzw); }
+template<typename T> GB_MATH_DEF_VOID void gb_quat_subeq(gbQuat<T>& d, const gbQuat<T>& q) { gb_vec4_subeq(d.xyzw, q.xyzw); }
+template<typename T> GB_MATH_DEF_VOID void gb_quat_muleq(gbQuat<T>& d, const gbQuat<T>& q) { d = gb_quat_mul(d, q); }
+template<typename T> GB_MATH_DEF_VOID void gb_quat_diveq(gbQuat<T>& d, const gbQuat<T>& q) { d = gb_quat_div(d, q); }
 
-template<typename T> GB_MATH_DEF void gb_quat_muleqf(gbQuat<T>& d, const T s) { gb_vec4_muleq(d.xyzw, s); }
-template<typename T> GB_MATH_DEF void gb_quat_diveqf(gbQuat<T>& d, const T s) { gb_vec4_diveq(d.xyzw, s); }
+template<typename T> GB_MATH_DEF_VOID void gb_quat_muleqf(gbQuat<T>& d, const T s) { gb_vec4_muleq(d.xyzw, s); }
+template<typename T> GB_MATH_DEF_VOID void gb_quat_diveqf(gbQuat<T>& d, const T s) { gb_vec4_diveq(d.xyzw, s); }
 
-template<typename T> GB_MATH_DEF T gb_quat_dot(const gbQuat<T>& q0, const gbQuat<T>& q1) { return gb_vec3_dot(q0.xyz, q1.xyz) + q0.w*q1.w; }
-template<typename T> GB_MATH_DEF T gb_quat_mag(const gbQuat<T>& q)                       { return gb_sqrt(gb_quat_dot(q, q)); }
+template<typename T> GB_MATH_DEF_TYPE T gb_quat_dot(const gbQuat<T>& q0, const gbQuat<T>& q1) { return gb_vec3_dot(q0.xyz, q1.xyz) + q0.w*q1.w; }
+template<typename T> GB_MATH_DEF_TYPE T gb_quat_mag(const gbQuat<T>& q)                       { return gb_sqrt(gb_quat_dot(q, q)); }
 
-template<typename T> GB_MATH_DEF gbQuat<T> gb_quat_norm(const gbQuat<T>& q)    { return gb_quat_divf(q, gb_quat_mag(q)); }
-template<typename T> GB_MATH_DEF gbQuat<T> gb_quat_conj(const gbQuat<T>& q)    { return { -q.x, -q.y, -q.z, q.w }; }
-template<typename T> GB_MATH_DEF gbQuat<T> gb_quat_inverse(const gbQuat<T>& q) { gbQuat<T> r = gb_quat_conj(q); gb_quat_diveqf(r, gb_quat_dot(q, q)); return r; }
+template<typename T> GB_MATH_DEF_TYPE gbQuat<T> gb_quat_norm(const gbQuat<T>& q)    { return gb_quat_divf(q, gb_quat_mag(q)); }
+template<typename T> GB_MATH_DEF_TYPE gbQuat<T> gb_quat_conj(const gbQuat<T>& q)    { return { -q.x, -q.y, -q.z, q.w }; }
+template<typename T> GB_MATH_DEF_TYPE gbQuat<T> gb_quat_inverse(const gbQuat<T>& q) { gbQuat<T> r = gb_quat_conj(q); gb_quat_diveqf(r, gb_quat_dot(q, q)); return r; }
 
-template<typename T> GB_MATH_DEF gbVec3<T> gb_quat_axis(const gbQuat<T>& q) { return gb_vec3_div(gb_quat_norm(q).xyz, gb_sin(gb_arccos(q.w))); }
+template<typename T> GB_MATH_DEF_TYPE gbVec3<T> gb_quat_axis(const gbQuat<T>& q) { return gb_vec3_div(gb_quat_norm(q).xyz, gb_sin(gb_arccos(q.w))); }
 template<typename T>
-GB_MATH_DEF T gb_quat_angle(const gbQuat<T>& q) {
+GB_MATH_DEF_TYPE T gb_quat_angle(const gbQuat<T>& q) {
     T mag = gb_quat_mag(q);
     T c = q.w * (1.0f/mag);
     T angle = 2.0f*gb_arccos(c);
     return angle;
 }
 
-template<typename T> GB_MATH_DEF T gb_quat_pitch(const gbQuat<T>& q) { return gb_arctan2(2.0f*q.y*q.z + q.w*q.x, q.w*q.w - q.x*q.x - q.y*q.y + q.z*q.z); }
-template<typename T> GB_MATH_DEF T gb_quat_yaw  (const gbQuat<T>& q) { return gb_arcsin(-2.0f*(q.x*q.z - q.w*q.y)); }
-template<typename T> GB_MATH_DEF T gb_quat_roll (const gbQuat<T>& q) { return gb_arctan2(2.0f*q.x*q.y + q.z*q.w, q.x*q.x + q.w*q.w - q.y*q.y - q.z*q.z); }
+template<typename T> GB_MATH_DEF_TYPE T gb_quat_pitch(const gbQuat<T>& q) { return gb_arctan2(2.0f*q.y*q.z + q.w*q.x, q.w*q.w - q.x*q.x - q.y*q.y + q.z*q.z); }
+template<typename T> GB_MATH_DEF_TYPE T gb_quat_yaw  (const gbQuat<T>& q) { return gb_arcsin(-2.0f*(q.x*q.z - q.w*q.y)); }
+template<typename T> GB_MATH_DEF_TYPE T gb_quat_roll (const gbQuat<T>& q) { return gb_arctan2(2.0f*q.x*q.y + q.z*q.w, q.x*q.x + q.w*q.w - q.y*q.y - q.z*q.z); }
 
 /* NOTE(bill): Rotate v by q */
-template<typename T> GB_MATH_DEF gbVec3<T> gb_quat_rotate_vec3(const gbQuat<T>& q, const gbVec3<T>& v) {
+template<typename T> GB_MATH_DEF_TYPE gbVec3<T> gb_quat_rotate_vec3(const gbQuat<T>& q, const gbVec3<T>& v) {
     /* gbVec3<T> t = 2.0f * cross(q.xyz, v);
      * *d = q.w*t + v + cross(q.xyz, t);
      */
@@ -1013,7 +1014,7 @@ template<typename T> GB_MATH_DEF gbVec3<T> gb_quat_rotate_vec3(const gbQuat<T>& 
     return r;
 }
 
-template<typename T> GB_MATH_DEF gbMat3<T> gb_mat3_from_quat(const gbQuat<T>& q) {
+template<typename T> GB_MATH_DEF_TYPE gbMat3<T> gb_mat3_from_quat(const gbQuat<T>& q) {
     T xx, yy, zz,
       xy, xz, yz,
       wx, wy, wz;
@@ -1038,7 +1039,7 @@ template<typename T> GB_MATH_DEF gbMat3<T> gb_mat3_from_quat(const gbQuat<T>& q)
     return r;
 }
 
-template<typename T> GB_MATH_DEF gbMat4<T> gb_mat4_from_quat(const gbQuat<T>& q) {
+template<typename T> GB_MATH_DEF_TYPE gbMat4<T> gb_mat4_from_quat(const gbQuat<T>& q) {
     gbMat3<T> r3 = gb_mat3_from_quat(q);
     gbMat4<T> r;
     r.x = ToVec4(r3.x, 0);
@@ -1048,7 +1049,7 @@ template<typename T> GB_MATH_DEF gbMat4<T> gb_mat4_from_quat(const gbQuat<T>& q)
     return r;
 }
 
-template<typename T> GB_MATH_DEF gbQuat<T> gb_quat_from_mat3(const gbMat3<T>& m) {
+template<typename T> GB_MATH_DEF_TYPE gbQuat<T> gb_quat_from_mat3(const gbMat3<T>& m) {
     int biggest_index = 0;
 
     T four_x_squared_minus_1 = m.d[0][0] - m.d[1][1] - m.d[2][2];
@@ -1106,7 +1107,7 @@ template<typename T> GB_MATH_DEF gbQuat<T> gb_quat_from_mat3(const gbMat3<T>& m)
     }
     return r;
 }
-template<typename T> GB_MATH_DEF gbQuat<T> gb_quat_from_mat4(const gbMat4<T>& m) {
+template<typename T> GB_MATH_DEF_TYPE gbQuat<T> gb_quat_from_mat4(const gbMat4<T>& m) {
     return gb_quat_from_mat3(ToMat3(m));
 }
 
@@ -1118,20 +1119,20 @@ template<typename T> GB_MATH_DEF gbQuat<T> gb_quat_from_mat4(const gbMat4<T>& m)
 // INTERPOLATIONS
 ********/
 
-template<typename T> GB_MATH_DEF T gb_lerp         (const T a, const T b, const T t) { return a*(1.0f-t) + b*t; }
-template<typename T> GB_MATH_DEF T gb_unlerp       (const T t, const T a, const T b) { return (t-a)/(b-a); }
-template<typename T> GB_MATH_DEF T gb_smooth_step  (const T a, const T b, const T t) { T x = (t - a)/(b - a); return x*x*(3.0f - 2.0f*x); }
-template<typename T> GB_MATH_DEF T gb_smoother_step(const T a, const T b, const T t) { T x = (t - a)/(b - a); return x*x*x*(x*(6.0f*x - 15.0f) + 10.0f); }
+template<typename T> GB_MATH_DEF_TYPE T gb_lerp         (const T a, const T b, const T t) { return a*(1.0f-t) + b*t; }
+template<typename T> GB_MATH_DEF_TYPE T gb_unlerp       (const T t, const T a, const T b) { return (t-a)/(b-a); }
+template<typename T> GB_MATH_DEF_TYPE T gb_smooth_step  (const T a, const T b, const T t) { T x = (t - a)/(b - a); return x*x*(3.0f - 2.0f*x); }
+template<typename T> GB_MATH_DEF_TYPE T gb_smoother_step(const T a, const T b, const T t) { T x = (t - a)/(b - a); return x*x*x*(x*(6.0f*x - 15.0f) + 10.0f); }
 
 #define GB_LERP_SCOPE(a, b, t) a + (b - a) * t
-template<typename T> GB_MATH_DEF gbVec2<T> gb_vec2_lerp(const gbVec2<T>& a, const gbVec2<T>& b, const T t) { return GB_LERP_SCOPE(a, b, t); }
-template<typename T> GB_MATH_DEF gbVec3<T> gb_vec3_lerp(const gbVec3<T>& a, const gbVec3<T>& b, const T t) { return GB_LERP_SCOPE(a, b, t); }
-template<typename T> GB_MATH_DEF gbVec4<T> gb_vec4_lerp(const gbVec4<T>& a, const gbVec4<T>& b, const T t) { return GB_LERP_SCOPE(a, b, t); }
-template<typename T> GB_MATH_DEF gbQuat<T> gb_quat_lerp(const gbQuat<T>& a, const gbQuat<T>& b, const T t) { return GB_LERP_SCOPE(a, b, t); }
+template<typename T> GB_MATH_DEF_TYPE gbVec2<T> gb_vec2_lerp(const gbVec2<T>& a, const gbVec2<T>& b, const T t) { return GB_LERP_SCOPE(a, b, t); }
+template<typename T> GB_MATH_DEF_TYPE gbVec3<T> gb_vec3_lerp(const gbVec3<T>& a, const gbVec3<T>& b, const T t) { return GB_LERP_SCOPE(a, b, t); }
+template<typename T> GB_MATH_DEF_TYPE gbVec4<T> gb_vec4_lerp(const gbVec4<T>& a, const gbVec4<T>& b, const T t) { return GB_LERP_SCOPE(a, b, t); }
+template<typename T> GB_MATH_DEF_TYPE gbQuat<T> gb_quat_lerp(const gbQuat<T>& a, const gbQuat<T>& b, const T t) { return GB_LERP_SCOPE(a, b, t); }
 #undef GB_LERP_SCOPE
 
-template<typename T> GB_MATH_DEF gbQuat<T> gb_quat_nlerp(const gbQuat<T>& a, const gbQuat<T>& b, const T t) { return gb_quat_norm(gb_quat_lerp(a, b, t)); }
-template<typename T> GB_MATH_DEF gbQuat<T> gb_quat_slerp(const gbQuat<T>& a, const gbQuat<T>& b, const T t) {
+template<typename T> GB_MATH_DEF_TYPE gbQuat<T> gb_quat_nlerp(const gbQuat<T>& a, const gbQuat<T>& b, const T t) { return gb_quat_norm(gb_quat_lerp(a, b, t)); }
+template<typename T> GB_MATH_DEF_TYPE gbQuat<T> gb_quat_slerp(const gbQuat<T>& a, const gbQuat<T>& b, const T t) {
     gbQuat<T> z = b;
     T cos_theta = gb_quat_dot(a, b);
 
@@ -1158,7 +1159,7 @@ template<typename T> GB_MATH_DEF gbQuat<T> gb_quat_slerp(const gbQuat<T>& a, con
     return r;
 }
 
-template<typename T> GB_MATH_DEF gbQuat<T> gb_quat_slerp_approx(const gbQuat<T>& a, const gbQuat<T>& b, const T t) {
+template<typename T> GB_MATH_DEF_TYPE gbQuat<T> gb_quat_slerp_approx(const gbQuat<T>& a, const gbQuat<T>& b, const T t) {
     /* NOTE(bill): Derived by taylor expanding the geometric interpolation equation
      *             Even works okay for nearly anti-parallel versors!!!
      */
@@ -1168,21 +1169,21 @@ template<typename T> GB_MATH_DEF gbQuat<T> gb_quat_slerp_approx(const gbQuat<T>&
 }
 
 template<typename T>
-GB_MATH_DEF gbQuat<T>  gb_quat_nquad(const gbQuat<T>& p, const gbQuat<T>& a, const gbQuat<T>& b, const gbQuat<T>& q, const T t) {
+GB_MATH_DEF_TYPE gbQuat<T>  gb_quat_nquad(const gbQuat<T>& p, const gbQuat<T>& a, const gbQuat<T>& b, const gbQuat<T>& q, const T t) {
     gbQuat<T> x = gb_quat_nlerp(p, q, t);
     gbQuat<T> y = gb_quat_nlerp(a, b, t);
     return gb_quat_nlerp(x, y, 2.0f*t*(1.0f-t));
 }
 
 template<typename T>
-GB_MATH_DEF gbQuat<T> gb_quat_squad(const gbQuat<T>& p, const gbQuat<T>& a, const gbQuat<T>& b, const gbQuat<T>& q, const T t) {
+GB_MATH_DEF_TYPE gbQuat<T> gb_quat_squad(const gbQuat<T>& p, const gbQuat<T>& a, const gbQuat<T>& b, const gbQuat<T>& q, const T t) {
     gbQuat<T> x = gb_quat_slerp(p, q, t);
     gbQuat<T> y = gb_quat_slerp(a, b, t);
     return gb_quat_slerp(x, y, 2.0f*t*(1.0f-t));
 }
 
 template<typename T>
-GB_MATH_DEF gbQuat<T> gb_quat_squad_approx(const gbQuat<T>& p, const gbQuat<T>& a, const gbQuat<T>& b, const gbQuat<T>& q, const T t) {
+GB_MATH_DEF_TYPE gbQuat<T> gb_quat_squad_approx(const gbQuat<T>& p, const gbQuat<T>& a, const gbQuat<T>& b, const gbQuat<T>& q, const T t) {
     gbQuat<T> x = gb_quat_slerp_approx(p, q, t);
     gbQuat<T> y = gb_quat_slerp_approx(a, b, t);
     return gb_quat_slerp_approx(x, y, 2.0f*t*(1.0f-t));
@@ -1195,7 +1196,7 @@ GB_MATH_DEF gbQuat<T> gb_quat_squad_approx(const gbQuat<T>& p, const gbQuat<T>& 
 ********/
 
 template<typename T>
-GB_MATH_DEF gbRect2<T> gb_rect2(const gbVec2<T>& pos, const gbVec2<T>& dim) {
+GB_MATH_DEF_TYPE gbRect2<T> gb_rect2(const gbVec2<T>& pos, const gbVec2<T>& dim) {
     gbRect2<T> r;
     r.pos = pos;
     r.dim = dim;
@@ -1203,14 +1204,14 @@ GB_MATH_DEF gbRect2<T> gb_rect2(const gbVec2<T>& pos, const gbVec2<T>& dim) {
 }
 
 template<typename T>
-GB_MATH_DEF gbRect3<T> gb_rect3(const gbVec3<T>& pos, const gbVec3<T>& dim) {
+GB_MATH_DEF_TYPE gbRect3<T> gb_rect3(const gbVec3<T>& pos, const gbVec3<T>& dim) {
     gbRect3<T> r;
     r.pos = pos;
     r.dim = dim;
     return r;
 }
 
-template<typename T> GB_MATH_DEF int gb_rect2_contains(const gbRect2<T>& a, const T x, const T y) {
+template<typename T> GB_MATH_DEF_TYPE int gb_rect2_contains(const gbRect2<T>& a, const T x, const T y) {
     T min_x = gb_min(a.pos.x, a.pos.x+a.dim.x);
     T max_x = gb_max(a.pos.x, a.pos.x+a.dim.x);
     T min_y = gb_min(a.pos.y, a.pos.y+a.dim.y);
@@ -1220,16 +1221,16 @@ template<typename T> GB_MATH_DEF int gb_rect2_contains(const gbRect2<T>& a, cons
 }
 
 template<typename T>
-GB_MATH_DEF int gb_rect2_contains_vec2(const gbRect2<T>& a, const gbVec2<T>& p) { return gb_rect2_contains(a, p.x, p.y); }
+GB_MATH_DEF_TYPE int gb_rect2_contains_vec2(const gbRect2<T>& a, const gbVec2<T>& p) { return gb_rect2_contains(a, p.x, p.y); }
 
 template<typename T>
-GB_MATH_DEF int gb_rect2_intersects(const gbRect2<T>& a, const gbRect2<T>& b) {
+GB_MATH_DEF_TYPE int gb_rect2_intersects(const gbRect2<T>& a, const gbRect2<T>& b) {
     gbRect2<T> r = {0};
     return gb_rect2_intersection_result(a, b, r);
 }
 
 template<typename T>
-GB_MATH_DEF int gb_rect2_intersection_result(const gbRect2<T>& a, const gbRect2<T>& b, gbRect2<T>& intersection) {
+GB_MATH_DEF_TYPE int gb_rect2_intersection_result(const gbRect2<T>& a, const gbRect2<T>& b, gbRect2<T>& intersection) {
     T a_min_x = gb_min(a.pos.x, a.pos.x+a.dim.x);
     T a_max_x = gb_max(a.pos.x, a.pos.x+a.dim.x);
     T a_min_y = gb_min(a.pos.y, a.pos.y+a.dim.y);
@@ -1264,18 +1265,18 @@ GB_MATH_DEF int gb_rect2_intersection_result(const gbRect2<T>& a, const gbRect2<
 #define GB_MURMUR64_DEFAULT_SEED 0x9747b28c
 #endif
 /* Hashing */
-GB_MATH_DEF gb_math_u64 gb_hash_murmur64(void const *key, size_t num_bytes, gb_math_u64 seed);
+GB_MATH_DEF_TYPE gb_math_u64 gb_hash_murmur64(void const *key, size_t num_bytes, gb_math_u64 seed);
 
 /* Random */
 /* TODO(bill): Use a generator for the random numbers */
-GB_MATH_DEF float gb_random_range_float(float min_inc, float max_inc);
-GB_MATH_DEF int   gb_random_range_int  (int min_inc, int max_inc);
-GB_MATH_DEF float gb_random01          (void);
+GB_MATH_DEF_TYPE float gb_random_range_float(float min_inc, float max_inc);
+GB_MATH_DEF_TYPE int   gb_random_range_int  (int min_inc, int max_inc);
+GB_MATH_DEF_TYPE float gb_random01          (void);
 
 
 
 
-/* TODO(bill): How should I apply GB_MATH_DEF to these operator overloads? */
+/* TODO(bill): How should I apply GB_MATH_DEF_TYPE to these operator overloads? */
 
 template<typename T> inline bool      operator==(const gbVec2<T>& a, const gbVec2<T>& b) { return (a.x == b.x) && (a.y == b.y); }
 template<typename T> inline bool      operator!=(const gbVec2<T>& a, const gbVec2<T>& b) { return !operator==(a, b); }

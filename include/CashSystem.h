@@ -6,9 +6,8 @@
 
 #include "SDL3/SDL.h"
 //#include "SDL3/SDL_events.h"
-#include "Imgui.h"
+#include "imgui.h"
 
-#include <string>
 #include <unordered_map>
 #include <functional>
 
@@ -241,7 +240,6 @@ struct SysNetworkAdapterInfo
     bool multicast_enabled;
 };
 
-
 bool SysInit(SDL_Window* window);
 void SysDestroy(SDL_Window* window);
 void* SysGetWindowHandle(SDL_Window* window);
@@ -291,8 +289,8 @@ struct ScannedFile {
     bool dir;
 };
 using ScannedFiles = std::vector<ScannedFile>;
-void SysScanDirectoryForFileNames(const std::wstring& dir, ScannedFiles& out, ScanDirectoryFlags flags);
-bool SysGetDirectoryFromUser(const std::wstring& currentDir, std::wstring& dir);
+void SysScanDirectoryForFileNames(const Path& dir, ScannedFiles& out, ScanDirectoryFlags flags);
+bool SysGetDirectoryFromUser(const Path& currentDir, std::wstring& dir);
 enum MessageBoxResponse : i32 {
     MessageBoxResponse_Invalid,
     MessageBoxResponse_OpenLog,
@@ -331,9 +329,9 @@ union Guid {
     std::string ToString() const;
 };
 [[nodiscard]] Guid GuidFromString(const char* s);
-template<typename T> inline [[nodiscard]] T GuidFromString(const char* s) { Guid id = GuidFromString(s); return *(T*)&id; };
-inline constexpr [[nodiscard]] bool operator==(const Guid& a, const Guid& b) { return (a.e[0] == b.e[0]) && (a.e[1] == b.e[1]); }
-inline constexpr [[nodiscard]] bool operator<(const Guid& a, const Guid& b) { return (a.e[1] < b.e[1]) || ((a.e[1] == b.e[1]) && (a.e[0] < b.e[0])); }
+template<typename T> [[nodiscard]] inline T GuidFromString(const char* s) { Guid id = GuidFromString(s); return *(T*)&id; };
+[[nodiscard]] inline constexpr bool operator==(const Guid& a, const Guid& b) { return (a.e[0] == b.e[0]) && (a.e[1] == b.e[1]); }
+[[nodiscard]] inline constexpr bool operator<(const Guid& a, const Guid& b) { return (a.e[1] < b.e[1]) || ((a.e[1] == b.e[1]) && (a.e[0] < b.e[0])); }
 Guid SysNewGuid();
 
 #define STRONG_GUID_DEF(name)                                                                                     \
@@ -374,3 +372,19 @@ struct RunProcessLogToFileJob : Job
     bool run_and_clear = false;
     virtual void RunJob() override;
 };
+
+//
+// Case Insensitive String Compare
+//
+#if defined(_WIN32) || defined(_MSC_VER)
+    #define SYS_STRICMP _stricmp
+    #define SYS_STRNLEN strnlen_s
+    #define SYS_VSNPRINTF(_buffer, _size, _format, _args) vsnprintf_s((_buffer), (_size), _TRUNCATE, (_format), (_args))
+    #define SYS_VSNWPRINTF(_buffer, _size, _format, _args) _vsnwprintf_s((_buffer), (_size), _TRUNCATE, (_format), (_args))
+#else
+    #include <strings.h>
+    #define SYS_STRICMP strcasecmp
+    #define SYS_STRNLEN strnlen
+    #define SYS_VSNPRINTF vsnprintf
+    #define SYS_VSNWPRINTF(_buffer, _size, _format, _args) vswprintf((_buffer), (_size), (_format), (_args))
+#endif

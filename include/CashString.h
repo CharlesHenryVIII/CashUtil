@@ -5,6 +5,7 @@
 #include "CashArrayView.h"
 
 #include <string>
+#include <charconv>
 #include <filesystem>
 #include <fstream>
 #include <cwctype>
@@ -64,7 +65,7 @@ template <const u64 len>
 void CopyString(char (*dest)[len], const char* source, const u64 max_length)
 {
     ASSERT(len == max_length);
-    memmove(*dest, source, Min<size_t>(max_length, strnlen_s(source, max_length)));
+    memmove(*dest, source, Min<size_t>(max_length, strnlen(source, max_length)));
 }
 template<u64 SizeDest, u64 SizeSource>
 void CopyString(InlineString<SizeDest>& dest, const InlineString<SizeSource>& source)

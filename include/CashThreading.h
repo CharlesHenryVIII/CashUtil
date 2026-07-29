@@ -41,6 +41,7 @@ struct Job
 {
     Atomic<AsyncStatus>* status = nullptr;
     virtual void RunJob() = 0;
+    virtual ~Job() = default;
 };
 
 struct Threading {

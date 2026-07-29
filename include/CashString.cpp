@@ -4,7 +4,7 @@
 const char* ReadEntireFileAsString(const char* fileName)
 {
     FILE* file;
-    if (file = fopen(fileName, "rb"))
+    if ((file = fopen(fileName, "rb")))
     {
         fseek(file, 0, SEEK_END);
         const long fileLength = ftell(file);
@@ -417,9 +417,10 @@ bool StringCompare(StringCase case_sensitivity, const char* a, const char* b)
             return true;
         break;
     case StringCase_Insensitive:
-        if (_stricmp(a, b) == 0)
+        if (SYS_STRICMP(a, b) == 0)
             return true;
         break;
+    case StringCase_Count: FAIL; break;
     }
     return false;
 }
@@ -436,9 +437,10 @@ bool StringCompare(StringCase case_sensitivity, const std::string& a, const std:
             return true;
         break;
     case StringCase_Insensitive:
-        if (_stricmp(a.c_str(), b.c_str()) == 0)
+        if (SYS_STRICMP(a.c_str(), b.c_str()) == 0)
             return true;
         break;
+    case StringCase_Count: FAIL; break;
     }
     return false;
 }
@@ -554,7 +556,7 @@ bool CopyFolderRelative(const Path& source, const Path& dest, const Path& relati
 
 void CopyString(char** dest, const char* source, const u64 max_length)
 {
-    memmove(*dest, source, (size_t)Min<u64>(max_length, strnlen_s(source, (size_t)max_length)));
+    memmove(*dest, source, (size_t)Min<u64>(max_length, SYS_STRNLEN(source, (size_t)max_length)));
 }
 
 void PathRemoveExtension(std::wstring& path)

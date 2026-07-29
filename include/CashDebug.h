@@ -2,6 +2,7 @@
 
 #include <type_traits>
 #include <string>
+#include <stdint.h>
 
 #define _CSH_CONCAT(a, b) a ## b
 #define CSH_CONCAT(a, b) _CSH_CONCAT(a, b)
@@ -17,9 +18,7 @@
 //================
 //     assert
 //================
-#define FEATURE_CUSTOM_ASSERT 1
-
-#if FEATURE_CUSTOM_ASSERT
+#ifdef FEATURE_CUSTOM_ASSERT
 
 #undef assert
 
@@ -38,6 +37,7 @@ void OsAssert(bool expr, const char* message, const char* file, int line);
 
 #include <assert.h>
 #define ASSERT(expr) assert(expr)
+void OsAssert(bool expr, const char* message, const char* file, int line);
 
 #endif
 
