@@ -1,9 +1,18 @@
+#define WIN32_LEAN_AND_MEAN
+#define _WIN32_DCOM
+#include <Windows.h>
+#include <shellapi.h>
+#include <combaseapi.h>
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#include <iphlpapi.h>
+#include <comdef.h>
+#include <Wbemidl.h>
+
 #include "../CashOS.h"
 #include "../CashWinInterop_File.h"
 #include "../CashMath.h"
 #include "../CashString.h"
-#define STB_IMAGE_IMPLEMENTATION
-#include "stb/stb_image.h"
 #include "Json.hpp"
 #include "../CashRendering.h"
 #include "Tracy.hpp"
@@ -1282,7 +1291,7 @@ static int CALLBACK BrowseFolderCallback(HWND hwnd, UINT uMsg, LPARAM lParam, LP
 bool OSGetDirectoryFromUser(const Path& currentDir, std::wstring& dir)
 {
     std::wstring baseDir = currentDir;
-    if (currentDir.size() == 0)
+    if (currentDir.empty() == 0)
     {
         TCHAR buf[MAX_PATH] = { 0 };
         GetModuleFileName(NULL, buf, MAX_PATH);
@@ -1558,7 +1567,7 @@ void OsAssert(bool expr, const char* message, const char* file, int line)
 }
 #else
 #include <assert.h>
-void os_assert(bool expr, const char*, const char*, int)
+void OsAssert(bool expr, const char* message, const char* file, int line)
 {
     ASSERT(expr);
 }

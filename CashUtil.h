@@ -1,5 +1,3 @@
-#define FEATURE_CUSTOM_ASSERT 1
-
 #include "include/CashDebug.h"
 #include "include/CashMath.h"
 #include "include/CashArrayView.h"
