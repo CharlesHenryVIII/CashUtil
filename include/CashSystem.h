@@ -139,7 +139,6 @@ struct SysIP6Subnet
             mask[0] = (length == 0) ? 0 : (~0ULL << (64 - length));
             mask[1] = 0;
         }
-        i32 test = 1;
     }
     std::string ToString() const
     {

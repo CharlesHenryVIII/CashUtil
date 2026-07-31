@@ -308,7 +308,8 @@ std::string ToString(const char* fmt, ...)
     va_list args;
     va_start(args, fmt);
     char buffer[4096];
-    i32 i = vsnprintf(buffer, arrsize(buffer), fmt, args);
+    const i32 char_written = vsnprintf(buffer, arrsize(buffer), fmt, args);
+    ASSERT(char_written < sizeof(buffer));
     va_end(args);
     return buffer;
 }
@@ -318,7 +319,8 @@ std::wstring ToString(const wchar_t* fmt, ...)
     va_list args;
     va_start(args, fmt);
     wchar_t buffer[4096];
-    i32 i = vswprintf(buffer, arrsize(buffer), fmt, args);
+    const i32 char_written = vswprintf(buffer, arrsize(buffer), fmt, args);
+    ASSERT(char_written < sizeof(buffer));
     va_end(args);
     return buffer;
 }

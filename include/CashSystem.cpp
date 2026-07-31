@@ -361,7 +361,7 @@ void SysOpenSystemNavigation(Path* out_folder_path, const Path* starting_path, A
     }
 
     //SDL_FILEDIALOG_SAVEFILE,
-    SDL_FileDialogType type;
+    SDL_FileDialogType type = SDL_FILEDIALOG_OPENFILE;
     if (FlagIntersects(flags, SysFileNavigationFlags_OnlyFolders))
         type = SDL_FILEDIALOG_OPENFOLDER;
     else if (FlagIntersects(flags, SysFileNavigationFlags_OnlyFiles))

@@ -15,7 +15,7 @@ bool RenderInit()
     SDL_Init(SDL_INIT_VIDEO);
 
     {
-        float normalRatio = 16.0f / 9.0f;
+        const float normalRatio = 16.0f / 9.0f;
         SDL_Rect screen_size = {};
         SDL_GetDisplayBounds(0, &screen_size);
         gfx.screen_size = { screen_size.w, screen_size.h };

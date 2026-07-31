@@ -13,7 +13,7 @@
 #include "../CashWinInterop_File.h"
 #include "../CashMath.h"
 #include "../CashString.h"
-#include "Json.hpp"
+#include "json.hpp"
 #include "../CashRendering.h"
 #include "Tracy.hpp"
 #include "../CashSystem.h"
@@ -374,17 +374,16 @@ i32 OSRunProcess(const std::wstring& path, const std::wstring& args, AsyncData<s
     return r;
 }
 
-#define TRACY_SET_NAME_FOR_JOB(app, args)\
-    ZoneScoped;                                                                         \
-    const std::wstring cmdlinew = app.size() ? app + L" " + args : args;                \
-    std::string cmdline;                                                                \
-    SysConvertWideCharToMultiByte(cmdline, cmdlinew);                                      \
-    cmdline.find_first_of('')\
-    const std::string zone_name = cmdline;                                              \
-    ZoneName(zone_name.c_str(), zone_name.size())                                       \
-    \
-    ZoneText()
-    //std::string zone_name = ToString("Process Log To File Job: %s", cmdline.c_str());
+//#define TRACY_SET_NAME_FOR_JOB(app, args)\
+//    ZoneScoped;                                                                         \
+//    const std::wstring cmdlinew = app.size() ? app + L" " + args : args;                \
+//    std::string cmdline;                                                                \
+//    SysConvertWideCharToMultiByte(cmdline, cmdlinew);                                   \
+//    cmdline.find_first_of('')                                                           \
+//    const std::string zone_name = cmdline;                                              \
+//    ZoneName(zone_name.c_str(), zone_name.size())                                       \
+//    ZoneText()
+//    //std::string zone_name = ToString("Process Log To File Job: %s", cmdline.c_str());
 
 void ParsePowershell(PowershellResponse& out, const std::string& in)
 {
@@ -864,10 +863,10 @@ struct WinFunc
     bool is_valid = false;
 
     WinFunc(WMIServices* in_services, const std::wstring& w_str_inst_object_path, const std::wstring& w_str_class_object_path, const wchar_t* function_name) :
-        inst_object_path_bstr(w_str_inst_object_path.c_str()),
-        class_object_path_bstr(w_str_class_object_path.c_str()),
         services(in_services),
-        func_namew(function_name)
+        func_namew(function_name),
+        inst_object_path_bstr(w_str_inst_object_path.c_str()),
+        class_object_path_bstr(w_str_class_object_path.c_str())
     {
         OSConvertWideCharToMultiByte(inst_object_path,  w_str_inst_object_path);
         OSConvertWideCharToMultiByte(class_object_path, w_str_class_object_path);
