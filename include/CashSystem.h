@@ -308,6 +308,7 @@ void SysOpenSystemNavigation(Path* out_folder_path, const Path* starting_path, A
 void SysConvertMultibyteToWideChar(std::wstring& out, const std::string& in);
 void SysConvertWideCharToMultiByte(std::string& out, const std::wstring& in);
 void SysExpandEnvironemntVariable(std::wstring& out, const std::wstring& in);
+ImFont* SysCreateImguiFont(const ArrayView<const u8> font_data, float font_size);
 ImFont* SysLoadFontForImgui(int resource_id, float fontSize);
 void* SysGetDataFromResource(i32* out_size, const i32 resource_id);
 

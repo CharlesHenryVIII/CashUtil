@@ -10,7 +10,7 @@
 
 Renderer gfx;
 
-bool RenderInit()
+bool RenderInit(ArrayView<const ArrayView<const u8>> app_icons)
 {
     SDL_Init(SDL_INIT_VIDEO);
 
@@ -63,16 +63,16 @@ bool RenderInit()
     SDL_SetRenderVSync(gfx.context, 1);
     SDL_SetWindowPosition(gfx.window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
 
-    SDL_Surface* icons;
+    SDL_Surface* icons = nullptr;
     std::vector<void*> pixels_to_free;
     std::vector<SDL_Surface*> surfaces_to_free;
-    for (i32 icon_id = IDB_PNGFULL; icon_id < IDB_PNGEND; icon_id++)
+    const i32 min = Min((i32)EmbededIcon_Count, (i32)app_icons.size());
+    for (i32 i = EmbededIcon_Invalid + 1; i < min; i++)
     {
-        i32 size;
-        void* data = SysGetDataFromResource(&size, icon_id);
-        if (!data)
+        ArrayView<const u8> icon = app_icons[i];
+        if (!icon.data)
         {
-            DebugPrint("Error: failed to get data from resource: %i", icon_id);
+            DebugPrint("Error: failed to get data from resource: %i", i);
             FAIL;
             continue;
         }
@@ -80,8 +80,8 @@ bool RenderInit()
         // ---- Decode PNG from memory ----
         Vec2I image_size;
         stbi_uc* pixels = stbi_load_from_memory(
-            (const stbi_uc*)data,
-            size,
+            (const stbi_uc*)icon.data,
+            icon.Bytes(),
             &image_size.x,
             &image_size.y,
             nullptr,
@@ -89,22 +89,22 @@ bool RenderInit()
         );
         if (!pixels)
         {
-            DebugPrint("Warning: Failed to get pixels from memory icon_id: %i", icon_id);
+            DebugPrint("Warning: Failed to get pixels from memory icon_id: %i", i);
             FAIL;
             continue;
         }
 
 
         //NOTE(CSH): Not sure why the pixels are inverted should be loaded as RGBA8888 but SDL_CreateSurface is seeing them as BGRA8888
-        if (icon_id == IDB_PNGFULL)
+        if (i == EmbededIcon_FullSize)
         {
             icons = SDL_CreateSurfaceFrom(image_size.x, image_size.y, SDL_PIXELFORMAT_BGRA8888, pixels, sizeof(u32) * image_size.x);
         }
         else
         {
-            SDL_Surface* icon = SDL_CreateSurfaceFrom(image_size.x, image_size.y, SDL_PIXELFORMAT_BGRA8888, pixels, sizeof(u32) * image_size.x);
-            SDL_AddSurfaceAlternateImage(icons, icon);
-            surfaces_to_free.push_back(icon);
+            SDL_Surface* temp_icon = SDL_CreateSurfaceFrom(image_size.x, image_size.y, SDL_PIXELFORMAT_BGRA8888, pixels, sizeof(u32) * image_size.x);
+            SDL_AddSurfaceAlternateImage(icons, temp_icon);
+            surfaces_to_free.push_back(temp_icon);
         }
         pixels_to_free.push_back(pixels);
     }

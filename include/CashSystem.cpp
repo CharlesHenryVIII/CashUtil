@@ -391,19 +391,14 @@ void* SysGetDataFromResource(i32* out_size, const i32 resource_id)
     return OSGetDataFromResource(out_size, resource_id);
 }
 
-ImFont* SysLoadFontForImgui(int resource_id, float fontSize)
+ImFont* SysCreateImguiFont(const ArrayView<const u8> font_data, float font_size)
 {
-    i32 size;
-    void* data = OSGetDataFromResource(&size, resource_id);
-    if (!data || size == 0)
-        return nullptr;
-
     ImFontConfig cfg;
     cfg.FontDataOwnedByAtlas = false;
     ImFont* font = ImGui::GetIO().Fonts->AddFontFromMemoryTTF(
-        data,
-        size,
-        fontSize,
+        const_cast<void*>((const void*)font_data.data),
+        font_data.Bytes(),
+        font_size,
         &cfg
     );
     if (!font)
@@ -411,6 +406,15 @@ ImFont* SysLoadFontForImgui(int resource_id, float fontSize)
     return font;
 }
 
+ImFont* SysLoadFontForImgui(int resource_id, float font_size)
+{
+    i32 size;
+    void* data = OSGetDataFromResource(&size, resource_id);
+    if (!data || size == 0)
+        return nullptr;
+
+    return SysCreateImguiFont(CreateArrayView((const u8*)data, size), font_size);
+}
 
 std::string Guid::ToString() const
 {

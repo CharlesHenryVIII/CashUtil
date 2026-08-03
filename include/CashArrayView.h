@@ -74,7 +74,7 @@ typedef ArrayView<char>     StringView;
 typedef ArrayView<wchar_t> WStringView;
 
 template<typename T, u64 size>
-[[nodiscard]] ArrayView<T> CreateArrayView(T(&source)[size])
+[[nodiscard]] constexpr ArrayView<T> CreateArrayView(T(&source)[size])
 {
     ArrayView<T> view;
     view.count = size;
@@ -83,7 +83,7 @@ template<typename T, u64 size>
 }
 
 template<typename T>
-[[nodiscard]] ArrayView<T> CreateArrayView(T* source, u64 count)
+[[nodiscard]] constexpr ArrayView<T> CreateArrayView(T* source, u64 count)
 {
     ArrayView<T> view;
     view.count = count;
@@ -92,7 +92,7 @@ template<typename T>
 }
 
 template<typename T>
-[[nodiscard]] ArrayView<T> CreateArrayView(std::vector<T>& source)
+[[nodiscard]] constexpr ArrayView<T> CreateArrayView(std::vector<T>& source)
 {
     ArrayView<T> view;
     view.count = source.size();
@@ -101,7 +101,7 @@ template<typename T>
 }
 
 template<typename T>
-[[nodiscard]] ArrayView<const T> CreateArrayView(const std::vector<T>& source)
+[[nodiscard]] constexpr ArrayView<const T> CreateArrayView(const std::vector<T>& source)
 {
     ArrayView<const T> view = {
         .count = source.size(),
@@ -110,7 +110,7 @@ template<typename T>
     return view;
 }
 
-[[nodiscard]] inline StringView CreateArrayView(std::string& source)
+[[nodiscard]] constexpr inline StringView CreateArrayView(std::string& source)
 {
     StringView view = {
         .count = source.size(),
