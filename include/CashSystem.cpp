@@ -110,7 +110,174 @@ i32 SysRunProcess(const std::string& path, const std::string& args, AsyncData<st
 }
 i32 SysRunProcess(const std::wstring& path, const std::wstring& args, AsyncData<std::string>* output, AsyncData<Path>* output_file, RunProcessFlags flags)
 {
+#if 1
+    // 1. Tracy Profiling
+    std::string zone_text;
+    std::string zone_name;
+    GetNameAndTextForJob(zone_text, zone_name, path, args);
+    ZoneScoped;
+    ZoneName(zone_name.c_str(), zone_name.size());
+    ZoneText(zone_text.c_str(), zone_text.size());
+
+    // 2. String Conversions (Everything in SDL3 is UTF-8)
+    std::string path_mb, args_mb;
+    SysConvertWideCharToMultiByte(path_mb, path);
+    SysConvertWideCharToMultiByte(args_mb, args);
+
+    // 3. Build Arguments for SDL_CreateProcess
+    std::vector<std::string> arg_strings;
+
+    if (path_mb.empty())
+    {
+        // Fallback to the OS shell if no specific program path is provided
+#ifdef _WIN32
+        arg_strings.push_back("cmd.exe");
+        arg_strings.push_back("/C");
+        arg_strings.push_back(args_mb);
+#elif LINUX
+        arg_strings.push_back("/bin/sh");
+        arg_strings.push_back("-c");
+        std::string encapsed_args = "\"" + args_mb + "\"";
+        arg_strings.push_back(encapsed_args);
+#else
+#error "Unsupported platform for SysRunProcess()"
+#endif
+    }
+    else
+    {
+        arg_strings.push_back(path_mb);
+
+        // Simple quote-aware argument tokenizer for the args string
+        bool in_quotes = false;
+        std::string current_arg;
+        for (char c : args_mb)
+        {
+            if (c == '\"') {
+                in_quotes = !in_quotes;
+            } else if (c == ' ' && !in_quotes) {
+                if (!current_arg.empty()) {
+                    arg_strings.push_back(current_arg);
+                    current_arg.clear();
+                }
+            } else {
+                current_arg += c;
+            }
+        }
+        if (!current_arg.empty()) arg_strings.push_back(current_arg);
+    }
+
+    // SDL requires a null-terminated array of char pointers
+    std::vector<const char*> process_args;
+    for (const auto& str : arg_strings) {
+        process_args.push_back(str.c_str());
+    }
+    process_args.push_back(nullptr);
+
+    // 4. Launch the Process
+    const bool pipe_output = (output != nullptr || output_file != nullptr);
+
+    SDL_PropertiesID props = SDL_CreateProperties();
+    SDL_SetPointerProperty(props, SDL_PROP_PROCESS_CREATE_ARGS_POINTER, process_args.data());
+    if (pipe_output)
+    {
+      SDL_SetNumberProperty(props, SDL_PROP_PROCESS_CREATE_STDOUT_NUMBER, SDL_PROCESS_STDIO_APP);
+      SDL_SetBooleanProperty( props, SDL_PROP_PROCESS_CREATE_STDERR_TO_STDOUT_BOOLEAN, true);
+    }
+    SDL_Process *process = SDL_CreateProcessWithProperties(props);
+    SDL_DestroyProperties(props);
+
+    if (!process)
+    {
+        const std::wstring errorBoxTitle = ToString(L"SDL_CreateProcess Error: %s", SDL_GetError());
+        const std::wstring errorText = ToString(L"Command Line Params: %s", args_mb.c_str());
+        DebugPrint("%s\n", errorBoxTitle.c_str());
+        DebugPrint(errorText.c_str());
+        DebugPrint("\n");
+        SysShowErrorWindow(errorBoxTitle, errorText);
+        FAIL;
+        return 2;
+    }
+
+    // 5. Read Output (Blocks until process stdout pipe closes)
+    std::string local_file_buffer;
+
+    if (pipe_output)
+    {
+        SDL_IOStream* stream = SDL_GetProcessOutput(process);
+        if (stream)
+        {
+            if (output)
+                output->state = AsyncStatus_Fetching;
+
+            char buffer[4096];
+            size_t bytesRead;
+
+            // SDL_ReadIO returns 0 on EOF or error
+            while ((bytesRead = SDL_ReadIO(stream, buffer, sizeof(buffer))) > 0)
+            {
+                if (output)
+                {
+                    TRACY_LOCK(output->lock);
+                    output->data.append(buffer, bytesRead);
+                }
+                if (output_file)
+                {
+                    local_file_buffer.append(buffer, bytesRead);
+                }
+            }
+            if (output)
+                output->state = AsyncStatus_FetchedSuccess;
+        }
+    }
+
+    // 6. Write to File
+    if (output_file)
+    {
+        if (output_file->data.empty())
+        {
+            DebugPrint("RunProcess() has output_file specified but no data: \"%s\"", args_mb.c_str());
+        }
+        else
+        {
+            ZoneScopedN("Output File");
+            std::fstream file(output_file->data, std::ios_base::out);
+            if (!file.good())
+            {
+                DebugPrint("Failed to open file for write: %s", output_file->data.string().c_str());
+                FAIL;
+            }
+            else
+            {
+                TRACY_LOCK(output_file->lock);
+                file << (output ? output->data : local_file_buffer);
+            }
+        }
+    }
+
+    // 7. Cleanup and Wait
+    int result_code = 0;
+
+    if (!(flags & RunProcess_Async))
+    {
+        // Blocking wait
+        SDL_WaitProcess(process, true, &result_code);
+        SDL_DestroyProcess(process);
+    }
+    else
+    {
+        // Fire-and-forget Async: We detach a tiny background thread to wait for the
+        // process to finish and gracefully clean up the SDL_Process handle.
+        // This fixes the Linux Zombie Process bug from your previous abstraction!
+        std::thread([process]() {
+            SDL_WaitProcess(process, true, nullptr);
+            SDL_DestroyProcess(process);
+        }).detach();
+    }
+
+    return result_code;
+#else
     return OSRunProcess(path, args, output, output_file, flags);
+#endif
 }
 
 
@@ -370,6 +537,33 @@ void SysOpenSystemNavigation(Path* out_folder_path, const Path* starting_path, A
 
     SDL_ShowFileDialogWithProperties(type, OnFolderSelectedCallback, user_data, props);
     SDL_DestroyProperties(props);
+}
+bool SysGetExecutablePath(Path& out_path, const std::string& name)
+{
+    const char* path_env_var = std::getenv("PATH");
+    if (!path_env_var)
+    {
+        return false;
+    }
+
+    // 2. Split the PATH by the Linux delimiter ':'
+    std::stringstream ss(path_env_var);
+    std::string dir;
+
+    while (std::getline(ss, dir, ':'))
+    {
+        // 3. Combine the directory with the executable name
+        out_path = Path(dir) / name;
+
+        // 4. Check if the file actually exists and isn't a folder
+        if (fs::exists(out_path) && fs::is_regular_file(out_path))
+        {
+            return true;
+        }
+    }
+
+    // Not found in any PATH directory
+    return false;
 }
 
 void SysConvertMultibyteToWideChar(std::wstring& out, const std::string& in)

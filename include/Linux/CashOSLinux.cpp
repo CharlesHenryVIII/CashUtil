@@ -9,6 +9,8 @@
 #include <arpa/inet.h>
 #include <net/if.h>
 #include <endian.h>
+#include <dirent.h>
+#include <sys/stat.h>
 
 #include "../CashOS.h"
 #include "../CashMath.h"
@@ -336,77 +338,108 @@ bool OSHasAdminPrivledge()
 
 i32 OSRunProcess(const std::wstring& path, const std::wstring& args, AsyncData<std::string>* output, AsyncData<Path>* output_file, RunProcessFlags flags)
 {
-    std::string mbPath, mbArgs;
-    OSConvertWideCharToMultiByte(mbPath, path);
-    OSConvertWideCharToMultiByte(mbArgs, args);
+    std::string zone_text, zone_name;
+    GetNameAndTextForJob(zone_text, zone_name, path, args);
+    ZoneScoped;
+    ZoneName(zone_name.c_str(), zone_name.size());
+    ZoneText(zone_text.c_str(), zone_text.size());
+
+    std::string path_mb, args_mb;
+    SysConvertWideCharToMultiByte(path_mb, path);
+    SysConvertWideCharToMultiByte(args_mb, args);
+
+    std::string cmdline;
+    if (path_mb.length() > 0)
+        cmdline = std::format("\"{}\" {}", path_mb, args_mb);
+    else
+        cmdline = args_mb;
 
     int pipefd[2];
-    if (pipe(pipefd) == -1) return -1;
+    if (pipe(pipefd) == -1)
+    {
+        DebugPrint("pipe() failed");
+        FAIL;
+        return 2;
+    }
 
     pid_t pid = fork();
     if (pid == -1)
     {
-        DebugPrint("fork() failed");
-        return -1;
+        std::wstring errorBoxTitle = ToString(L"fork() Error: %i", errno);
+        std::wstring errorText = ToString(L"Command Line Params: %s", args.c_str());
+        DebugPrint("%s\n", errorBoxTitle.c_str());
+        DebugPrint(errorText.c_str());
+        DebugPrint("\n");
+        FAIL;
+        return 2;
     }
 
     if (pid == 0)
     {
-        // Child process
+        // --- CHILD PROCESS ---
         close(pipefd[0]); // Close read end
-        dup2(pipefd[1], STDOUT_FILENO); // Redirect stdout
-        dup2(pipefd[1], STDERR_FILENO); // Redirect stderr
+        dup2(pipefd[1], STDOUT_FILENO); // Redirect stdout to pipe
+        dup2(pipefd[1], STDERR_FILENO); // Redirect stderr to pipe
         close(pipefd[1]);
 
-        // Break args by space for execvp (naive implementation)
-        std::vector<char*> exec_args;
-        exec_args.push_back(const_cast<char*>(mbPath.c_str()));
-        exec_args.push_back(const_cast<char*>(mbArgs.c_str()));
-        exec_args.push_back(nullptr);
-
-        execvp(mbPath.c_str(), exec_args.data());
-        exit(1); // Exec failed
+        execl("/bin/sh", "sh", "-c", cmdline.c_str(), nullptr);
+        // If execl fails, we must exit immediately so we don't accidentally run two instances of the main app
+        exit(127);
     }
-    else
+
+    // --- PARENT PROCESS ---
+    close(pipefd[1]); // Close write end so the read loop gets an EOF when the child dies
+
+    int result_code = 0;
+    if (output)
     {
-        // Parent process
-        close(pipefd[1]); // Close write end
-
-        if (output)
+        output->state = AsyncStatus_Fetching;
+        char buffer[4096];
+        ssize_t bytesRead;
+        // This loop inherently blocks until the child process closes the pipe (finishes)
+        while ((bytesRead = read(pipefd[0], buffer, sizeof(buffer))) > 0)
         {
-            output->state = AsyncStatus_Fetching;
-            char buffer[4096];
-            ssize_t bytesRead;
-            while ((bytesRead = read(pipefd[0], buffer, sizeof(buffer) - 1)) > 0)
-            {
-                buffer[bytesRead] = '\0';
-                // Assuming TRACY_LOCK macro exists in Linux header as well
-                TRACY_LOCK(output->lock);
-                output->data.append(buffer);
-            }
-            output->state = AsyncStatus_FetchedSuccess;
+            TRACY_LOCK(output->lock);
+            output->data.append(buffer, bytesRead);
         }
+        output->state = AsyncStatus_FetchedSuccess;
+    }
 
-        if (output_file && !output_file->data.empty())
+    if (output_file)
+    {
+        if (output_file->data.empty())
         {
-            std::fstream file(output_file->data, std::ios_base::out | std::ios_base::app);
-            if (file.is_open())
+            DebugPrint("RunProcess() has output_file specified but no data: \"%s\" \"%s\"", path_mb.c_str(), args_mb.c_str());
+        }
+        else
+        {
+            ZoneScopedN("Output File");
+
+            std::fstream file(output_file->data, std::ios_base::out);
+            if (!file.good())
+            {
+                DebugPrint("Failed to open file for write: %s", output_file->data.string().c_str());
+                FAIL;
+                result_code = -1;
+            }
+            else
             {
                 TRACY_LOCK(output_file->lock);
-                file << output->data;
+                file << output->data; // Note: Fixed bug from Windows version where it passed the pointer `output` instead of `output->data`
             }
         }
-
-        close(pipefd[0]);
-
-        if (!(flags & RunProcess_Async))
-        {
-            int status;
-            waitpid(pid, &status, 0);
-            return WEXITSTATUS(status);
-        }
     }
-    return 0;
+
+    close(pipefd[0]);
+    if (!FlagIntersects(flags, RunProcess_Async))
+    {
+        int status;
+        waitpid(pid, &status, 0);
+        if (WIFEXITED(status))
+            result_code = WEXITSTATUS(status);
+    }
+
+    return result_code;
 }
 
 i32 OSRunShellProcess(const wchar_t* path, const wchar_t* args, std::string* output, Mutex* output_lock, RunProcessFlags flags)
@@ -458,33 +491,89 @@ void OSExpandEnvironemntVariable(std::wstring& out, const std::wstring& in)
     out = in; // Fallback to unmodified
 }
 
-void OSScanDirectoryForFileNames(const Path& dir, ScannedFiles& out, ScanDirectoryFlags flags)
+void _ScanDirectoryForFileNames(const Path& root, const Path& dir, ScannedFiles& out, ScanDirectoryFlags flags)
 {
-    out.clear();
+    DIR* dir_handle = opendir(root.string().c_str());
+    if (!dir_handle)
+    {
+        DebugPrint(ToString("Error opening directory: %s", root.c_str()).c_str());
+        return;
+    }
 
-    try {
-        if (flags & ScanDirectoryFlags_Recursive)
+    struct dirent* entry;
+    while ((entry = readdir(dir_handle)) != nullptr)
+    {
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
         {
-            for (const auto& entry : std::filesystem::recursive_directory_iterator(dir))
+            continue;
+        }
+
+
+        bool is_dir = entry->d_type == DT_DIR;
+        if (entry->d_type == DT_UNKNOWN)
+        {
+            // Fallback: If the filesystem doesn't support d_type, ask the OS explicitly.
+            const Path full_path = root / entry->d_name;
+            struct stat st;
+            if (stat(full_path.string().c_str(), &st) == 0)
             {
-                std::wstring wpath;
-                OSConvertMultibyteToWideChar(wpath, entry.path().string());
-                out.push_back({ wpath, entry.is_directory() });
+                is_dir = S_ISDIR(st.st_mode);
+            }
+        }
+
+        const Path relative_path = dir.empty() ? entry->d_name : dir / entry->d_name;
+        if (is_dir)
+        {
+
+            if (FlagIntersects(flags, ScanDirectoryFlags_IncludeDirs))
+                out.push_back({ relative_path.wstring(), true });
+
+            if (FlagIntersects(flags, ScanDirectoryFlags_Recursive))
+            {
+                Path new_root = root / entry->d_name;
+                _ScanDirectoryForFileNames(new_root, relative_path, out, flags);
             }
         }
         else
         {
-            for (const auto& entry : std::filesystem::directory_iterator(dir))
-            {
-                std::wstring wpath;
-                OSConvertMultibyteToWideChar(wpath, entry.path().string());
-                out.push_back({ wpath, entry.is_directory() });
-            }
+            out.push_back({ relative_path.wstring(), false });
         }
-    } catch (const std::filesystem::filesystem_error& e) {
-        DebugPrint("ScanDirectory Error: %s", e.what());
     }
+
+    closedir(dir_handle);
 }
+void OSScanDirectoryForFileNames(const Path& dir, ScannedFiles& out, ScanDirectoryFlags flags)
+{
+    out.clear();
+    _ScanDirectoryForFileNames(dir, "", out, flags);
+}
+//void OSScanDirectoryForFileNames(const Path& dir, ScannedFiles& out, ScanDirectoryFlags flags)
+//{
+//    out.clear();
+//
+//    try {
+//        if (flags & ScanDirectoryFlags_Recursive)
+//        {
+//            for (const auto& entry : std::filesystem::recursive_directory_iterator(dir))
+//            {
+//                std::wstring wpath;
+//                OSConvertMultibyteToWideChar(wpath, entry.path().string());
+//                out.push_back({ wpath, entry.is_directory() });
+//            }
+//        }
+//        else
+//        {
+//            for (const auto& entry : std::filesystem::directory_iterator(dir))
+//            {
+//                std::wstring wpath;
+//                OSConvertMultibyteToWideChar(wpath, entry.path().string());
+//                out.push_back({ wpath, entry.is_directory() });
+//            }
+//        }
+//    } catch (const std::filesystem::filesystem_error& e) {
+//        DebugPrint("ScanDirectory Error: %s", e.what());
+//    }
+//}
 
 bool OSGetDirectoryFromUser(const Path& currentDir, std::wstring& dir)
 {

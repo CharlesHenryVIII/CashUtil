@@ -304,6 +304,8 @@ enum SysFileNavigationFlags : u32 {
     SysFileNavigationFlags_MultiSelect = BIT(2),
 };
 void SysOpenSystemNavigation(Path* out_folder_path, const Path* starting_path, ArrayView<std::string> filters, std::function<void(void)> on_complete, SysFileNavigationFlags flags);
+//Get the executable path for a given exe.  Looks in systems folders
+bool SysGetExecutablePath(Path& out_path, const std::string& name);
 
 void SysConvertMultibyteToWideChar(std::wstring& out, const std::string& in);
 void SysConvertWideCharToMultiByte(std::string& out, const std::wstring& in);
