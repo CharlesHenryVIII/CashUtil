@@ -110,90 +110,103 @@ i32 SysRunProcess(const std::string& path, const std::string& args, AsyncData<st
 }
 i32 SysRunProcess(const std::wstring& path, const std::wstring& args, AsyncData<std::string>* output, AsyncData<Path>* output_file, RunProcessFlags flags)
 {
+    return 0;
+}
+i32 SysRunProcess(ArrayView<const char*> args, AsyncData<std::string>* output, AsyncData<Path>* output_file, RunProcessFlags flags)
+{
 #if 1
     // 1. Tracy Profiling
-    std::string zone_text;
-    std::string zone_name;
-    GetNameAndTextForJob(zone_text, zone_name, path, args);
+    //std::string zone_text;
+    //std::string zone_name;
+    //GetNameAndTextForJob(zone_text, zone_name, path, args);
     ZoneScoped;
-    ZoneName(zone_name.c_str(), zone_name.size());
-    ZoneText(zone_text.c_str(), zone_text.size());
+    //ZoneName(zone_name.c_str(), zone_name.size());
+    //ZoneText(zone_text.c_str(), zone_text.size());
 
     // 2. String Conversions (Everything in SDL3 is UTF-8)
-    std::string path_mb, args_mb;
-    SysConvertWideCharToMultiByte(path_mb, path);
-    SysConvertWideCharToMultiByte(args_mb, args);
+    //std::string path_mb, args_mb;
+    //SysConvertWideCharToMultiByte(path_mb, path);
+    //SysConvertWideCharToMultiByte(args_mb, args);
 
-    // 3. Build Arguments for SDL_CreateProcess
-    std::vector<std::string> arg_strings;
-
-    if (path_mb.empty())
+//    // 3. Build Arguments for SDL_CreateProcess
+//    std::vector<std::string> arg_strings;
+//
+//    if (path_mb.empty())
+//    {
+//        // Fallback to the OS shell if no specific program path is provided
+//#ifdef _WIN32
+//        arg_strings.push_back("cmd.exe");
+//        arg_strings.push_back("/C");
+//        arg_strings.push_back(args_mb);
+//#elif LINUX
+//        arg_strings.push_back("/bin/sh");
+//        arg_strings.push_back("-c");
+//        std::string encapsed_args = "\"" + args_mb + "\"";
+//        arg_strings.push_back(encapsed_args);
+//#else
+//#error "Unsupported platform for SysRunProcess()"
+//#endif
+//    }
+//    else
+//    {
+//        arg_strings.push_back(path_mb);
+//
+//        // Simple quote-aware argument tokenizer for the args string
+//        bool in_quotes = false;
+//        std::string current_arg;
+//        for (char c : args_mb)
+//        {
+//            if (c == '\"') {
+//                in_quotes = !in_quotes;
+//            } else if (c == ' ' && !in_quotes) {
+//                if (!current_arg.empty()) {
+//                    arg_strings.push_back(current_arg);
+//                    current_arg.clear();
+//                }
+//            } else {
+//                current_arg += c;
+//            }
+//        }
+//        if (!current_arg.empty()) arg_strings.push_back(current_arg);
+//    }
+//
+//    // SDL requires a null-terminated array of char pointers
+//    std::vector<const char*> process_args;
+//    for (const auto& str : arg_strings) {
+//        process_args.push_back(str.c_str());
+//    }
+    ArrayView<const char*> arg_array_view;
+    std::vector<const char*> arg_array;
+    if (args.end() != nullptr)
     {
-        // Fallback to the OS shell if no specific program path is provided
-#ifdef _WIN32
-        arg_strings.push_back("cmd.exe");
-        arg_strings.push_back("/C");
-        arg_strings.push_back(args_mb);
-#elif LINUX
-        arg_strings.push_back("/bin/sh");
-        arg_strings.push_back("-c");
-        std::string encapsed_args = "\"" + args_mb + "\"";
-        arg_strings.push_back(encapsed_args);
-#else
-#error "Unsupported platform for SysRunProcess()"
-#endif
+        for (const auto& arg : args)
+            arg_array.push_back(arg);
+        arg_array.push_back(nullptr);
+        arg_array_view = CreateArrayView(arg_array);
     }
-    else
-    {
-        arg_strings.push_back(path_mb);
-
-        // Simple quote-aware argument tokenizer for the args string
-        bool in_quotes = false;
-        std::string current_arg;
-        for (char c : args_mb)
-        {
-            if (c == '\"') {
-                in_quotes = !in_quotes;
-            } else if (c == ' ' && !in_quotes) {
-                if (!current_arg.empty()) {
-                    arg_strings.push_back(current_arg);
-                    current_arg.clear();
-                }
-            } else {
-                current_arg += c;
-            }
-        }
-        if (!current_arg.empty()) arg_strings.push_back(current_arg);
-    }
-
-    // SDL requires a null-terminated array of char pointers
-    std::vector<const char*> process_args;
-    for (const auto& str : arg_strings) {
-        process_args.push_back(str.c_str());
-    }
-    process_args.push_back(nullptr);
 
     // 4. Launch the Process
     const bool pipe_output = (output != nullptr || output_file != nullptr);
 
     SDL_PropertiesID props = SDL_CreateProperties();
-    SDL_SetPointerProperty(props, SDL_PROP_PROCESS_CREATE_ARGS_POINTER, process_args.data());
+    SDL_SetBooleanProperty(props, SDL_PROP_PROCESS_CREATE_BACKGROUND_BOOLEAN, true);
+    SDL_SetPointerProperty(props, SDL_PROP_PROCESS_CREATE_ARGS_POINTER, arg_array_view.data);
     if (pipe_output)
     {
       SDL_SetNumberProperty(props, SDL_PROP_PROCESS_CREATE_STDOUT_NUMBER, SDL_PROCESS_STDIO_APP);
       SDL_SetBooleanProperty( props, SDL_PROP_PROCESS_CREATE_STDERR_TO_STDOUT_BOOLEAN, true);
     }
-    SDL_Process *process = SDL_CreateProcessWithProperties(props);
+    SDL_Process* process = SDL_CreateProcessWithProperties(props);
     SDL_DestroyProperties(props);
 
     if (!process)
     {
-        const std::wstring errorBoxTitle = ToString(L"SDL_CreateProcess Error: %s", SDL_GetError());
-        const std::wstring errorText = ToString(L"Command Line Params: %s", args_mb.c_str());
-        DebugPrint("%s\n", errorBoxTitle.c_str());
-        DebugPrint(errorText.c_str());
-        DebugPrint("\n");
-        SysShowErrorWindow(errorBoxTitle, errorText);
+        //const std::wstring errorBoxTitle = ToString(L"SDL_CreateProcess Error: %s", SDL_GetError());
+        //const std::wstring errorText = ToString(L"Command Line Params: %s", args_mb.c_str());
+        //DebugPrint("%s\n", errorBoxTitle.c_str());
+        //DebugPrint(errorText.c_str());
+        //DebugPrint("\n");
+        //SysShowErrorWindow(errorBoxTitle, errorText);
         FAIL;
         return 2;
     }
@@ -213,8 +226,14 @@ i32 SysRunProcess(const std::wstring& path, const std::wstring& args, AsyncData<
             size_t bytesRead;
 
             // SDL_ReadIO returns 0 on EOF or error
-            while ((bytesRead = SDL_ReadIO(stream, buffer, sizeof(buffer))) > 0)
+            while (true)
             {
+                SDL_IOStatus stat = SDL_GetIOStatus(stream);
+                if (((bytesRead = SDL_ReadIO(stream, buffer, sizeof(buffer))) == 0) && (stat != SDL_IO_STATUS_READY && stat != SDL_IO_STATUS_NOT_READY))
+                {
+                    i32 i = 1;
+                    break;
+                }
                 if (output)
                 {
                     TRACY_LOCK(output->lock);
@@ -235,7 +254,7 @@ i32 SysRunProcess(const std::wstring& path, const std::wstring& args, AsyncData<
     {
         if (output_file->data.empty())
         {
-            DebugPrint("RunProcess() has output_file specified but no data: \"%s\"", args_mb.c_str());
+            //DebugPrint("RunProcess() has output_file specified but no data: \"%s\"", args_mb.c_str());
         }
         else
         {
