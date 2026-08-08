@@ -12,7 +12,6 @@ void OSWriteToAttachedConsole(const char* buffer, bool add_new_line);
 void OSWriteToAttachedConsole(const wchar_t* buffer, bool add_new_line);
 void OSDebugOutput(const char* s);
 void OSDebugOutput(const wchar_t* s);
-i32 OSRunShellProcess(ArrayView<const char*> args, AsyncData<std::string>* output = nullptr, AsyncData<Path>* output_file = nullptr, RunProcessFlags flags = RunProcess_None);
 
 bool OSInit(SDL_Window* window);
 void OSDestroy(SDL_Window* window);

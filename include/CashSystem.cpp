@@ -84,11 +84,6 @@ bool SysIsConsoleVisible()
     return OSIsConsoleVisible();
 }
 
-i32 SysRunShellProcess(ArrayView<const char*> args, AsyncData<std::string>* output, AsyncData<Path>* output_file, RunProcessFlags flags)
-{
-    return OSRunShellProcess(args, output, output_file, flags);
-}
-
 struct WaitForProcessJob : Job
 {
     SDL_Process* process = nullptr;
