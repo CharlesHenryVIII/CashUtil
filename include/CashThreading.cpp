@@ -105,29 +105,3 @@ bool OnMainThread()
 {
     return mainThreadID == std::this_thread::get_id();
 }
-
-void GetNameAndTextForJob(std::string& text, std::string& name, const std::wstring& app, const std::wstring& args)
-{
-    std::wstring namew;
-    std::wstring textw;
-    if (!app.size())
-    {
-       size_t p = args.find_first_of(L' ', 1);
-       namew = args.substr(0, p);
-       textw = args;
-    }
-    else
-    {
-        namew = app;
-        if (args.size())
-            textw = app + L" " + args;
-    }
-    if (namew.size())
-        SysConvertWideCharToMultiByte(name, namew);
-    else
-        name.clear();
-    if (textw.size())
-        SysConvertWideCharToMultiByte(text, textw);
-    else
-        text.clear();
-}

@@ -255,11 +255,11 @@ void SysShowConsole();
 bool SysIsConsoleVisible();
 
 i32 SysRunShellProcess(const wchar_t* path, const wchar_t* args, std::string* output = nullptr, Mutex* output_lock = nullptr, RunProcessFlags flags = RunProcess_None);
-i32 SysRunProcess(const char*         path, const char*         args, AsyncData<std::string>* output = nullptr, AsyncData<Path>* output_file = nullptr, RunProcessFlags flags = RunProcess_None);
-i32 SysRunProcess(const wchar_t*      path, const wchar_t*      args, AsyncData<std::string>* output = nullptr, AsyncData<Path>* output_file = nullptr, RunProcessFlags flags = RunProcess_None);
-i32 SysRunProcess(const std::string&  path, const std::string&  args, AsyncData<std::string>* output = nullptr, AsyncData<Path>* output_file = nullptr, RunProcessFlags flags = RunProcess_None);
-i32 SysRunProcess(const std::wstring& path, const std::wstring& args, AsyncData<std::string>* output = nullptr, AsyncData<Path>* output_file = nullptr, RunProcessFlags flags = RunProcess_None);
-i32 SysRunProcess(ArrayView<const char*> args, AsyncData<std::string>* output = nullptr, AsyncData<Path>* output_file = nullptr, RunProcessFlags flags = RunProcess_None);
+i32 SysRunProcess(const char*           args,   AsyncData<std::string>* output = nullptr, AsyncData<Path>* output_file = nullptr, RunProcessFlags flags = RunProcess_None);
+i32 SysRunProcess(const wchar_t*        argswt, AsyncData<std::string>* output = nullptr, AsyncData<Path>* output_file = nullptr, RunProcessFlags flags = RunProcess_None);
+i32 SysRunProcess(const std::string&    args,   AsyncData<std::string>* output = nullptr, AsyncData<Path>* output_file = nullptr, RunProcessFlags flags = RunProcess_None);
+i32 SysRunProcess(const std::wstring&   argsw,  AsyncData<std::string>* output = nullptr, AsyncData<Path>* output_file = nullptr, RunProcessFlags flags = RunProcess_None);
+i32 SysRunProcess(ArrayView<const char*> args,  AsyncData<std::string>* output = nullptr, AsyncData<Path>* output_file = nullptr, RunProcessFlags flags = RunProcess_None);
 bool SysGetNetworkAdapters(std::vector<SysNetworkAdapterInfo>& out_adapters);
 bool SysHasAdminPrivledge();
 bool SysSetNetAdapterIP(const std::string& adapter_guid, const SysNetAdapterConfig& adapter, const SysNetAdapterConfig& src_adapter);
@@ -275,7 +275,7 @@ void ParseCSV(PowershellResponse& out, const std::string& in, bool using_quotes)
 void SysProcessEvents();
 
 
-void SysShowErrorWindow(const std::wstring& title, const std::wstring& text);
+void SysShowErrorWindow(const std::string& title, const std::string& text);
 i32 SysShowCustomErrorWindow(const std::string& title, const std::string& text);
 void SysFlashWindow(SDL_Window* window);
 enum ScanDirectoryFlags : u32 {
@@ -358,21 +358,18 @@ enum {}
 
 struct RunProcessJob : Job
 {
-    std::wstring path;
-    std::wstring args;
-    AsyncData<std::string>* output;
-    bool m_run_all_jobs = false;
-    virtual void RunJob() override;
-};
+    //Required: Only one of these needs to be set:
+    std::string m_args_string;
+    ArrayView<const char*> m_args_array;
+    //
 
-struct RunProcessLogToFileJob : Job
-{
-    std::wstring path;
-    std::wstring args;
-    AsyncData<std::string>* output;
-    AsyncData<Path> output_file;
-    Atomic<bool>* completed;
-    bool run_and_clear = false;
+    //Optional:
+    AsyncData<std::string>* m_output        = nullptr;
+    AsyncData<Path>*        m_output_file   = nullptr;
+    Atomic<bool>*           m_completed     = nullptr;
+    //
+
+    bool m_run_all_jobs = false;
     virtual void RunJob() override;
 };
 

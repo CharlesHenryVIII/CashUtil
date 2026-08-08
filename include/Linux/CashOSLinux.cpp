@@ -185,12 +185,9 @@ void* OSGetWindowHandle(SDL_Window* window)
     return handle;
 }
 
-void OSShowErrorWindow(const std::wstring& title, const std::wstring& text)
+void OSShowErrorWindow(const std::string& title, const std::string& text)
 {
-    std::string mbTitle, mbText;
-    OSConvertWideCharToMultiByte(mbTitle, title);
-    OSConvertWideCharToMultiByte(mbText, text);
-    SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, mbTitle.c_str(), mbText.c_str(), nullptr);
+    SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, title.c_str(), text.c_str(), nullptr);
 }
 
 void OSFlashWindow(SDL_Window* window)

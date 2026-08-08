@@ -112,4 +112,3 @@ template<class T> inline void operator&=(std::atomic<T>& a, T b)
     at = T(+at & b);
     a.store(at);
 }
-void GetNameAndTextForJob(std::string& text, std::string& name, const std::wstring& app, const std::wstring& args);

@@ -213,10 +213,10 @@ i32 OSRunShellProcess(const wchar_t* path, const wchar_t* args, std::string* out
     };
     if (!ShellExecuteEx(&info))
     {
-        std::wstring errorBoxTitle = ToString(L"ShellExecuteEx Error: %i", GetLastError());
-        std::wstring errorText     = ToString(L"Application Path: %s\n"
+        const std::string error_box_title = ToString("ShellExecuteEx Error: %i", GetLastError());
+        const std::string errorText     = ToString("Application Path: %s\n"
                                              "Command Line Params: %s", info.lpFile, args);
-        OSShowErrorWindow(errorBoxTitle, errorText);
+        OSShowErrorWindow(error_box_title, errorText);
         ASSERT(false);
         return 2;
     }
@@ -225,165 +225,32 @@ i32 OSRunShellProcess(const wchar_t* path, const wchar_t* args, std::string* out
         DWORD result = WaitForSingleObject(info.hProcess, INFINITE);
         if (result)
         {
-            std::wstring errorBoxTitle = ToString(L"WaitForSingleObject Error: %i", GetLastError());
-            std::wstring errorText = ToString(L"Application Path: %s\n"
+            const std::string error_box_title = ToString("WaitForSingleObject Error: %i", GetLastError());
+            const std::string error_text = ToString("Application Path: %s\n"
                 "Command Line Params: %s", info.lpFile, args);
-            OSShowErrorWindow(errorBoxTitle, errorText);
+            OSShowErrorWindow(error_box_title, error_text);
             ASSERT(false);
             return -1;
         }
         DWORD exitCode = {};
         if (!GetExitCodeProcess(info.hProcess, &exitCode))
         {
-            std::wstring errorBoxTitle = ToString(L"GetExitCodeProcess Error: %i", GetLastError());
-            std::wstring errorText = ToString(L"Application Path: %s\n"
+            const std::string error_box_title = ToString("GetExitCodeProcess Error: %i", GetLastError());
+            const std::string error_text = ToString("Application Path: %s\n"
                 "Command Line Params: %s", info.lpFile, args);
-            OSShowErrorWindow(errorBoxTitle, errorText);
+            OSShowErrorWindow(error_box_title, error_text);
             return -1;
         }
         if (exitCode)
         {
-            std::wstring werrorBoxTitle = ToString(L"Program Exited with Code: %i", exitCode);
-            std::wstring werrorText = ToString(L"Application Path: %s\n"
-                L"Command Line Params: %s", info.lpFile, args);
-            std::string error_box_title;
-            std::string error_text;
-            SysConvertWideCharToMultiByte(error_box_title, werrorBoxTitle);
-            SysConvertWideCharToMultiByte(error_text, werrorText);
+            const std::string error_box_title = ToString("Program Exited with Code: %i", exitCode);
+            const std::string error_text = ToString("Application Path: %s\n"
+                "Command Line Params: %s", info.lpFile, args);
             return SysShowCustomErrorWindow(error_box_title, error_text);
         }
     }
     return 0;
 }
-
-i32 OSRunProcess(const std::wstring& path, const std::wstring& args, AsyncData<std::string>* output, AsyncData<Path>* output_file, RunProcessFlags flags)
-{
-    std::string zone_text;
-    std::string zone_name;
-    GetNameAndTextForJob(zone_text, zone_name, path, args);
-    ZoneScoped;
-    ZoneName(zone_name.c_str(), zone_name.size());
-    ZoneText(zone_text.c_str(), zone_text.size());
-
-    SECURITY_ATTRIBUTES sa = {
-        .nLength = sizeof(sa),
-        .bInheritHandle = TRUE,
-    };
-
-    HANDLE readPipe = NULL;
-    HANDLE writePipe = NULL;
-    CreatePipe(&readPipe, &writePipe, &sa, 0);
-    SetHandleInformation(readPipe, HANDLE_FLAG_INHERIT, 0);
-
-    STARTUPINFOW si{
-        .cb = sizeof(si),
-        .dwFlags = STARTF_USESTDHANDLES,
-        .hStdInput = GetStdHandle(STD_INPUT_HANDLE),
-        .hStdOutput = writePipe,
-        .hStdError = writePipe,
-    };
-
-    std::wstring cmdline;
-    std::wstring program;
-    if (path.size() > 1)
-    {
-        program = path;
-        cmdline = std::format(L"\"{}\" {}", path, args);
-    }
-    else
-    {
-        cmdline = L"cmd.exe /C";
-        if (args.size())
-            cmdline += std::format(L" \"{}\"", args);
-    }
-
-    PROCESS_INFORMATION pi = {};
-    BOOL r = CreateProcessW(
-        program.size() ? program.c_str() : nullptr,
-        (LPWSTR)cmdline.c_str(),
-        nullptr, nullptr,
-        TRUE, // inherit handles
-        (flags & RunProcess_Show) ? CREATE_NEW_CONSOLE : CREATE_NO_WINDOW,
-        nullptr, nullptr,
-        &si, &pi
-    );
-
-    if (r == 0)
-    {
-        std::wstring errorBoxTitle = ToString(L"CreateProcess() Error: %i", GetLastError());
-        std::wstring errorText     = ToString(L"Application Path: %s\n"
-                                              L"Command Line Params: %s", cmdline.c_str(), args.c_str());
-        DebugPrint("%s\n", errorBoxTitle.c_str());
-        DebugPrint(errorText.c_str());
-        DebugPrint("\n");
-        SysShowErrorWindow(errorBoxTitle, errorText);
-        FAIL;
-        return 2;
-    }
-
-    CloseHandle(writePipe); // parent reads only
-
-    if (output)
-    {
-        output->state = AsyncStatus_Fetching;
-        char buffer[4096];
-        DWORD bytesRead;
-        while (ReadFile(readPipe, buffer, sizeof(buffer), &bytesRead, nullptr))
-        {
-            TRACY_LOCK(output->lock);
-            output->data.append(buffer, bytesRead);
-        }
-        output->state = AsyncStatus_FetchedSuccess;
-    }
-    if (output_file)
-    {
-        if (output_file->data.empty())
-        {
-            std::string p;
-            SysConvertWideCharToMultiByte(p, path);
-            std::string a;
-            SysConvertWideCharToMultiByte(a, args);
-            DebugPrint("RunProcess() has output_file specified but no data: \"%s\" \"%s\"", p.c_str(), a.c_str());
-        }
-        else
-        {
-            ZoneScopedN("Output File");
-            std::fstream file(output_file->data, std::ios_base::out);
-            if (!file.good())
-            {
-                std::string of;
-                SysConvertWideCharToMultiByte(of, output_file->data);
-                DebugPrint("Failed to open file for write: %s", of.c_str());
-                FAIL;
-                r = ERROR_TOO_MANY_OPEN_FILES;
-            }
-            else
-            {
-                TRACY_LOCK(output_file->lock);
-                file << output;
-            }
-        }
-    }
-
-    if (!(flags & RunProcess_Async))
-        DWORD result = WaitForSingleObject(pi.hProcess, INFINITE);
-    CloseHandle(readPipe);
-    CloseHandle(pi.hProcess);
-    CloseHandle(pi.hThread);
-
-    return r;
-}
-
-//#define TRACY_SET_NAME_FOR_JOB(app, args)\
-//    ZoneScoped;                                                                         \
-//    const std::wstring cmdlinew = app.size() ? app + L" " + args : args;                \
-//    std::string cmdline;                                                                \
-//    SysConvertWideCharToMultiByte(cmdline, cmdlinew);                                   \
-//    cmdline.find_first_of('')                                                           \
-//    const std::string zone_name = cmdline;                                              \
-//    ZoneName(zone_name.c_str(), zone_name.size())                                       \
-//    ZoneText()
-//    //std::string zone_name = ToString("Process Log To File Job: %s", cmdline.c_str());
 
 void ParsePowershell(PowershellResponse& out, const std::string& in)
 {
@@ -1131,13 +998,16 @@ bool OSIsConsoleVisible()
     return ::IsWindowVisible(::GetConsoleWindow()) != FALSE;
 }
 
-void OSShowErrorWindow(const std::wstring& title, const std::wstring& text)
+void OSShowErrorWindow(const std::string& title, const std::string& text)
 {
+    std::wstring wtitle, wtext;
+    SysConvertMultibyteToWideChar(wtitle, title);
+    SysConvertMultibyteToWideChar(wtext, text);
 #if 1
     int msgboxID = MessageBox(
         NULL,
-        text.c_str(),
-        title.c_str(),
+        wtext.c_str(),
+        wtitle.c_str(),
         MB_ABORTRETRYIGNORE | MB_ICONSTOP | MB_DEFBUTTON1 | MB_APPLMODAL
     );
 

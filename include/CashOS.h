@@ -13,7 +13,6 @@ void OSWriteToAttachedConsole(const wchar_t* buffer, bool add_new_line);
 void OSDebugOutput(const char* s);
 void OSDebugOutput(const wchar_t* s);
 i32 OSRunShellProcess(const wchar_t* path, const wchar_t* args, std::string* output = nullptr, Mutex* output_lock = nullptr, RunProcessFlags flags = RunProcess_None);
-i32 OSRunProcess(const std::wstring& path, const std::wstring& args, AsyncData<std::string>* output = nullptr, AsyncData<Path>* output_file = nullptr, RunProcessFlags flags = RunProcess_None);
 
 bool OSInit(SDL_Window* window);
 void OSDestroy(SDL_Window* window);
@@ -30,7 +29,7 @@ void OSHideConsole();
 void OSShowConsole();
 bool OSIsConsoleVisible();
 
-void OSShowErrorWindow(const std::wstring& title, const std::wstring& text);
+void OSShowErrorWindow(const std::string& title, const std::string& text);
 void OSFlashWindow(SDL_Window* window);
 void OSScanDirectoryForFileNames(const Path& dir, ScannedFiles& out, ScanDirectoryFlags flags);
 bool OSGetDirectoryFromUser(const Path& currentDir, std::wstring& dir);

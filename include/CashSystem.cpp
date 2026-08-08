@@ -88,109 +88,96 @@ i32 SysRunShellProcess(const wchar_t* path, const wchar_t* args, std::string* ou
 {
     return OSRunShellProcess(path, args, output, output_lock, flags);
 }
-i32 SysRunProcess(const char* path, const char* args, AsyncData<std::string>* output, AsyncData<Path>* output_file, RunProcessFlags flags)
+
+struct WaitForProcessJob : Job
 {
-    const std::string p = path ? path : "";
+    SDL_Process* process = nullptr;
+    virtual void RunJob()
+    {
+        VALIDATE(process);
+        SDL_WaitProcess(process, true, nullptr);
+        SDL_DestroyProcess(process);
+    };
+    std::string zone_text;
+    std::string zone_name;
+};
+
+i32 SysRunProcess(const char* args, AsyncData<std::string>* output, AsyncData<Path>* output_file, RunProcessFlags flags)
+{
     const std::string a = args ? args : "";
-    return SysRunProcess(p, a, output, output_file, flags);
+    return SysRunProcess(a, output, output_file, flags);
 }
-i32 SysRunProcess(const wchar_t* path, const wchar_t* args, AsyncData<std::string>* output, AsyncData<Path>* output_file, RunProcessFlags flags)
+i32 SysRunProcess(const wchar_t* argswt, AsyncData<std::string>* output, AsyncData<Path>* output_file, RunProcessFlags flags)
 {
-    const std::wstring pathw = path ? path : L"";
-    const std::wstring argsw = args ? args : L"";
-    return SysRunProcess(pathw, argsw, output, output_file, flags);
+    const std::wstring argsw = argswt ? argswt : L"";
+    return SysRunProcess(argsw, output, output_file, flags);
 }
-i32 SysRunProcess(const std::string& path, const std::string& args, AsyncData<std::string>* output, AsyncData<Path>* output_file, RunProcessFlags flags)
+i32 SysRunProcess(const std::wstring& argsw, AsyncData<std::string>* output, AsyncData<Path>* output_file, RunProcessFlags flags)
 {
-    std::wstring wpath;
-    std::wstring wargs;
-    SysConvertMultibyteToWideChar(wpath, path);
-    SysConvertMultibyteToWideChar(wargs, args);
-    return SysRunProcess(wpath, wargs, output, output_file, flags);
+    std::string args;
+    SysConvertWideCharToMultiByte(args, argsw);
+    return SysRunProcess(args, output, output_file, flags);
 }
-i32 SysRunProcess(const std::wstring& path, const std::wstring& args, AsyncData<std::string>* output, AsyncData<Path>* output_file, RunProcessFlags flags)
+i32 SysRunProcess(const std::string& args, AsyncData<std::string>* output, AsyncData<Path>* output_file, RunProcessFlags flags)
 {
-    return 0;
+    std::vector<std::string> arg_strings;
+    bool in_quotes = false;
+    std::string current_arg;
+    for (const char c : args)
+    {
+        if (c == '\"')
+        {
+            in_quotes = !in_quotes;
+        }
+        else if (c == ' ' && !in_quotes)
+        {
+            if (!current_arg.empty())
+            {
+                arg_strings.push_back(current_arg);
+                current_arg.clear();
+            }
+        }
+        else
+        {
+            current_arg += c;
+        }
+    }
+    if (!current_arg.empty())
+        arg_strings.push_back(current_arg);
+
+    // SDL requires a null-terminated array of char pointers
+    std::vector<const char*> process_args;
+    for (const auto& str : arg_strings)
+        process_args.push_back(str.c_str());
+    return SysRunProcess(CreateArrayView(process_args), output, output_file, flags);
 }
 i32 SysRunProcess(ArrayView<const char*> args, AsyncData<std::string>* output, AsyncData<Path>* output_file, RunProcessFlags flags)
 {
-#if 1
-    // 1. Tracy Profiling
-    //std::string zone_text;
-    //std::string zone_name;
-    //GetNameAndTextForJob(zone_text, zone_name, path, args);
-    ZoneScoped;
-    //ZoneName(zone_name.c_str(), zone_name.size());
-    //ZoneText(zone_text.c_str(), zone_text.size());
-
-    // 2. String Conversions (Everything in SDL3 is UTF-8)
-    //std::string path_mb, args_mb;
-    //SysConvertWideCharToMultiByte(path_mb, path);
-    //SysConvertWideCharToMultiByte(args_mb, args);
-
-//    // 3. Build Arguments for SDL_CreateProcess
-//    std::vector<std::string> arg_strings;
-//
-//    if (path_mb.empty())
-//    {
-//        // Fallback to the OS shell if no specific program path is provided
-//#ifdef _WIN32
-//        arg_strings.push_back("cmd.exe");
-//        arg_strings.push_back("/C");
-//        arg_strings.push_back(args_mb);
-//#elif LINUX
-//        arg_strings.push_back("/bin/sh");
-//        arg_strings.push_back("-c");
-//        std::string encapsed_args = "\"" + args_mb + "\"";
-//        arg_strings.push_back(encapsed_args);
-//#else
-//#error "Unsupported platform for SysRunProcess()"
-//#endif
-//    }
-//    else
-//    {
-//        arg_strings.push_back(path_mb);
-//
-//        // Simple quote-aware argument tokenizer for the args string
-//        bool in_quotes = false;
-//        std::string current_arg;
-//        for (char c : args_mb)
-//        {
-//            if (c == '\"') {
-//                in_quotes = !in_quotes;
-//            } else if (c == ' ' && !in_quotes) {
-//                if (!current_arg.empty()) {
-//                    arg_strings.push_back(current_arg);
-//                    current_arg.clear();
-//                }
-//            } else {
-//                current_arg += c;
-//            }
-//        }
-//        if (!current_arg.empty()) arg_strings.push_back(current_arg);
-//    }
-//
-//    // SDL requires a null-terminated array of char pointers
-//    std::vector<const char*> process_args;
-//    for (const auto& str : arg_strings) {
-//        process_args.push_back(str.c_str());
-//    }
-    ArrayView<const char*> arg_array_view;
-    std::vector<const char*> arg_array;
-    if (args.end() != nullptr)
+    VALIDATE_V(args.size(), 0);
+    std::string zone_name = args[0];
+    std::string zone_text;
+    for (i32 i = 0; i < args.size() && args[i]; i++)
     {
-        for (const auto& arg : args)
-            arg_array.push_back(arg);
-        arg_array.push_back(nullptr);
-        arg_array_view = CreateArrayView(arg_array);
+        zone_text += std::format("\"{}\"", args[i]);
+        if (i < args.size() - 1 && args[i + 1])
+            zone_text += " ";
     }
+    ZoneScoped;
+    ZoneName(zone_name.c_str(), zone_name.size());
+    ZoneText(zone_text.c_str(), zone_text.size());
 
-    // 4. Launch the Process
-    const bool pipe_output = (output != nullptr || output_file != nullptr);
+    //Checking for NULL final element
+    std::vector<const char*> arg_array;
+    for (const auto& arg : args)
+        arg_array.push_back(arg);
+    if (args.Last() != nullptr)
+        arg_array.push_back(nullptr);
+    ArrayView<const char*> arg_array_view = CreateArrayView(arg_array);
 
     SDL_PropertiesID props = SDL_CreateProperties();
     SDL_SetBooleanProperty(props, SDL_PROP_PROCESS_CREATE_BACKGROUND_BOOLEAN, true);
     SDL_SetPointerProperty(props, SDL_PROP_PROCESS_CREATE_ARGS_POINTER, arg_array_view.data);
+    const bool pipe_output = (output || output_file);
     if (pipe_output)
     {
       SDL_SetNumberProperty(props, SDL_PROP_PROCESS_CREATE_STDOUT_NUMBER, SDL_PROCESS_STDIO_APP);
@@ -201,19 +188,17 @@ i32 SysRunProcess(ArrayView<const char*> args, AsyncData<std::string>* output, A
 
     if (!process)
     {
-        //const std::wstring errorBoxTitle = ToString(L"SDL_CreateProcess Error: %s", SDL_GetError());
-        //const std::wstring errorText = ToString(L"Command Line Params: %s", args_mb.c_str());
-        //DebugPrint("%s\n", errorBoxTitle.c_str());
-        //DebugPrint(errorText.c_str());
-        //DebugPrint("\n");
-        //SysShowErrorWindow(errorBoxTitle, errorText);
+        const std::string errorBoxTitle = ToString("SDL_CreateProcess Error: %s", SDL_GetError());
+        const std::string errorText = ToString("Command Line Params: %s", zone_text.c_str());
+        DebugPrint("%s\n", errorBoxTitle.c_str());
+        DebugPrint(errorText.c_str());
+        DebugPrint("\n");
+        SysShowErrorWindow(errorBoxTitle, errorText);
         FAIL;
         return 2;
     }
 
-    // 5. Read Output (Blocks until process stdout pipe closes)
     std::string local_file_buffer;
-
     if (pipe_output)
     {
         SDL_IOStream* stream = SDL_GetProcessOutput(process);
@@ -225,36 +210,29 @@ i32 SysRunProcess(ArrayView<const char*> args, AsyncData<std::string>* output, A
             char buffer[4096];
             size_t bytesRead;
 
-            // SDL_ReadIO returns 0 on EOF or error
             while (true)
             {
                 SDL_IOStatus stat = SDL_GetIOStatus(stream);
                 if (((bytesRead = SDL_ReadIO(stream, buffer, sizeof(buffer))) == 0) && (stat != SDL_IO_STATUS_READY && stat != SDL_IO_STATUS_NOT_READY))
-                {
-                    i32 i = 1;
                     break;
-                }
                 if (output)
                 {
                     TRACY_LOCK(output->lock);
                     output->data.append(buffer, bytesRead);
                 }
                 if (output_file)
-                {
                     local_file_buffer.append(buffer, bytesRead);
-                }
             }
             if (output)
                 output->state = AsyncStatus_FetchedSuccess;
         }
     }
 
-    // 6. Write to File
     if (output_file)
     {
         if (output_file->data.empty())
         {
-            //DebugPrint("RunProcess() has output_file specified but no data: \"%s\"", args_mb.c_str());
+            DebugPrint("RunProcess() has output_file specified but no data: \"%s\"", zone_text.c_str());
         }
         else
         {
@@ -273,30 +251,18 @@ i32 SysRunProcess(ArrayView<const char*> args, AsyncData<std::string>* output, A
         }
     }
 
-    // 7. Cleanup and Wait
     int result_code = 0;
-
     if (!(flags & RunProcess_Async))
     {
-        // Blocking wait
         SDL_WaitProcess(process, true, &result_code);
         SDL_DestroyProcess(process);
     }
     else
     {
-        // Fire-and-forget Async: We detach a tiny background thread to wait for the
-        // process to finish and gracefully clean up the SDL_Process handle.
-        // This fixes the Linux Zombie Process bug from your previous abstraction!
-        std::thread([process]() {
-            SDL_WaitProcess(process, true, nullptr);
-            SDL_DestroyProcess(process);
-        }).detach();
+        WaitForProcessJob* job = new WaitForProcessJob();
+        job->process = process;
     }
-
     return result_code;
-#else
-    return OSRunProcess(path, args, output, output_file, flags);
-#endif
 }
 
 
@@ -406,7 +372,7 @@ void ParseCSV(PowershellResponse& out, const std::string& in, bool using_quotes)
     }
 }
 
-void SysShowErrorWindow(const std::wstring& title, const std::wstring& text)
+void SysShowErrorWindow(const std::string& title, const std::string& text)
 {
     OSShowErrorWindow(title, text);
 }
@@ -797,34 +763,47 @@ void SysProcessEvents()
 
 void RunProcessJob::RunJob()
 {
+    VALIDATE(!m_args_string.empty() || m_args_array.size());
+
+    const bool use_array = m_args_array.size();
+
     std::string zone_text;
     std::string zone_name;
-    GetNameAndTextForJob(zone_text, zone_name, path, args);
+    if (use_array)
+    {
+        zone_name = m_args_array[0];
+        for (i32 i = 0; i < m_args_array.size(); i++)
+        {
+            zone_text += std::format("\"{}\"", m_args_array[i]);
+            if (i < m_args_array.size() - 1)
+                zone_text += " ";
+        }
+        ZoneScoped;
+    }
+    else
+    {
+        const size_t p = m_args_string.find_first_of(' ', 1);
+        zone_name = m_args_string.substr(0, p);
+        zone_text = m_args_string;
+    }
     ZoneScoped;
     ZoneName(zone_name.c_str(), zone_name.size());
     ZoneText(zone_text.c_str(), zone_text.size());
-    const wchar_t* wpath = path.size() ? path.c_str() : nullptr;
-    const wchar_t* wargs = args.size() ? args.c_str() : nullptr;
-    i32 result = SysRunProcess(wpath, wargs, output);
+
+    i32 result = 0;
+    if (use_array)
+        result = SysRunProcess(m_args_array, m_output, m_output_file);
+    else
+        result = SysRunProcess(m_args_string, m_output, m_output_file);
+
     if (result && m_run_all_jobs)
     {
         Threading::GetInstance().RunAndClearJobs();
     }
-}
 
-void RunProcessLogToFileJob::RunJob()
-{
-    ZoneScopedN("RunProcessLogToFileJob");
-    bool r = SysRunProcess(path.c_str(), args.c_str(), output, &output_file);
-    if (run_and_clear && r)
+    if (m_completed)
     {
-        ZoneScopedN("Run and Clear");
-        Threading::GetInstance().RunAndClearJobs();
-    }
-
-    if (completed)
-    {
-        ASSERT(*completed == false);
-        (*completed) = true;
+        ASSERT(*m_completed == false);
+        (*m_completed) = true;
     }
 }
