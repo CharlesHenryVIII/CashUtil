@@ -84,9 +84,9 @@ bool SysIsConsoleVisible()
     return OSIsConsoleVisible();
 }
 
-i32 SysRunShellProcess(const wchar_t* path, const wchar_t* args, std::string* output, Mutex* output_lock, RunProcessFlags flags)
+i32 SysRunShellProcess(ArrayView<const char*> args, AsyncData<std::string>* output, AsyncData<Path>* output_file, RunProcessFlags flags)
 {
-    return OSRunShellProcess(path, args, output, output_lock, flags);
+    return OSRunShellProcess(args, output, output_file, flags);
 }
 
 struct WaitForProcessJob : Job

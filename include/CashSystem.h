@@ -254,12 +254,12 @@ void SysHideConsole();
 void SysShowConsole();
 bool SysIsConsoleVisible();
 
-i32 SysRunShellProcess(const wchar_t* path, const wchar_t* args, std::string* output = nullptr, Mutex* output_lock = nullptr, RunProcessFlags flags = RunProcess_None);
-i32 SysRunProcess(const char*           args,   AsyncData<std::string>* output = nullptr, AsyncData<Path>* output_file = nullptr, RunProcessFlags flags = RunProcess_None);
-i32 SysRunProcess(const wchar_t*        argswt, AsyncData<std::string>* output = nullptr, AsyncData<Path>* output_file = nullptr, RunProcessFlags flags = RunProcess_None);
-i32 SysRunProcess(const std::string&    args,   AsyncData<std::string>* output = nullptr, AsyncData<Path>* output_file = nullptr, RunProcessFlags flags = RunProcess_None);
-i32 SysRunProcess(const std::wstring&   argsw,  AsyncData<std::string>* output = nullptr, AsyncData<Path>* output_file = nullptr, RunProcessFlags flags = RunProcess_None);
-i32 SysRunProcess(ArrayView<const char*> args,  AsyncData<std::string>* output = nullptr, AsyncData<Path>* output_file = nullptr, RunProcessFlags flags = RunProcess_None);
+i32 SysRunShellProcess( ArrayView<const char*>  args,   AsyncData<std::string>* output = nullptr, AsyncData<Path>* output_file = nullptr, RunProcessFlags flags = RunProcess_None);
+i32 SysRunProcess(      const char*             args,   AsyncData<std::string>* output = nullptr, AsyncData<Path>* output_file = nullptr, RunProcessFlags flags = RunProcess_None);
+i32 SysRunProcess(      const wchar_t*          argswt, AsyncData<std::string>* output = nullptr, AsyncData<Path>* output_file = nullptr, RunProcessFlags flags = RunProcess_None);
+i32 SysRunProcess(      const std::string&      args,   AsyncData<std::string>* output = nullptr, AsyncData<Path>* output_file = nullptr, RunProcessFlags flags = RunProcess_None);
+i32 SysRunProcess(      const std::wstring&     argsw,  AsyncData<std::string>* output = nullptr, AsyncData<Path>* output_file = nullptr, RunProcessFlags flags = RunProcess_None);
+i32 SysRunProcess(      ArrayView<const char*>  args,   AsyncData<std::string>* output = nullptr, AsyncData<Path>* output_file = nullptr, RunProcessFlags flags = RunProcess_None);
 bool SysGetNetworkAdapters(std::vector<SysNetworkAdapterInfo>& out_adapters);
 bool SysHasAdminPrivledge();
 bool SysSetNetAdapterIP(const std::string& adapter_guid, const SysNetAdapterConfig& adapter, const SysNetAdapterConfig& src_adapter);
