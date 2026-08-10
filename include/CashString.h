@@ -47,6 +47,7 @@ std::vector<std::string> FileToStringArray(const char* fileName, const char* lin
 i32 NumberLengthInString(const std::string& string, i32& i);
 std::string ToString(const char* fmt, ...);
 std::wstring ToString(const wchar_t* fmt, ...);
+std::string ToString(const Path& path);
 void ToLower(std::wstring& s);
 void ToLower(std::string& s);
 i32 StringToInt(const std::string& string, i32 i, i32 length);

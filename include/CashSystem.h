@@ -264,7 +264,6 @@ bool SysHasAdminPrivledge();
 bool SysSetNetAdapterIP(const std::string& adapter_guid, const SysNetAdapterConfig& adapter, const SysNetAdapterConfig& src_adapter);
 bool SysSetNetAdapterDNS(const std::string& adapter_guid, const SysNetAdapterConfig& adapter, const SysNetAdapterConfig& src_adapter);
 
-void SysAssert(bool expr, const char* message, const char* file, int line);
 void SysSleep(u64 ms);
 double SysGetTime();
 float SysMonitorScale();

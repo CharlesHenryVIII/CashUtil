@@ -1072,6 +1072,7 @@ void _ScanDirectoryForFileNames(const std::wstring& root, const std::wstring& di
             break;
         }
     }
+    FindClose(handle);
 }
 
 void OSScanDirectoryForFileNames(const Path& dir, ScannedFiles& out, ScanDirectoryFlags flags)
@@ -1213,6 +1214,7 @@ void OSExpandEnvironemntVariable(std::wstring& out, const std::wstring& in)
     out.resize(size - 1); //Remove trailing null inserted by API
 }
 
+#ifdef _DEBUG
 #ifdef FEATURE_CUSTOM_ASSERT
 #pragma comment(lib, "Comctl32.lib")
 #include <commctrl.h>
@@ -1373,6 +1375,12 @@ void OsAssert(bool expr, const char* message, const char* file, int line)
 void OsAssert(bool expr, const char* message, const char* file, int line)
 {
     ASSERT(expr);
+}
+#endif
+#else
+void OsAssert(bool expr, const char* message, const char* file, int line)
+{
+    //no op
 }
 #endif
 

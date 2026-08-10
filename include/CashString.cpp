@@ -324,6 +324,12 @@ std::wstring ToString(const wchar_t* fmt, ...)
     va_end(args);
     return buffer;
 }
+std::string ToString(const Path& path)
+{
+    std::string r;
+    SysConvertWideCharToMultiByte(r, path.wstring());
+    return r;
+}
 
 void ToLower(std::wstring& s)
 {
@@ -467,7 +473,7 @@ bool CopyFile(const Path& source, const Path& dest)
 {
     if (source.empty() || dest.empty())
     {
-        DebugPrint("Failed to copy file EMPTY: src: \"%s\" dest: \"%s\"", source.string().c_str(), dest.string().c_str());
+        DebugPrint("Failed to copy file EMPTY: src: \"%s\" dest: \"%s\"", ToString(source).c_str(), ToString(dest).c_str());
         FAIL;
         return false;
     }
@@ -475,7 +481,7 @@ bool CopyFile(const Path& source, const Path& dest)
     fs::create_directories(dest.parent_path(), ec);
     if (ec)
     {
-        DebugPrint("Failed to create directories for dest: \"%s\"", dest.string().c_str());
+        DebugPrint("Failed to create directories for dest: \"%s\"", ToString(dest).c_str());
         DebugPrint("create_directories Failure: \"%d\", \"%s\"", ec.value(), ec.message().c_str());
         FAIL;
         return false;
@@ -484,7 +490,7 @@ bool CopyFile(const Path& source, const Path& dest)
     bool result = std::filesystem::copy_file(source, dest, std::filesystem::copy_options::overwrite_existing, ec);
     if (ec)
     {
-        DebugPrint("Failed to copy file src: \"%s\" dest: \"%s\"", source.string().c_str(), dest.string().c_str());
+        DebugPrint("Failed to copy file src: \"%s\" dest: \"%s\"", ToString(source).c_str(), ToString(dest).c_str());
         DebugPrint("copy_file Failure: \"%d\", \"%s\"", ec.value(), ec.message().c_str());
         FAIL;
         return false;
@@ -496,7 +502,7 @@ bool CopyFileRelative(const Path& source, const Path& dest, const Path& relative
 {
     if (source.empty() || dest.empty() || relative.empty())
     {
-        DebugPrint("Failed to copy file EMPTY: src: \"%s\" dest: \"%s\" relative: \"%s\"", source.string().c_str(), dest.string().c_str(), relative.string().c_str());
+        DebugPrint("Failed to copy file EMPTY: src: \"%s\" dest: \"%s\" relative: \"%s\"", ToString(source).c_str(), ToString(dest).c_str(), ToString(relative).c_str());
         FAIL;
         return false;
     }
@@ -507,7 +513,7 @@ bool CopyFileRelative(const Path& source, const Path& dest, const Path& relative
     fs::create_directories(full_dest.parent_path(), ec);
     if (ec)
     {
-        DebugPrint("Failed to create directories for dest: \"%s\"", (full_dest).string().c_str());
+        DebugPrint("Failed to create directories for dest: \"%s\"", ToString(full_dest).c_str());
         DebugPrint("create_directories Failure: \"%d\", \"%s\"", ec.value(), ec.message().c_str());
         FAIL;
         return false;
@@ -516,7 +522,7 @@ bool CopyFileRelative(const Path& source, const Path& dest, const Path& relative
     bool result = fs::copy_file(full_source, full_dest, fs::copy_options::overwrite_existing, ec);
     if (ec)
     {
-        DebugPrint("Failed to copy file src: \"%s\" dest: \"%s\"", full_source.string().c_str(), full_dest.string().c_str());
+        DebugPrint("Failed to copy file src: \"%s\" dest: \"%s\"", ToString(full_source).c_str(), ToString(full_dest).c_str());
         DebugPrint("copy_file Failure: \"%d\", \"%s\"", ec.value(), ec.message().c_str());
         FAIL;
         return false;
@@ -528,7 +534,7 @@ bool CopyFolderRelative(const Path& source, const Path& dest, const Path& relati
 {
     if (source.empty() || dest.empty() || relative.empty())
     {
-        DebugPrint("Failed to copy folder EMPTY: src: \"%s\" dest: \"%s\" relative: \"%s\"", source.string().c_str(), dest.string().c_str(), relative.string().c_str());
+        DebugPrint("Failed to copy folder EMPTY: src: \"%s\" dest: \"%s\" relative: \"%s\"", ToString(source).c_str(), ToString(dest).c_str(), ToString(relative).c_str());
         FAIL;
         return false;
     }
@@ -539,7 +545,7 @@ bool CopyFolderRelative(const Path& source, const Path& dest, const Path& relati
     fs::create_directories(full_dest.parent_path(), ec);
     if (ec)
     {
-        DebugPrint("Failed to create directories for dest: \"%s\"", full_dest.parent_path().string().c_str());
+        DebugPrint("Failed to create directories for dest: \"%s\"", ToString(full_dest.parent_path()).c_str());
         DebugPrint("create_directories Failure: \"%d\", \"%s\"", ec.value(), ec.message().c_str());
         FAIL;
         return false;
@@ -548,7 +554,7 @@ bool CopyFolderRelative(const Path& source, const Path& dest, const Path& relati
     fs::copy(full_source, full_dest, fs::copy_options::recursive | fs::copy_options::overwrite_existing, ec);
     if (ec)
     {
-        DebugPrint("Failed to copy folder src: \"%s\" dest: \"%s\" ", full_source.string().c_str(), full_dest.string().c_str());
+        DebugPrint("Failed to copy folder src: \"%s\" dest: \"%s\" ", ToString(full_source).c_str(), ToString(full_dest).c_str());
         DebugPrint("copy_file Failure: \"%d\", \"%s\"", ec.value(), ec.message().c_str());
         FAIL;
         return false;
@@ -684,7 +690,7 @@ void CreateParentDirectories(const Path& path)
         fs::create_directories(path.parent_path(), ec);
         if (ec)
         {
-            DebugPrint("Failed to create directories for \"%s\"", path.string().c_str());
+            DebugPrint("Failed to create directories for \"%s\"", ToString(path).c_str());
             DebugPrint("create_directories Failure: \"%d\", \"%s\"", ec.value(), ec.message().c_str());
             FAIL;
         }
@@ -717,7 +723,7 @@ u64 FileReadAll(std::string& out, const Path& filepath)
     std::ifstream file(filepath, std::ios::binary | std::ios::ate);
     if (!file)
     {
-        DebugPrint("Error: Failed to open file: %s", filepath.string().c_str());
+        DebugPrint("Error: Failed to open file: %s", ToString(filepath).c_str());
         FAIL;
         return 0;
     }
@@ -734,7 +740,7 @@ u64 FileReadAll(std::wstring& out, const Path& filepath)
     std::wifstream file(filepath, std::ios::binary | std::ios::ate);
     if (!file)
     {
-        DebugPrint("Error: Failed to open file: %s", filepath.string().c_str());
+        DebugPrint("Error: Failed to open file: %s", ToString(filepath).c_str());
         FAIL;
         return 0;
     }

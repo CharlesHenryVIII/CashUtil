@@ -235,7 +235,7 @@ i32 SysRunProcess(ArrayView<const char*> args, AsyncData<std::string>* output, A
             std::fstream file(output_file->data, std::ios_base::out);
             if (!file.good())
             {
-                DebugPrint("Failed to open file for write: %s", output_file->data.string().c_str());
+                DebugPrint("Failed to open file for write: %s", ToString(output_file->data).c_str());
                 FAIL;
             }
             else
@@ -284,10 +284,6 @@ bool SysSetNetAdapterDNS(const std::string& adapter_guid, const SysNetAdapterCon
     return OSSetNetAdapterDNS(adapter_guid, adapter, src_adapter);
 }
 
-void SysAssert(bool expr, const char* message, const char* file, int line)
-{
-    OsAssert(expr, message, file, line);
-}
 void SysSleep(u64 _ms)
 {
     ZoneScoped;
