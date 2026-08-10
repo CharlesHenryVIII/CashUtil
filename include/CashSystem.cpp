@@ -36,7 +36,7 @@ void SysDebugPrintDirect(const char* fmt, ...)
     OSDebugOutput("\n");
     va_end(list);
 
-    OSWriteToAttachedConsole(buffer, false);
+    //OSWriteToAttachedConsole(buffer, false);
 }
 
 void DebugPrint(const char* fmt, ...)
@@ -49,7 +49,7 @@ void DebugPrint(const char* fmt, ...)
     OSDebugOutput("\n");
     va_end(list);
 
-    OSWriteToAttachedConsole(buffer, true);
+    //OSWriteToAttachedConsole(buffer, true);
 }
 void DebugPrint(const wchar_t* fmt, ...)
 {
