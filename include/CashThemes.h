@@ -29,8 +29,8 @@ enum ThemeStyle : i32 {
 
 
 struct ThemeSettings {
-    ThemeColor color = ThemeColor_Quantum;
-    ThemeStyle style = ThemeStyle_SimpleRounding;
+    ThemeColor color;
+    ThemeStyle style;
 };
 extern ThemeSettings g_theme_settings;
 
@@ -38,7 +38,7 @@ extern Theme g_ThemeColorOptions[ThemeColor_Count];
 extern Theme g_ThemeStyleOptions[ThemeStyle_Count];
 
 
-void ThemesInit();
+void ThemesInit(ThemeColor color, ThemeStyle style);
 void ThemeSetColor(i32 color);
 void ThemeSetStyle(i32 style);
 const char* GetCStringFromThemes(void* data, int idx);

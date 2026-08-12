@@ -476,7 +476,7 @@ g_ ## __type ## Options[__type ## _ ## __name].function   = F ## __type ## _ ## 
 #define COLORING(__name) THEMING(ThemeColor, __name)
 #define STYLING(__name) THEMING(ThemeStyle, __name)
 
-void ThemesInit()
+void ThemesInit(ThemeColor color, ThemeStyle style)
 {
     COLORING(DefaultDark);
     COLORING(DefaultLight);
@@ -493,8 +493,10 @@ void ThemesInit()
     STYLING(SimpleRounding);
     STYLING(Grey);
 
-    ThemeSetColor(g_theme_settings.color);
-    ThemeSetStyle(g_theme_settings.style);
+    g_theme_settings.color = color;
+    g_theme_settings.style = style;
+    ThemeSetColor(color);
+    ThemeSetStyle(style);
 }
 
 void ThemeSetColor(i32 color)
