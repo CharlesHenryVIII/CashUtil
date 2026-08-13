@@ -81,7 +81,7 @@ bool RenderInit(ArrayView<const ArrayView<const u8>> app_icons)
         Vec2I image_size;
         stbi_uc* pixels = stbi_load_from_memory(
             (const stbi_uc*)icon.data,
-            icon.Bytes(),
+            (i32)icon.Bytes(),
             &image_size.x,
             &image_size.y,
             nullptr,

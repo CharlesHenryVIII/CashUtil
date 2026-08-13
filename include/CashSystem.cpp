@@ -567,7 +567,7 @@ ImFont* SysCreateImguiFont(const ArrayView<const u8> font_data, float font_size)
     cfg.FontDataOwnedByAtlas = false;
     ImFont* font = ImGui::GetIO().Fonts->AddFontFromMemoryTTF(
         const_cast<void*>((const void*)font_data.data),
-        font_data.Bytes(),
+        (i32)font_data.Bytes(),
         font_size,
         &cfg
     );
