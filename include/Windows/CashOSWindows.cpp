@@ -1138,11 +1138,30 @@ bool OSGetDirectoryFromUser(const Path& currentDir, std::wstring& dir)
     return false;
 }
 
-void OSConvertMultibyteToWideChar(std::wstring& out, const std::string& in)
+UINT GetWindowsEncoding(const StringEncoding encoding)
 {
-    //WideCharToMultiByte
+    UINT e = CP_UTF8;
+    switch (encoding)
+    {
+    case StringEncoding_ANSI:           e = CP_ACP;           break;
+    case StringEncoding_OEM:            e = CP_OEMCP;         break;
+    case StringEncoding_MAC:            e = CP_MACCP;         break;
+    case StringEncoding_THREAD_ANSI:    e = CP_THREAD_ACP;    break;
+    case StringEncoding_SYMBOL:         e = CP_SYMBOL;        break;
+    case StringEncoding_UTF7:           e = CP_UTF7;          break;
+    case StringEncoding_UTF8:           e = CP_UTF8;          break;
+    case StringEncoding_Invalid:    [[fallthrough]];
+    case StringEncoding_Count:      [[fallthrough]];
+    default: FAIL;
+    }
+    return e;
+}
+
+void OSConvertMultibyteToWideChar(std::wstring& out, const std::string& in, StringEncoding encoding)
+{
+    const UINT enc = GetWindowsEncoding(encoding);
     i32 wide_char_count = MultiByteToWideChar(
-        CP_UTF8,                //[in]            UINT                              CodePage,
+        enc,                    //[in]            UINT                              CodePage,
         MB_ERR_INVALID_CHARS,   //[in]            DWORD                             dwFlags,
         in.c_str(),             //[in]            _In_NLS_string_(cbMultiByte)LPCCH lpMultiByteStr,
         -1,                     //[in]            int                               cbMultiByte,
@@ -1153,7 +1172,7 @@ void OSConvertMultibyteToWideChar(std::wstring& out, const std::string& in)
     out.clear();
     out.resize(wide_char_count);
     i32 wide_char_actual = MultiByteToWideChar(
-        CP_UTF8,                //[in]            UINT                              CodePage,
+        enc,                    //[in]            UINT                              CodePage,
         MB_ERR_INVALID_CHARS,   //[in]            DWORD                             dwFlags,
         in.c_str(),             //[in]            _In_NLS_string_(cbMultiByte)LPCCH lpMultiByteStr,
         -1,                     //[in]            int                               cbMultiByte,
@@ -1164,13 +1183,12 @@ void OSConvertMultibyteToWideChar(std::wstring& out, const std::string& in)
     ASSERT(wide_char_actual == wide_char_count);
 }
 
-void OSConvertWideCharToMultiByte(std::string& out, const std::wstring& in)
+void OSConvertWideCharToMultiByte(std::string& out, const std::wstring& in, StringEncoding encoding)
 {
-    //WideCharToMultiByte
+    const UINT enc = GetWindowsEncoding(encoding);
     BOOL invalid_string;
-
     i32 multibyte_char_count = WideCharToMultiByte(
-        CP_UTF8,                //[in]            UINT                               CodePage,
+        enc,                    //[in]            UINT                               CodePage,
         0,//MB_ERR_INVALID_CHARS,   //[in]            DWORD                              dwFlags,
         in.c_str(),             //[in]            _In_NLS_string_(cchWideChar)LPCWCH lpWideCharStr,
         -1,                     //[in]            int                                cchWideChar,
@@ -1183,7 +1201,7 @@ void OSConvertWideCharToMultiByte(std::string& out, const std::wstring& in)
     out.clear();
     out.resize(multibyte_char_count);
     i32 multibyte_char_actual = WideCharToMultiByte(
-        CP_UTF8,                //[in]            UINT                               CodePage,
+        enc,                    //[in]            UINT                               CodePage,
         0,//MB_ERR_INVALID_CHARS,   //[in]            DWORD                              dwFlags,
         in.c_str(),             //[in]            _In_NLS_string_(cchWideChar)LPCWCH lpWideCharStr,
         -1,                     //[in]            int                                cchWideChar,

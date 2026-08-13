@@ -33,8 +33,8 @@ void OSFlashWindow(SDL_Window* window);
 void OSScanDirectoryForFileNames(const Path& dir, ScannedFiles& out, ScanDirectoryFlags flags);
 bool OSGetDirectoryFromUser(const Path& currentDir, std::wstring& dir);
 
-void OSConvertMultibyteToWideChar(std::wstring& out, const std::string& in);
-void OSConvertWideCharToMultiByte(std::string& out, const std::wstring& in);
+void OSConvertMultibyteToWideChar(std::wstring& out, const std::string& in, StringEncoding encoding = StringEncoding_UTF8);
+void OSConvertWideCharToMultiByte(std::string& out, const std::wstring& in, StringEncoding encoding = StringEncoding_UTF8);
 void OSExpandEnvironemntVariable(std::wstring& out, const std::wstring& in);
 void* OSGetDataFromResource(i32* out_size, const i32 resource_id);
 

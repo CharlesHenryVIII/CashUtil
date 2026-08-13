@@ -542,13 +542,13 @@ bool SysGetExecutablePath(Path& out_path, const std::string& name)
     return false;
 }
 
-void SysConvertMultibyteToWideChar(std::wstring& out, const std::string& in)
+void SysConvertMultibyteToWideChar(std::wstring& out, const std::string& in, StringEncoding encoding)
 {
-    OSConvertMultibyteToWideChar(out, in);
+    OSConvertMultibyteToWideChar(out, in, encoding);
 }
-void SysConvertWideCharToMultiByte(std::string& out, const std::wstring& in)
+void SysConvertWideCharToMultiByte(std::string& out, const std::wstring& in, StringEncoding encoding)
 {
-    OSConvertWideCharToMultiByte(out, in);
+    OSConvertWideCharToMultiByte(out, in, encoding);
 }
 
 void SysExpandEnvironemntVariable(std::wstring& out, const std::wstring& in)

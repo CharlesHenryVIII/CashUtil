@@ -11,6 +11,10 @@ struct ArrayView {
     u64 count = 0;
     T* data = 0;
 
+    [[nodiscard]] inline operator ArrayView<const T>() const
+    {
+        return { count, data };
+    }
     [[nodiscard]] inline T& operator[](const u64 index) const
     {
         ASSERT(index < count);

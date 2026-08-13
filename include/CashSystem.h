@@ -306,8 +306,19 @@ void SysOpenSystemNavigation(Path* out_folder_path, const Path* starting_path, A
 //Get the executable path for a given exe.  Looks in systems folders
 bool SysGetExecutablePath(Path& out_path, const std::string& name);
 
-void SysConvertMultibyteToWideChar(std::wstring& out, const std::string& in);
-void SysConvertWideCharToMultiByte(std::string& out, const std::wstring& in);
+enum StringEncoding : u32 { 
+    StringEncoding_Invalid,
+    StringEncoding_ANSI,        // default to ANSI code page
+    StringEncoding_OEM,         // default to OEM  code page
+    StringEncoding_MAC,         // default to MAC  code page
+    StringEncoding_THREAD_ANSI, // current thread's ANSI code page
+    StringEncoding_SYMBOL,      // SYMBOL translations
+    StringEncoding_UTF7,        // UTF-7 translation
+    StringEncoding_UTF8,        // UTF-8 translation
+    StringEncoding_Count,
+};
+void SysConvertMultibyteToWideChar(std::wstring& out, const std::string& in, StringEncoding encoding = StringEncoding_UTF8);
+void SysConvertWideCharToMultiByte(std::string& out, const std::wstring& in, StringEncoding encoding = StringEncoding_UTF8);
 void SysExpandEnvironemntVariable(std::wstring& out, const std::wstring& in);
 ImFont* SysCreateImguiFont(const ArrayView<const u8> font_data, float font_size);
 ImFont* SysLoadFontForImgui(int resource_id, float fontSize);
