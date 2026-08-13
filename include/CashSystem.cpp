@@ -765,8 +765,10 @@ void RunProcessJob::RunJob()
         zone_name = m_args_array[0];
         for (i32 i = 0; i < m_args_array.size(); i++)
         {
+            if (!m_args_array[i])
+                continue;
             zone_text += std::format("\"{}\"", m_args_array[i]);
-            if (i < m_args_array.size() - 1)
+            if (i < m_args_array.size() - 1 && m_args_array[i + 1])
                 zone_text += " ";
         }
         ZoneScoped;
