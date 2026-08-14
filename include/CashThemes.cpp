@@ -476,8 +476,14 @@ g_ ## __type ## Options[__type ## _ ## __name].function   = F ## __type ## _ ## 
 #define COLORING(__name) THEMING(ThemeColor, __name)
 #define STYLING(__name) THEMING(ThemeStyle, __name)
 
-void ThemesInit(ThemeColor color, ThemeStyle style)
+void ThemesInit(const ThemeColor color, const ThemeStyle style, const ThemeColor default_color, const ThemeStyle default_style)
 {
+    g_ThemeColorOptions[ThemeColor_Invalid].name = "Invalid";
+    g_ThemeColorOptions[ThemeColor_Invalid].function = FThemeColor_DefaultLight;
+    g_ThemeStyleOptions[ThemeStyle_Invalid].name = "Invalid";
+    g_ThemeStyleOptions[ThemeStyle_Invalid].function = FThemeStyle_Original;
+
+    COLORING(DefaultDark);
     COLORING(DefaultDark);
     COLORING(DefaultLight);
     COLORING(DefaultClassic);
@@ -495,8 +501,13 @@ void ThemesInit(ThemeColor color, ThemeStyle style)
 
     g_theme_settings.color = color;
     g_theme_settings.style = style;
-    ThemeSetColor(color);
-    ThemeSetStyle(style);
+    if (color == ThemeColor_Invalid)
+        g_theme_settings.color = default_color;
+    if (style == ThemeStyle_Invalid)
+        g_theme_settings.style = default_style;
+
+    ThemeSetColor(g_theme_settings.color);
+    ThemeSetStyle(g_theme_settings.style);
 }
 
 void ThemeSetColor(i32 color)
