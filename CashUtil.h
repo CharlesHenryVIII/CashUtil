@@ -7,6 +7,7 @@
 #include "include/CashWinInterop_File.h"
 #include "include/CashRendering.h"
 #include "include/CashSystem.h"
+#include "include/CashConsole.h"
 
 
 //TODO(CSH): redo wininterop_file
