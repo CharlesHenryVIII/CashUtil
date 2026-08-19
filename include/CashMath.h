@@ -213,12 +213,12 @@ struct Rect {
     Vec2 botLeft = {};
     Vec2 topRight = {};
 
-    float Width()
+    float Width() const
     {
         return topRight.x - botLeft.x;
     }
 
-    float Height()
+    float Height() const
     {
         return topRight.y - botLeft.y;
     }
@@ -609,6 +609,68 @@ MATH_PREFIX double* Normalize(double* v, size_t length)
         v[i] = v[i] / hyp;
     }
     return v;
+}
+
+enum class TweenStyle
+{
+    Linear,
+    Square,
+    Cube,
+    InverseSquare,
+    InverseCube,
+};
+
+struct Tween
+{
+    TweenStyle  style;
+    float       v0;
+    float       v1;
+    double      start_time;
+    float       duration;
+    bool        finished;
+};
+
+double SysGetTime();
+float TweenValue(Tween& tween)
+{
+    if (tween.duration <= 0.0f)
+        return 0;
+    if (tween.finished)
+        return tween.v1;
+
+    float t = Clamp<float>((static_cast<float>(SysGetTime() - tween.start_time)) / tween.duration, 0.0f, 1.0f);
+    if (t == 1.0f)
+    {
+        tween.finished = true;
+        return tween.v1;
+    }
+    float inv_t = 1.0f - t;
+
+    switch (tween.style)
+    {
+    case TweenStyle::Linear: break;
+    case TweenStyle::Square: t = t * t;  break;
+    case TweenStyle::Cube:   t = t * t * t;  break;
+
+    case TweenStyle::InverseSquare: t = 1.0f - (inv_t * inv_t);  break;
+    case TweenStyle::InverseCube:   t = 1.0f - (inv_t * inv_t * inv_t);  break;
+    default: assert(0);
+    }
+
+    return Lerp(tween.v0, tween.v1, t);
+}
+
+Tween TweenBegin(TweenStyle style, float duration, float start, float end)
+{
+    Tween result = {
+        .style = style,
+        .v0 = start,
+        .v1 = end,
+        .duration = duration,
+        .finished = false,
+    };
+    result.start_time = SysGetTime();
+    return result;
 }
 
 template <typename T>

@@ -6,7 +6,7 @@
 
 #define _CSH_CONCAT(a, b) a ## b
 #define CSH_CONCAT(a, b) _CSH_CONCAT(a, b)
-
+#define UNUSED(a) ((void)a)
 #define REQUIRE_SEMICOLON enum {}
 
 #ifdef WIN32

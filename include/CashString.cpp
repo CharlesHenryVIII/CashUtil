@@ -416,19 +416,59 @@ bool StringRemoveTrailing(std::string& s, const char r)
     return false;
 }
 
-bool StringCompare(StringCase case_sensitivity, const char* a, const char* b)
+const char* StringEatWhitespace(const char* input)
+{
+    while (*input && StringIsWhitespace(*input))
+        input++;
+    return input;
+}
+const char* StringEatWord(const char* word)
+{
+    while (*word && !StringIsWhitespace(*word))
+        word++;
+    return word;
+}
+const char* StringEatWordAndWhitespace(const char* input)
+{
+    const char* word_end = StringEatWord(input);
+    const char* whitespace_end = StringEatWhitespace(word_end);
+    return whitespace_end;
+}
+
+bool StringGetToken(char* buf, size_t size, const char** input)
+{
+    if (size == 0)
+        return 0;
+    else if (!input)
+    {
+        buf[0] = 0;
+        return 0;
+    }
+
+    *input = StringEatWhitespace(*input);
+    const char* word_end = StringEatWord(*input);
+    size_t len = size_t(word_end - *input);
+    len = Min(size - 1, len);
+    memmove(buf, *input, len);
+    buf[len] = 0;
+    *input = word_end;
+    return int(len) > 0;
+}
+
+bool StringCompare(StringCase case_sensitivity, const std::string& a, const std::string& b, const i32 num_chars)
+{
+    if (a.empty() || a.empty())
+        return false;
+    return StringCompare(case_sensitivity, a.c_str(), b.c_str(), num_chars);
+}
+bool StringCompare(StringCase case_sensitivity, const char* a, const char* b, const i32 num_chars)
 {
     switch (case_sensitivity)
     {
-    case StringCase_Sensitive:
-        if (strcmp(a, b) == 0)
-            return true;
-        break;
-    case StringCase_Insensitive:
-        if (SYS_STRICMP(a, b) == 0)
-            return true;
-        break;
-    case StringCase_Count: FAIL; break;
+    case StringCase_Sensitive:      return strncmp      (a, b, num_chars) == 0;
+    case StringCase_Insensitive:    return SYS_STRNICMP (a, b, num_chars) == 0;
+    case StringCase_Count: [[fallthrough]];
+    default: FAIL; break;
     }
     return false;
 }
@@ -437,23 +477,22 @@ bool StringCompare(StringCase case_sensitivity, const std::string& a, const std:
 {
     if (a.size() != b.size())
         return false;
-
+    return StringCompare(case_sensitivity, a.c_str(), b.c_str());
+}
+bool StringCompare(StringCase case_sensitivity, const char* a, const char* b)
+{
     switch (case_sensitivity)
     {
-    case StringCase_Sensitive:
-        if (strcmp(a.c_str(), b.c_str()) == 0)
-            return true;
-        break;
-    case StringCase_Insensitive:
-        if (SYS_STRICMP(a.c_str(), b.c_str()) == 0)
-            return true;
-        break;
-    case StringCase_Count: FAIL; break;
+    case StringCase_Sensitive:      return strcmp       (a, b) == 0;
+    case StringCase_Insensitive:    return SYS_STRICMP  (a, b) == 0;
+    case StringCase_Count: [[fallthrough]];
+    default: FAIL; break;
     }
     return false;
 }
 
-bool ContainsString(const std::wstring& source, const std::wstring& find, StringCase case_insensitive)
+
+bool StringContains(const std::wstring& source, const std::wstring& find, StringCase case_insensitive)
 {
     std::string s;
     SysConvertWideCharToMultiByte(s, source);
@@ -562,9 +601,29 @@ bool CopyFolderRelative(const Path& source, const Path& dest, const Path& relati
     return true;
 }
 
-void CopyString(char** dest, const char* source, const u64 max_length)
+u64 StringCopy(char* dest, const char* source, const u64 buffer_length)
 {
-    memmove(*dest, source, (size_t)Min<u64>(max_length, SYS_STRNLEN(source, (size_t)max_length)));
+#if 0
+    VALIDATE_V(dest && source && buffer_length, 0);
+#else
+    ASSERT(dest && buffer_length);
+    if (!source || !source[0])
+    {
+        dest[0] = 0;
+        return 0;
+    }
+#endif
+    const size_t d_len = SYS_STRNLEN(dest,   buffer_length);
+    const size_t s_len = SYS_STRNLEN(source, buffer_length);
+    const size_t min_len = Min(s_len, d_len);
+    size_t len = min_len;
+    if (min_len >= buffer_length)
+    {
+        len = buffer_length - 1;  //NOTE(CSH): This is to preserve null termination
+    }
+    memmove(dest, source, len);
+    dest[len] = 0;
+    return len;
 }
 
 void PathRemoveExtension(std::wstring& path)

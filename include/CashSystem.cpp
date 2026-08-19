@@ -5,7 +5,6 @@
 
 #include <array>
 
-
 #include "ImGui/backends/imgui_impl_sdl3.h"
 #include "ImGui/backends/imgui_impl_sdlrenderer3.h"
 
@@ -293,8 +292,14 @@ void SysSleep(u64 _ms)
 
 double SysGetTime()
 {
+#if 1
     const static double freq = double(SDL_GetPerformanceFrequency()); //HZ
-    double time = SDL_GetPerformanceCounter() / freq;
+    const double time = SDL_GetPerformanceCounter() / freq;
+#else
+    static auto base_time = std::chrono::high_resolution_clock::now();
+    auto now = std::chrono::high_resolution_clock::now();
+    const double time = (now - base_time).count();
+#endif
     return time;
 }
 float SysMonitorScale()
@@ -302,6 +307,20 @@ float SysMonitorScale()
     ZoneScoped;
     const static float scale = SDL_GetDisplayContentScale(SDL_GetPrimaryDisplay());
     return scale;
+}
+
+Vec2 SysGetMousePosition()
+{
+    Vec2 result;
+    SDL_GetMouseState(&result.x, &result.y);
+    return result;
+}
+Vec2 SysGetWindowSize()
+{
+    Vec2I resulti;
+    SDL_GetWindowSize(gfx.window, &resulti.x, &resulti.y);
+    Vec2 result = ToVec2(resulti);
+    return result;
 }
 
 void ParseCSV(PowershellResponse& out, const std::string& in, bool using_quotes)
