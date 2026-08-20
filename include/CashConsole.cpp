@@ -40,27 +40,30 @@ static bool  stbInsertChars(TextEditString* string, int start, char* characters,
 #define STB_TEXTEDIT_INSERTCHARS(obj,i,c,n)     stbInsertChars(obj, i, c, n)
 
 
-#define STB_TEXTEDIT_K_SHIFT       (KMOD_SHIFT << 16)
+#define STB_TEXTEDIT_K_SHIFT       (SDL_KMOD_SHIFT << 16)
 #define STB_TEXTEDIT_K_LEFT        SDLK_LEFT
 #define STB_TEXTEDIT_K_RIGHT       SDLK_RIGHT
 #define STB_TEXTEDIT_K_UP          SDLK_UP
 #define STB_TEXTEDIT_K_DOWN        SDLK_DOWN
 #define STB_TEXTEDIT_K_LINESTART   SDLK_HOME
 #define STB_TEXTEDIT_K_LINEEND     SDLK_END
-#define STB_TEXTEDIT_K_TEXTSTART   (SDLK_HOME | (KMOD_CTRL << 16))
-#define STB_TEXTEDIT_K_TEXTEND     (SDLK_END| (KMOD_CTRL  << 16))
+#define STB_TEXTEDIT_K_TEXTSTART   (SDLK_HOME | (SDL_KMOD_CTRL << 16))
+#define STB_TEXTEDIT_K_TEXTEND     (SDLK_END| (SDL_KMOD_CTRL  << 16))
 #define STB_TEXTEDIT_K_DELETE      SDLK_DELETE
 #define STB_TEXTEDIT_K_BACKSPACE   SDLK_BACKSPACE
-#define STB_TEXTEDIT_K_UNDO        (SDLK_z | (KMOD_CTRL << 16))
-#define STB_TEXTEDIT_K_REDO        (SDLK_z | (KMOD_CTRL << 16) | (KMOD_SHIFT << 16))
+#define STB_TEXTEDIT_K_UNDO        (SDLK_Z | (SDL_KMOD_CTRL << 16))
+#define STB_TEXTEDIT_K_REDO        (SDLK_Z | (SDL_KMOD_CTRL << 16) | (SDL_KMOD_SHIFT << 16))
+//NOTE(CSH): Using vim keybinds for this:
+#define STB_TEXTEDIT_K_PGDOWN      (SDLK_J | (SDL_KMOD_CTRL << 16))
+#define STB_TEXTEDIT_K_PGUP        (SDLK_K | (SDL_KMOD_CTRL << 16))
 
 // Optional:
 #define STB_TEXTEDIT_K_INSERT              SDLK_INSERT
 #define STB_TEXTEDIT_IS_SPACE(ch)          ((ch) == ' ')
 //    STB_TEXTEDIT_MOVEWORDLEFT(obj,i)   custom handler for WORDLEFT, returns index to move cursor to
 //    STB_TEXTEDIT_MOVEWORDRIGHT(obj,i)  custom handler for WORDRIGHT, returns index to move cursor to
-#define STB_TEXTEDIT_K_WORDLEFT            SDLK_LEFT  | (KMOD_CTRL << 16)
-#define STB_TEXTEDIT_K_WORDRIGHT           SDLK_RIGHT | (KMOD_CTRL << 16)
+#define STB_TEXTEDIT_K_WORDLEFT            SDLK_LEFT  | (SDL_KMOD_CTRL << 16)
+#define STB_TEXTEDIT_K_WORDRIGHT           SDLK_RIGHT | (SDL_KMOD_CTRL << 16)
 //    STB_TEXTEDIT_K_LINESTART2          secondary keyboard input to move cursor to start of line
 //    STB_TEXTEDIT_K_LINEEND2            secondary keyboard input to move cursor to end of line
 //    STB_TEXTEDIT_K_TEXTSTART2          secondary keyboard input to move cursor to start of text
@@ -156,6 +159,14 @@ struct Console
 };
 static Console s_console;
 
+static std::string s_logo_string;
+static Console_FuncDrawRect*    s_ConsoleDrawRect    = nullptr;
+static Console_FuncDrawText*    s_ConsoleDrawText    = nullptr;
+static Console_FuncPushScissor* s_ConsolePushScissor = nullptr;
+static Console_FuncPopScissor*  s_ConsolePopScissor  = nullptr;
+static Vec2 s_font_size;
+
+
 
 static Color LogColor(LogLevel level)
 {
@@ -183,14 +194,9 @@ static Rect ConsoleRect()
     return console_rect;
 }
 
-FontSprite* ConsoleFont()
-{
-	return g_fonts["Main"];
-}
-
 static float ItemHeight()
 {
-    return static_cast<float>(ConsoleFont()->charSize) * s_console.font_scale;
+    return s_font_size.y * s_console.font_scale;
     //return AppDefaultFont()->AdvanceY();
 }
 
@@ -478,7 +484,6 @@ CONSOLE_FUNCTIONA(ConsoleFontScale)
     ConsoleLog(LogLevel_Info, "Setting console font scale to %0.3f", s_console.font_scale);
 }
 
-static std::string s_logo_string;
 CONSOLE_FUNCTION(Logo)
 {
     Color logo_color = Mint;
@@ -488,12 +493,6 @@ CONSOLE_FUNCTION(Logo)
     };
 
     WriteLine(s_logo_string.c_str());
-}
-
-void ConsoleInit(const std::string& logo)
-{
-    
-    ConsoleCheckForInit();
 }
 
 void ConsoleCheckForInit()
@@ -510,7 +509,7 @@ void ConsoleCheckForInit()
 
     stb_textedit_initialize_state(&s_console.te_state, true);
 
-    s_console.caret_tween = TweenBegin(TweenStyle::InverseSquare, CARET_BLINK, 0.1f, 1.0f);
+    s_console.caret_tween = TweenBegin(TweenStyle_InverseSquare, CARET_BLINK, 0.1f, 1.0f);
 
     if (0)
     {
@@ -531,6 +530,17 @@ void ConsoleCheckForInit()
     logStrings.clear();
 }
 
+void ConsoleInit(const std::string& logo, const Vec2 font_size, Console_FuncDrawRect* DrawRect, Console_FuncDrawText* DrawText, Console_FuncPushScissor* PushScissor, Console_FuncPopScissor* PopScissor)
+{
+    s_logo_string = logo;
+    s_ConsoleDrawRect     = DrawRect;
+    s_ConsoleDrawText     = DrawText;
+    s_ConsolePushScissor  = PushScissor;
+    s_ConsolePopScissor   = PopScissor;
+    s_font_size = font_size;
+    ConsoleCheckForInit();
+}
+
 void DrawString(Vec2 location, Color color, const char* text, ...)
 {
     va_list count_args, write_args;
@@ -545,7 +555,8 @@ void DrawString(Vec2 location, Color color, const char* text, ...)
         buffer.resize(count);
         vsnprintf(&buffer[0], buffer.size() + 1, text, write_args);
         assert(*(buffer.data() + buffer.size()) == 0);
-        DrawText(ConsoleFont(), color, s_console.font_scale, { i32(location.x), i32(location.y) }, UIX::left, UIY::bot, RenderPrio::Console, buffer.c_str());
+        //DrawText(ConsoleFont(), color, s_console.font_scale, { i32(location.x), i32(location.y) }, UIX::left, UIY::bot, RenderPrio::Console, buffer.c_str());
+        (*s_ConsoleDrawText)(buffer.c_str(), location, color, s_console.font_scale);
     }
 }
 
@@ -585,17 +596,19 @@ void ConsoleRun()
         return;
 
     //Font* font = AppDefaultFont();
-    FontSprite* font = ConsoleFont();
+    //FontSprite* font = ConsoleFont();
 
     Rect log_rect = LogRect();
-    AddRectToRender(RenderType::DebugFill, log_rect, console_color, RenderPrio::Console, CoordinateSpace::UI);
+    //AddRectToRender(RenderType::DebugFill, log_rect, console_color, RenderPrio::Console, CoordinateSpace::UI);
+    (*s_ConsoleDrawRect)(log_rect, console_color);
 
     // Input rect
     Rect input_rect = InputRect();
-    AddRectToRender(RenderType::DebugFill, input_rect, input_color, RenderPrio::Console, CoordinateSpace::UI);
+    //AddRectToRender(RenderType::DebugFill, input_rect, input_color, RenderPrio::Console, CoordinateSpace::UI);
+    (*s_ConsoleDrawRect)(input_rect, input_color);
 
     const char* terminal_prompt = "> ";
-    float charWidth = font->xCharSize * s_console.font_scale;
+    float charWidth = s_font_size.x * s_console.font_scale;
     float prompt_width = static_cast<float>(charWidth * strlen(terminal_prompt)); // font->StringWidth(terminal_prompt); // TODO:
     DrawString(input_rect.botLeft, font_color, "%s%s", terminal_prompt, s_console.input_buf.c_str());
 
@@ -611,9 +624,9 @@ void ConsoleRun()
             s_console.caret_tween.finished = false;
             // Flipping style keeps it bright for most of the time:
             if (s_console.caret_tween.v0 < s_console.caret_tween.v1)
-                s_console.caret_tween.style = TweenStyle::InverseSquare;
+                s_console.caret_tween.style = TweenStyle_InverseSquare;
             else
-                s_console.caret_tween.style = TweenStyle::Square;
+                s_console.caret_tween.style = TweenStyle_Square;
         }
 
         // Nothing selected, draw the cursor
@@ -628,7 +641,8 @@ void ConsoleRun()
         caret.topRight.y = center_y - ItemHeight() * 0.5f;
         Color c = caret_color;
         c.a = alpha;
-        AddRectToRender(RenderType::DebugFill, caret, c, RenderPrio::Console, CoordinateSpace::UI);
+        //AddRectToRender(RenderType::DebugFill, caret, c, RenderPrio::Console, CoordinateSpace::UI);
+        (*s_ConsoleDrawRect)(caret, input_color);
     }
     else
     {
@@ -649,7 +663,8 @@ void ConsoleRun()
         selection.botLeft.y = center_y + ItemHeight() * 0.5f;
         selection.topRight.y = center_y - ItemHeight() * 0.5f;
 
-        AddRectToRender(RenderType::DebugFill, selection, selection_color, RenderPrio::Console, CoordinateSpace::UI);
+        //AddRectToRender(RenderType::DebugFill, selection, selection_color, RenderPrio::Console, CoordinateSpace::UI);
+        (*s_ConsoleDrawRect)(selection, selection_color);
     }
 
     // Draw log
@@ -663,8 +678,8 @@ void ConsoleRun()
     scissor_rect.botLeft.y = s_console.window_size.y - std::max(log_rect.botLeft.y, log_rect.topRight.y);
     scissor_rect.topRight.x = std::max(log_rect.botLeft.x, log_rect.topRight.x);
     scissor_rect.topRight.y = s_console.window_size.y - std::min(log_rect.botLeft.y, log_rect.topRight.y);
-    PushScissor(scissor_rect);
-    Defer{ PopScissor(); };
+    (*s_ConsolePushScissor)(scissor_rect);
+    Defer{ (*s_ConsolePopScissor)(); };
 
     for (size_t i = 0; i < s_console.items.size(); i++)
     {
@@ -684,12 +699,14 @@ void ConsoleRun()
     // Scrollbar
     {
         Rect scroll = ScrollBackgroundRect();
-        AddRectToRender(RenderType::DebugFill, scroll, scroll_background_color, RenderPrio::Console, CoordinateSpace::UI);
+        //AddRectToRender(RenderType::DebugFill, scroll, scroll_background_color, RenderPrio::Console, CoordinateSpace::UI);
+        (*s_ConsoleDrawRect)(scroll, scroll_background_color);
 
         Rect bar = ScrollbarRect();
         Color color = s_console.mouse_scrolling ? scroll_handle_active_color : scroll_handle_color;
         // The current scissor rect will still clip the y-coord here:
-        AddRectToRender(RenderType::DebugFill, bar, color, RenderPrio::Console, CoordinateSpace::UI);
+        //AddRectToRender(RenderType::DebugFill, bar, color, RenderPrio::Console, CoordinateSpace::UI);
+        (*s_ConsoleDrawRect)(bar, color);
     }
 }
 
@@ -703,8 +720,8 @@ void AddLogToList(char* buf, size_t size, LogLevel level = LogLevel_Info)
     char* copy = (char*)malloc(size);
     memcpy(copy, buf, size);
 
-	logStrings.push_back(copy);
-	logLevels.push_back(level);
+    logStrings.push_back(copy);
+    logLevels.push_back(level);
 }
 
 void ConsoleLog(LogLevel level, const char* fmt, ...)
@@ -726,12 +743,12 @@ void ConsoleLog(LogLevel level, const char* fmt, ...)
 void ConsoleLog(const char* fmt, ...)
 {
 
-	char buf[1024];
-	va_list args;
-	va_start(args, fmt);
-	vsnprintf(buf, arrsize(buf), fmt, args);
-	buf[arrsize(buf) - 1] = 0;
-	va_end(args);
+    char buf[1024];
+    va_list args;
+    va_start(args, fmt);
+    vsnprintf(buf, arrsize(buf), fmt, args);
+    buf[arrsize(buf) - 1] = 0;
+    va_end(args);
 
     if (s_console.initialized)
         sConsoleLog(LogLevel_Info, buf);
@@ -776,7 +793,7 @@ void ConsoleAddCommand(const char* name, CommandFuncArgs func)
 void ConsoleClose()
 {
     Console* console = &s_console;
-    console->tween = TweenBegin(TweenStyle::InverseCube, OPEN_TIME, console->visible_height, 0.0f);
+    console->tween = TweenBegin(TweenStyle_InverseCube, OPEN_TIME, console->visible_height, 0.0f);
     s_console.wants_input = false;
     ConsoleClearInput();
     ConsoleClearAutoComplete();
@@ -792,7 +809,7 @@ static float TargetHeight(bool large)
 void ConsoleOpen(bool large)
 {
     float target = TargetHeight(large);
-    s_console.tween = TweenBegin(TweenStyle::InverseCube, OPEN_TIME, s_console.visible_height, target);
+    s_console.tween = TweenBegin(TweenStyle_InverseCube, OPEN_TIME, s_console.visible_height, target);
     s_console.wants_input = true;
 }
 

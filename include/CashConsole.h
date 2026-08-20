@@ -3,12 +3,23 @@
 #include "CashMath.h"
 #include <vector>
 #include <string>
+#include <functional>
 
 #define CONSOLE_FUNCTION(name) void name ()
 typedef CONSOLE_FUNCTION((*CommandFunc));
 
 #define CONSOLE_FUNCTIONA(name) void name (const std::vector<std::string>& args)
 typedef CONSOLE_FUNCTIONA((*CommandFuncArgs));
+
+
+//AddRectToRender(RenderType::DebugFill, log_rect, console_color, RenderPrio::Console, CoordinateSpace::UI);
+using Console_FuncDrawRect = std::function<void(Rect, Color)>;
+//DrawText(ConsoleFont(), color, s_console.font_scale, { i32(location.x), i32(location.y) }, UIX::left, UIY::bot, RenderPrio::Console, buffer.c_str());
+                             //string, bot_left position, color, font scale
+using Console_FuncDrawText = std::function<void(const char*, Vec2, Color, float)>;
+//PushScissor(scissor_rect)
+using Console_FuncPushScissor = std::function<void(Rect)>;
+using Console_FuncPopScissor  = std::function<void(void)>;
 
 enum LogLevel : i32
 {
@@ -20,7 +31,7 @@ enum LogLevel : i32
 };
 ENUMOPS_PURE(LogLevel);
 
-void ConsoleInit(const std::string& logo);
+void ConsoleInit(const std::string& logo, const Vec2 font_size, Console_FuncDrawRect* DrawRect, Console_FuncDrawText* DrawText, Console_FuncPushScissor* PushScissor, Console_FuncPopScissor* PopScissor);
 void ConsoleRun();
 void ConsoleLog(LogLevel level, const char* fmt, ...);
 void ConsoleLog(const char* fmt, ...);
@@ -33,4 +44,5 @@ bool Console_OnKeyboard(i32 c, i32 mods, bool pressed, bool repeat);
 bool Console_OnMouseButton(i32 button, bool pressed);
 bool Console_OnMouseWheel(float scroll);
 void Console_OnWindowSize(i32 width, i32 height);
+
 
