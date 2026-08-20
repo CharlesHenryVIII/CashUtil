@@ -384,7 +384,6 @@ struct RunProcessJob : Job
     virtual void RunJob() override;
 };
 
-#define STB_IMAGE_IMPLEMENTATION
 #include "stb/stb_sprintf.h"
 //
 // Case Insensitive String Compare
@@ -393,7 +392,7 @@ struct RunProcessJob : Job
     #define SYS_STRICMP _stricmp
     #define SYS_STRNLEN strnlen_s
     #define SYS_STRNICMP _strnicmp
-    #define SYS_VSNPRINTF (_buffer, _size, _format, _args)  vsnprintf_s ((_buffer), (_size), _TRUNCATE, (_format), (_args))
+    #define SYS_VSNPRINTF(_buffer, _size, _format, _args)   vsnprintf_s ((_buffer), (_size), _TRUNCATE, (_format), (_args))
     #define SYS_VSNWPRINTF(_buffer, _size, _format, _args) _vsnwprintf_s((_buffer), (_size), _TRUNCATE, (_format), (_args))
 #else
     #include <strings.h>

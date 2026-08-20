@@ -134,6 +134,47 @@ i32 ManhattanDistance(Vec3I a, Vec3I b)
     return abs(a.x - b.x) + abs(a.y - b.y) + abs(a.z - b.z);
 }
 
+float TweenValue(Tween& tween)
+{
+    if (tween.duration <= 0.0f)
+        return 0;
+    if (tween.finished)
+        return tween.v1;
+
+    float t = Clamp<float>((static_cast<float>(SysGetTime() - tween.start_time)) / tween.duration, 0.0f, 1.0f);
+    if (t == 1.0f)
+    {
+        tween.finished = true;
+        return tween.v1;
+    }
+    float inv_t = 1.0f - t;
+
+    switch (tween.style)
+    {
+    case TweenStyle_Linear: break;
+    case TweenStyle_Square: t = t * t;  break;
+    case TweenStyle_Cube:   t = t * t * t;  break;
+
+    case TweenStyle_InverseSquare: t = 1.0f - (inv_t * inv_t);  break;
+    case TweenStyle_InverseCube:   t = 1.0f - (inv_t * inv_t * inv_t);  break;
+    default: FAIL;
+    }
+
+    return Lerp(tween.v0, tween.v1, t);
+}
+Tween TweenBegin(TweenStyle style, float duration, float start, float end)
+{
+    Tween result = {
+        .style = style,
+        .v0 = start,
+        .v1 = end,
+        .duration = duration,
+        .finished = false,
+    };
+    result.start_time = SysGetTime();
+    return result;
+}
+
 
 
 void Swap(void* a, void* b, const i32 size)

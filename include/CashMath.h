@@ -611,68 +611,6 @@ MATH_PREFIX double* Normalize(double* v, size_t length)
     return v;
 }
 
-enum class TweenStyle
-{
-    Linear,
-    Square,
-    Cube,
-    InverseSquare,
-    InverseCube,
-};
-
-struct Tween
-{
-    TweenStyle  style;
-    float       v0;
-    float       v1;
-    double      start_time;
-    float       duration;
-    bool        finished;
-};
-
-double SysGetTime();
-float TweenValue(Tween& tween)
-{
-    if (tween.duration <= 0.0f)
-        return 0;
-    if (tween.finished)
-        return tween.v1;
-
-    float t = Clamp<float>((static_cast<float>(SysGetTime() - tween.start_time)) / tween.duration, 0.0f, 1.0f);
-    if (t == 1.0f)
-    {
-        tween.finished = true;
-        return tween.v1;
-    }
-    float inv_t = 1.0f - t;
-
-    switch (tween.style)
-    {
-    case TweenStyle::Linear: break;
-    case TweenStyle::Square: t = t * t;  break;
-    case TweenStyle::Cube:   t = t * t * t;  break;
-
-    case TweenStyle::InverseSquare: t = 1.0f - (inv_t * inv_t);  break;
-    case TweenStyle::InverseCube:   t = 1.0f - (inv_t * inv_t * inv_t);  break;
-    default: assert(0);
-    }
-
-    return Lerp(tween.v0, tween.v1, t);
-}
-
-Tween TweenBegin(TweenStyle style, float duration, float start, float end)
-{
-    Tween result = {
-        .style = style,
-        .v0 = start,
-        .v1 = end,
-        .duration = duration,
-        .finished = false,
-    };
-    result.start_time = SysGetTime();
-    return result;
-}
-
 template <typename T>
 MATH_PREFIX T Lerp(const T& a, const T& b, float t)
 {
@@ -696,6 +634,26 @@ MATH_PREFIX Vec3 Converge(const Vec3& value, const Vec3& target, float rate, flo
 #endif
 [[nodiscard]] float Cubic(Vec4 v, float x);
 [[nodiscard]] float Bicubic(Mat4 p, Vec2 pos);
+
+enum TweenStyle : u32
+{
+    TweenStyle_Linear,
+    TweenStyle_Square,
+    TweenStyle_Cube,
+    TweenStyle_InverseSquare,
+    TweenStyle_InverseCube,
+};
+struct Tween
+{
+    TweenStyle  style;
+    float       v0;
+    float       v1;
+    double      start_time;
+    float       duration;
+    bool        finished;
+};
+float TweenValue(Tween& tween);
+Tween TweenBegin(TweenStyle style, float duration, float start, float end);
 
 /*
 Atan2f return value:
