@@ -7,8 +7,104 @@
 #include "stb/stb_image.h"
 #include "ImGui/backends/imgui_impl_sdl3.h"
 #include "ImGui/backends/imgui_impl_sdlrenderer3.h"
+#include "bgfx/bgfx.h"
 
 Renderer gfx;
+
+struct DxRenderer {
+    bgfx::VertexLayout vert_layouts[VertexType_Count] = {};
+    bgfx::VertexBufferHandle fullscreen_verts;
+    bgfx::VertexBufferHandle fullscreen_verts;
+};
+static DxRenderer s_gfx;
+
+
+bool RenderInitBgfx()
+{
+    bgfx::Init bgfx_init;
+    bgfx_init.type = bgfx::RendererType::Count;
+    bgfx_init.vendorId = BGFX_PCI_ID_NONE;
+#if _DEBUG
+    //bgfx_init.debug = true;
+    //bgfx_init.profile = true;
+#endif
+    bgfx_init.fallback = true;
+    //bgfx_init.platformData.ndt = entry::getNativeDisplayHandle();   //!< Native display type (*nix specific).
+    bgfx_init.platformData.nwh = SysGetWindowHandle(gfx.window);
+    bgfx_init.platformData.context = nullptr; //bgfx will create
+    bgfx_init.platformData.queue = nullptr; //bgfx will create
+
+    //TODO(CSH): Create myself
+    bgfx_init.platformData.backBuffer = nullptr; //bgfx will create
+    bgfx_init.platformData.backBufferDS = nullptr; //bgfx will create
+
+#ifdef LINUX
+    bgfx_init.platformData.type = bgfx::NativeWindowHandleType::Enum::Wayland; //!< Handle type. Needed for platforms having more than one option.
+#else
+    bgfx_init.platformData.type = bgfx::NativeWindowHandleType::Enum::Default; //!< Handle type. Needed for platforms having more than one option.
+#endif
+
+    //bgfx_init.limits;
+    bgfx_init.resolution.formatColor = bgfx::TextureFormat::Enum::RGBA8U;
+    bgfx_init.resolution.formatDepthStencil = bgfx::TextureFormat::Enum::UnknownDepth; //dont want/need
+    bgfx_init.resolution.width = gfx.window_size.x;
+    bgfx_init.resolution.height = gfx.window_size.y;
+    bgfx_init.resolution.reset = BGFX_RESET_VSYNC;
+    bgfx_init.resolution.numBackBuffers = 2;
+    //bgfx_init.resolution.maxFrameLatency;//!< Maximum frame latency.
+	//bgfx_init.resolution.debugTextScale;                 //!< Scale factor for debug text.
+
+    if (!bgfx::init(bgfx_init))
+    {
+        DebugPrint("Failed to initialize bgfx");
+        return false;
+    }
+#if _DEBUG
+    //bgfx::setDebug(BGFX_DEBUG_TEXT || BGFX_DEBUG_STATS);
+#endif
+
+    bgfx::setViewClear(0, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH | BGFX_CLEAR_STENCIL, ToColorI(backgroundColor).rgba, 1.0f, 0);
+
+    
+    static_assert(VertexType_Count == 2); //NOTE(CSH): If this is wrong then you will need to update the vertex layout descriptions here:
+    {
+        //Vertex_2D
+        s_gfx.vert_layouts[VertexType_2D]
+            .begin()
+            .add(bgfx::Attrib::Position, 2, bgfx::AttribType::Float)
+            .add(bgfx::Attrib::TexCoord0, 2, bgfx::AttribType::Float)
+            .add(bgfx::Attrib::Color0, 4, bgfx::AttribType::Uint8, true)
+            .end();
+        bgfx::createVertexLayout(s_gfx.vert_layouts[VertexType_2D]);
+    }
+    {
+        //Vertex_PNTC
+        s_gfx.vert_layouts[VertexType_PNTC]
+            .begin()
+            .add(bgfx::Attrib::Position, 3, bgfx::AttribType::Float)
+            .add(bgfx::Attrib::Normal, 3, bgfx::AttribType::Float)
+            .add(bgfx::Attrib::TexCoord0, 2, bgfx::AttribType::Float)
+            .add(bgfx::Attrib::Color0, 4, bgfx::AttribType::Float, true)
+            .end();
+        bgfx::createVertexLayout(s_gfx.vert_layouts[VertexType_PNTC]);
+    }
+
+    Vec2  position;
+    Vec2  uv;
+    ColorI color;
+    Vertex_2D verts[] = {
+        { { -1.0f, +1.0f }, {}, ToColorI(White) }, // Top Left
+        { { -1.0f, -3.0f }, {}, ToColorI(White) }, // Bot Left
+        { { +3.0f, +1.0f }, {}, ToColorI(White) } // Top Right
+    };
+
+    s_gfx.fullscreen_verts = bgfx::createVertexBuffer(bgfx::makeRef(verts, sizeof(verts)), s_gfx.vert_layouts[VertexType_2D], BGFX_BUFFER_NONE);
+
+    //bgfx::createIndexBuffer();
+    //s_gfx.
+    CreateTexture();
+    return true;
+}
 
 bool RenderInit(ArrayView<const ArrayView<const u8>> app_icons)
 {
@@ -46,6 +142,9 @@ bool RenderInit(ArrayView<const ArrayView<const u8>> app_icons)
         DebugPrint("Failed to create window");
         return false;
     }
+#if 1
+    RenderInitBgfx();
+#else
 #if defined(WIN32)
     SDL_SetHint(SDL_HINT_RENDER_DRIVER, "direct3d11");
 #elif defined(LINUX)
@@ -59,8 +158,9 @@ bool RenderInit(ArrayView<const ArrayView<const u8>> app_icons)
         DebugPrint("Error: SDL_CreateRenderer(): %s\n", SDL_GetError());
         return false;
     }
-
     SDL_SetRenderVSync(gfx.context, 1);
+#endif
+
     SDL_SetWindowPosition(gfx.window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
 
     SDL_Surface* icons = nullptr;
@@ -138,3 +238,14 @@ void RenderDestroy()
 {
     SDL_DestroyRenderer(gfx.context);
 }
+
+bool CreateTexture(Texture** texture, const void* data, Vec3I size, TextureFormat format, i32 bytes_per_pixel, const std::wstring& name, TextureType type = TextureType_Texture);
+bool CreateTexture(Texture** texture, const char* fileLocation, TextureFormat format, TextureFilter filter, const std::wstring& name, TextureType type = TextureType_Texture);
+bool CreateTexture(Texture** texture, const TextureParams& tp, u32 mip_levels, const u8* data);
+bool CreateTexture(Texture** texture, const TextureParams& tp, const void* data);
+bool UpdateTexture(Texture** texture, u32 mip_slice, void* data, u32 row_pitch_bytes, u32 depth_pitch_bytes);
+void DeleteTexture(Texture** texture)
+{
+
+}
+void* GetShaderResourceView(TextureIndex t);

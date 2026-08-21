@@ -11,6 +11,7 @@
 #define BIT(num) (1<<(num))
 #define HasBit(n, pos) ((n) & (1 << (pos)))
 #define MATH_PREFIX [[nodiscard]] inline
+#define MATH_CONSTEXPR_PREFIX constexpr [[nodiscard]]
 
 using i8  = int8_t;
 using i16 = int16_t;
@@ -65,13 +66,13 @@ using u64 = uint64_t;
 
 typedef gbVec4<float> Color;
 
-union ColorInt {
+union ColorI {
     u32 rgba;
     struct { u8 r, g, b, a; };
     u8 e[4];
 };
 
-MATH_PREFIX Color ToColor(ColorInt c)
+MATH_CONSTEXPR_PREFIX Color ToColor(ColorI c)
 {
     Color r;
     r.r = c.r / float(UCHAR_MAX);
@@ -80,6 +81,17 @@ MATH_PREFIX Color ToColor(ColorInt c)
     r.a = c.a / float(UCHAR_MAX);
     return r;
 }
+
+MATH_CONSTEXPR_PREFIX ColorI ToColorI(Color c)
+{
+    ColorI r;
+    r.r = Min(c.r, 1.0f) * UCHAR_MAX;
+    r.g = Min(c.g, 1.0f) * UCHAR_MAX;
+    r.b = Min(c.b, 1.0f) * UCHAR_MAX;
+    r.a = Min(c.a, 1.0f) * UCHAR_MAX;
+    return r;
+}
+
 
 const Color Red         = { 1.00f, 0.00f, 0.00f, 1.00f };
 const Color Green       = { 0.00f, 1.00f, 0.00f, 1.00f };
@@ -156,6 +168,20 @@ union U32Pack {
 
 //TODO(CSH): rename these to PTN, PNTC, PNC, etc (position, normal, texture, color)
 #pragma pack(push, 1)
+struct Vertex_2D
+{
+    Vec2  position;
+    Vec2  uv;
+    ColorI color;
+};
+struct Vertex_PNTC
+{
+    Vec3 position;
+    Vec3 normal;
+    Vec2 uv;
+    Vec4 color;
+};
+
 struct Vertex {
     Vec3 p;
     Vec2 uv;
@@ -431,19 +457,19 @@ inline void operator-=(Vec3& a, float b)
 }
 
 template <typename T>
-MATH_PREFIX T Min(const T a, const T b)
+MATH_CONSTEXPR_PREFIX T Min(const T a, const T b)
 {
     return a < b ? a : b;
 }
 
  template <typename T>
-MATH_PREFIX T Max(const T a, const T b)
+MATH_CONSTEXPR_PREFIX T Max(const T a, const T b)
 {
     return a > b ? a : b;
 }
 
 template <typename T>
-MATH_PREFIX T Clamp(const T v, const T min, const T max)
+MATH_CONSTEXPR_PREFIX T Clamp(const T v, const T min, const T max)
 {
     return Max(min, Min(max, v));
 }
