@@ -7,65 +7,129 @@
 #include "stb/stb_image.h"
 #include "ImGui/backends/imgui_impl_sdl3.h"
 #include "ImGui/backends/imgui_impl_sdlrenderer3.h"
-#include "bgfx/bgfx.h"
+#include "sokol/sokol_gfx.h"
 
 Renderer gfx;
 
+//typedef std::array<sg_vertex_attr_state, SG_MAX_VERTEX_ATTRIBUTES> SokolVertexLayout;
+//typedef sg_vertex_attr_state SokolVertexLayout[SG_MAX_VERTEX_ATTRIBUTES];
+//using SokolVertexLayout = sg_vertex_attr_state[SG_MAX_VERTEX_ATTRIBUTES];
+using SokolVertexLayout = std::array<sg_vertex_attr_state, SG_MAX_VERTEX_ATTRIBUTES>;
+
 struct GfxDevice {
-    bgfx::VertexLayout vert_layouts[VertexType_Count] = {};
-    bgfx::VertexBufferHandle fullscreen_verts;
-    bgfx::VertexBufferHandle fullscreen_verts;
+    SokolVertexLayout vertex_layouts[VertexType_Count]= {};
+    sg_buffer fullscreen_verts = {};
 };
 static GfxDevice s_gfx;
 
 
+//void SysGetRenderEnvironment(sg_environment* env);
+
+void SgLogFunc(
+        const char* tag,                // always "sg"
+        uint32_t log_level,             // 0=panic, 1=error, 2=warning, 3=info
+        uint32_t log_item_id,           // SG_LOGITEM_*
+        const char* message_or_null,    // a message string, may be nullptr in release mode
+        uint32_t line_nr,               // line number in sokol_gfx.h
+        const char* filename_or_null,   // source filename, may be nullptr in release mode
+        void* user_data
+)
+{
+    ASSERT(user_data == nullptr);
+    std::string log_level_s;
+    switch (log_level)
+    {
+    case 0: log_level_s = "PANIC";      break;
+    case 1: log_level_s = "ERROR";      break;
+    case 2: log_level_s = "Warning";    break;
+    case 3: log_level_s = "Info";       break;
+    default: log_level_s = ToString("UNKNOWN LOG LEVEL (%s)", log_level); FAIL; break;
+    }
+
+    const std::string log = std::format("{} {}({}) SG_LOGITEM_{}: {}",
+        log_level_s.c_str(),
+        filename_or_null ? filename_or_null : "Unknown File",
+        line_nr,
+        log_item_id,
+        message_or_null ? message_or_null : "(No Message)");
+    DebugPrint("%s", log.c_str());
+}
+
+bool RenderInitSokol()
+{
+    SysRenderInitDesc sys_desc;
+    bool result = SysRenderInit(&sys_desc);
+    sg_desc desc = { };
+    //desc.environment.defaults.color_format = SG_PIXELFORMAT_RGBA8;
+    //desc.environment.defaults.depth_format = SG_PIXELFORMAT_DEPTH_STENCIL;
+    SysGetRenderEnvironment(&desc.environment);
+    sg_allocator alloc;
+    sg_logger logger;
+    //TODO(CSH): override allocator with custom frame temp memory?
+    desc.allocator;     // optional memory allocation hooks.  Default is malloc and free
+    desc.logger = { SgLogFunc, nullptr };
+    sg_setup(&desc);
+
+
+
+    static_assert(VertexType_Count == 2); //NOTE(CSH): If this is wrong then you will need to update the vertex layout descriptions here:
+    s_gfx.vertex_layouts[VertexType_2D][0] = { .buffer_index = 0, .offset = offsetof(Vertex_2D, position),  .format = SG_VERTEXFORMAT_FLOAT2 };
+    s_gfx.vertex_layouts[VertexType_2D][1] = { .buffer_index = 0, .offset = offsetof(Vertex_2D, uv),        .format = SG_VERTEXFORMAT_FLOAT2 };
+    s_gfx.vertex_layouts[VertexType_2D][2] = { .buffer_index = 0, .offset = offsetof(Vertex_2D, color),     .format = SG_VERTEXFORMAT_UINT };
+
+#error NOT DONE
+    s_gfx.vertex_layouts[VertexType_2D][0] = { .buffer_index = 0, .offset = offsetof(Vertex_2D, position),  .format = SG_VERTEXFORMAT_FLOAT2 };
+    s_gfx.vertex_layouts[VertexType_2D][1] = { .buffer_index = 0, .offset = offsetof(Vertex_2D, uv),        .format = SG_VERTEXFORMAT_FLOAT2 };
+    s_gfx.vertex_layouts[VertexType_2D][2] = { .buffer_index = 0, .offset = offsetof(Vertex_2D, color),     .format = SG_VERTEXFORMAT_UINT };
+
+        //Vertex_PNTC
+        s_gfx.vert_layouts[VertexType_PNTC]
+            .begin()
+            .add(bgfx::Attrib::Position, 3, bgfx::AttribType::Float)
+            .add(bgfx::Attrib::Normal, 3, bgfx::AttribType::Float)
+            .add(bgfx::Attrib::TexCoord0, 2, bgfx::AttribType::Float)
+            .add(bgfx::Attrib::Color0, 4, bgfx::AttribType::Float, true)
+            .end();
+        bgfx::createVertexLayout(s_gfx.vert_layouts[VertexType_PNTC]);
+    {
+        Vertex_2D verts[] = {
+            { { -1.0f, +1.0f }, {}, ToColorI(White) }, // Top Left
+            { { -1.0f, -3.0f }, {}, ToColorI(White) }, // Bot Left
+            { { +3.0f, +1.0f }, {}, ToColorI(White) } // Top Right
+        };
+
+        sg_buffer_desc d = {};
+        d.size = sizeof(verts);
+        d.data = SG_RANGE(verts);
+        d.usage.vertex_buffer = true;
+        d.usage.immutable = true;
+        d.label = "Fullscreen Triangle VB";
+        s_gfx.fullscreen_verts = sg_make_buffer(d);
+    }
+
+
+    Vec2  position;
+    Vec2  uv;
+    ColorI color;
+    Vertex_2D verts[] = {
+        { { -1.0f, +1.0f }, {}, ToColorI(White) }, // Top Left
+        { { -1.0f, -3.0f }, {}, ToColorI(White) }, // Bot Left
+        { { +3.0f, +1.0f }, {}, ToColorI(White) } // Top Right
+    };
+
+    s_gfx.fullscreen_verts = bgfx::createVertexBuffer(bgfx::makeRef(verts, sizeof(verts)), s_gfx.vert_layouts[VertexType_2D], BGFX_BUFFER_NONE);
+
+
+}
+void RenderDestroySokol()
+{
+    sg_shutdown();
+    SysRenderDestroy();
+}
+
+
 bool RenderInitBgfx()
 {
-    bgfx::Init bgfx_init;
-    bgfx_init.type = bgfx::RendererType::Count;
-    bgfx_init.vendorId = BGFX_PCI_ID_NONE;
-#if _DEBUG
-    //bgfx_init.debug = true;
-    //bgfx_init.profile = true;
-#endif
-    bgfx_init.fallback = true;
-    //bgfx_init.platformData.ndt = entry::getNativeDisplayHandle();   //!< Native display type (*nix specific).
-    bgfx_init.platformData.nwh = SysGetWindowHandle(gfx.window);
-    bgfx_init.platformData.context = nullptr; //bgfx will create
-    bgfx_init.platformData.queue = nullptr; //bgfx will create
-
-    //TODO(CSH): Create myself
-    bgfx_init.platformData.backBuffer = nullptr; //bgfx will create
-    bgfx_init.platformData.backBufferDS = nullptr; //bgfx will create
-
-#ifdef LINUX
-    bgfx_init.platformData.type = bgfx::NativeWindowHandleType::Enum::Wayland; //!< Handle type. Needed for platforms having more than one option.
-#else
-    bgfx_init.platformData.type = bgfx::NativeWindowHandleType::Enum::Default; //!< Handle type. Needed for platforms having more than one option.
-#endif
-
-    //bgfx_init.limits;
-    bgfx_init.resolution.formatColor = bgfx::TextureFormat::Enum::RGBA8U;
-    bgfx_init.resolution.formatDepthStencil = bgfx::TextureFormat::Enum::UnknownDepth; //dont want/need
-    bgfx_init.resolution.width = gfx.window_size.x;
-    bgfx_init.resolution.height = gfx.window_size.y;
-    bgfx_init.resolution.reset = BGFX_RESET_VSYNC;
-    bgfx_init.resolution.numBackBuffers = 2;
-    //bgfx_init.resolution.maxFrameLatency;//!< Maximum frame latency.
-	//bgfx_init.resolution.debugTextScale;                 //!< Scale factor for debug text.
-
-    if (!bgfx::init(bgfx_init))
-    {
-        DebugPrint("Failed to initialize bgfx");
-        return false;
-    }
-#if _DEBUG
-    //bgfx::setDebug(BGFX_DEBUG_TEXT || BGFX_DEBUG_STATS);
-#endif
-
-    bgfx::setViewClear(0, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH | BGFX_CLEAR_STENCIL, ToColorI(backgroundColor).rgba, 1.0f, 0);
-
-
     static_assert(VertexType_Count == 2); //NOTE(CSH): If this is wrong then you will need to update the vertex layout descriptions here:
     {
         //Vertex_2D
@@ -225,6 +289,10 @@ bool RenderInit(ArrayView<const ArrayView<const u8>> app_icons)
 void RenderPresent()
 {
     ZoneScoped;
+
+#ifdef CASH_SOKOL_RENDER
+    SysRenderPresent();
+#elif CASH_SDL_RENDER
     static const ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
     ImGuiIO& io = ImGui::GetIO(); (void)io;
     SDL_SetRenderScale(gfx.context, io.DisplayFramebufferScale.x, io.DisplayFramebufferScale.y);
@@ -232,6 +300,8 @@ void RenderPresent()
     SDL_RenderClear(gfx.context);
     ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), gfx.context);
     SDL_RenderPresent(gfx.context);
+#endif
+
 }
 
 void RenderDestroy()

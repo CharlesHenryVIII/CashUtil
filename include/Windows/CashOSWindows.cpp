@@ -8,6 +8,8 @@
 #include <iphlpapi.h>
 #include <comdef.h>
 #include <Wbemidl.h>
+#include <d3d11.h>
+#include <dxgi.h>
 
 #include "../CashOS.h"
 #include "../CashWinInterop_File.h"
@@ -17,6 +19,7 @@
 #include "../CashRendering.h"
 #include "Tracy.hpp"
 #include "../CashSystem.h"
+#include "sokol/sokol_gfx.h"
 
 #include <fstream>
 #include <filesystem>
@@ -317,10 +320,256 @@ bool OSInit(SDL_Window* window)
     }
     return true;
 }
-
 void OSDestroy(SDL_Window* window)
 {
     SDL_DestroyWindow(window);
+}
+
+
+
+// RENDERING
+
+#define SWAP_CHAIN_FORMAT DXGI_FORMAT_B8G8R8A8_UNORM
+
+static struct RenderState {
+    bool quit_requested;
+    //bool in_create_window;
+    HWND hwnd;
+    //DWORD win_style;
+    //DWORD win_ex_style;
+    DXGI_SWAP_CHAIN_DESC swap_chain_desc;
+    Vec2I size;
+    i32 sample_count;
+    bool no_depth_buffer;
+    ID3D11Device* device;
+    ID3D11DeviceContext* device_context;
+    IDXGISwapChain* swap_chain;
+    ID3D11Texture2D* rt_tex;
+    ID3D11RenderTargetView* rt_view;
+    ID3D11Texture2D* msaa_tex;
+    ID3D11RenderTargetView* msaa_view;
+    ID3D11Texture2D* ds_tex;
+    ID3D11DepthStencilView* ds_view;
+    //d3d11_key_func key_down_func;
+    //d3d11_key_func key_up_func;
+    //d3d11_char_func char_func;
+    //d3d11_mouse_btn_func mouse_btn_down_func;
+    //d3d11_mouse_btn_func mouse_btn_up_func;
+    //d3d11_mouse_pos_func mouse_pos_func;
+    //d3d11_mouse_wheel_func mouse_wheel_func;
+} s_rs;
+//state = {
+//    .win_style = WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_SIZEBOX,
+//    .win_ex_style = WS_EX_APPWINDOW | WS_EX_WINDOWEDGE
+//};
+
+#if _DEBUG
+
+    #ifndef HR
+        #define HR(x)                                       \
+        {                                                   \
+            HRESULT hresult = x;                            \
+            if(FAILED(hresult))                             \
+            {                                               \
+                ASSERT(false);                              \
+            }                                               \
+        }
+    #endif
+
+    void ReportDX11References()
+    {
+        DebugPrint("-------------------\n");
+        ID3D11Debug* debug_interface;
+        s_rs.device->QueryInterface(__uuidof(ID3D11Debug), (void**)&debug_interface);
+        HR(debug_interface->ReportLiveDeviceObjects(D3D11_RLDO_DETAIL));
+    }
+#else
+    void ReportDX11References() {};
+    #ifndef HR
+    #define HR(x) x;
+    #endif
+#endif
+
+void SetResourceName(ID3D11Resource* r, const std::string& name)
+{
+    VALIDATE(r);
+    D3D_SET_OBJECT_NAME_N_A(r, (UINT)name.size(), name.c_str());
+}
+
+void CreateRenderTargetView(ID3D11RenderTargetView** rtv,  DXGI_FORMAT format, ID3D11Texture2D* texture, const std::string& name)
+{
+    ASSERT(rtv);
+    if (*rtv)
+    {
+        SafeRelease(*rtv);
+        *rtv = nullptr;
+    }
+
+    D3D11_RENDER_TARGET_VIEW_DESC desc;
+    ZeroMemory(&desc, sizeof(desc));
+    desc.Format = format;
+    desc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
+    desc.Texture2D.MipSlice = 0;
+
+    VERIFY(SUCCEEDED(s_rs.device->CreateRenderTargetView(
+        texture,    //[in]            ID3D11Resource* pResource,
+        &desc,      //[in, optional]  const D3D11_RENDER_TARGET_VIEW_DESC* pDesc,
+        rtv         //[out, optional] ID3D11RenderTargetView** ppRTView
+    )));
+
+    ID3D11Resource* r = nullptr;
+    (*rtv)->GetResource(&r);
+    SetResourceName(r, name + " RTV");
+    SafeRelease(r);
+}
+
+void CreateDefaultRenderTargets()
+{
+    HRESULT hr;
+
+    ID3D11Texture2D* backbuffer;
+    VERIFY(SUCCEEDED(s_rs.swap_chain->GetBuffer(0, IID_PPV_ARGS(&s_rs.rt_tex))) && s_rs.rt_tex);
+    VERIFY(SUCCEEDED(s_rs.device->CreateRenderTargetView(s_rs.rt_tex, NULL, &s_rs.rt_view)) && s_rs.rt_view);
+
+    D3D11_TEXTURE2D_DESC tex_desc = {};
+    tex_desc.Width = (UINT)s_rs.size.x;
+    tex_desc.Height = (UINT)s_rs.size.y;
+    tex_desc.MipLevels = 1;
+    tex_desc.ArraySize = 1;
+    tex_desc.Format = SWAP_CHAIN_FORMAT;
+    tex_desc.SampleDesc = s_rs.swap_chain_desc.SampleDesc;
+    tex_desc.Usage = D3D11_USAGE_DEFAULT;
+    tex_desc.BindFlags = D3D11_BIND_RENDER_TARGET;
+    tex_desc.SampleDesc.Count   = (UINT)(s_rs.sample_count);
+    tex_desc.SampleDesc.Quality = (UINT)(s_rs.sample_count > 1 ? D3D11_STANDARD_MULTISAMPLE_PATTERN : 0);
+
+    // MSAA render target and view
+    if (s_rs.sample_count > 1)
+    {
+        VERIFY(SUCCEEDED(s_rs.device->CreateTexture2D(&tex_desc, NULL, &s_rs.msaa_tex)) && s_rs.msaa_tex);
+        VERIFY(SUCCEEDED(s_rs.device->CreateRenderTargetView((ID3D11Resource*)s_rs.msaa_tex, NULL, &s_rs.msaa_view)) && s_rs.msaa_view);
+    }
+
+    // depth-stencil render target and view
+    if (!s_rs.no_depth_buffer)
+    {
+        tex_desc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+        tex_desc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+        VERIFY(SUCCEEDED(s_rs.device->CreateTexture2D(&tex_desc, NULL, &s_rs.ds_tex)) && s_rs.ds_tex);
+        VERIFY(SUCCEEDED(s_rs.device->CreateDepthStencilView((ID3D11Resource*)s_rs.ds_tex, NULL, &s_rs.ds_view)) && s_rs.ds_view);
+    }
+}
+
+void DestroyDefaultRenderTargets()
+{
+    SafeRelease(s_rs.rt_tex);
+    SafeRelease(s_rs.rt_view);
+    SafeRelease(s_rs.ds_tex);
+    SafeRelease(s_rs.ds_view);
+    SafeRelease(s_rs.msaa_tex);
+    SafeRelease(s_rs.msaa_view);
+}
+
+void UpdateDefaultRenderTargets()
+{
+    if (s_rs.swap_chain)
+    {
+        DestroyDefaultRenderTargets();
+        VERIFY(SUCCEEDED(s_rs.swap_chain->ResizeBuffers(2, s_rs.size.x, s_rs.size.y, SWAP_CHAIN_FORMAT, 0)));
+        CreateDefaultRenderTargets();
+    }
+}
+
+bool OSRenderInit(const SysRenderInitDesc* desc)
+{
+    VALIDATE_V(desc,            false);
+    VALIDATE_V(desc->size.x> 0, false);
+    VALIDATE_V(desc->size.y> 0, false);
+    VALIDATE_V(desc->title,     false);
+
+    s_rs.size = desc->size;
+    s_rs.sample_count = (desc->sample_count == 0) ? 1 : desc->sample_count;
+    s_rs.no_depth_buffer = desc->no_depth_buffer;
+    s_rs.hwnd = (HWND)SysGetWindowHandle(gfx.window);
+
+    // create device and swap chain
+    s_rs.swap_chain_desc = {};
+    s_rs.swap_chain_desc.BufferDesc.Width  = (UINT)s_rs.size.x;
+    s_rs.swap_chain_desc.BufferDesc.Height = (UINT)s_rs.size.y;
+    s_rs.swap_chain_desc.BufferDesc.Format = SWAP_CHAIN_FORMAT;
+    //s_rs.swap_chain_desc.BufferDesc.RefreshRate.Numerator = ;
+    //s_rs.swap_chain_desc.BufferDesc.RefreshRate.Denominator = 1;
+    s_rs.swap_chain_desc.OutputWindow = s_rs.hwnd;
+    s_rs.swap_chain_desc.Windowed = true;
+    s_rs.swap_chain_desc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+    s_rs.swap_chain_desc.BufferCount = 2;
+    s_rs.swap_chain_desc.SampleDesc.Count = (UINT)1;
+    s_rs.swap_chain_desc.SampleDesc.Quality = (UINT)0;
+    s_rs.swap_chain_desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+
+    UINT create_flags = D3D11_CREATE_DEVICE_SINGLETHREADED;
+    #ifdef _DEBUG
+        create_flags |= D3D11_CREATE_DEVICE_DEBUG;
+    #endif
+    D3D_FEATURE_LEVEL feature_level;
+    // NOTE: on some Win10 configs (like my gaming PC), device creation
+    // with the debug flag fails
+    HRESULT hr;
+    for (int i = 0; i < 2; i++) {
+        hr = D3D11CreateDeviceAndSwapChain(
+            NULL,                       // pAdapter (use default)
+            D3D_DRIVER_TYPE_HARDWARE,   // DriverType
+            NULL,                       // Software
+            create_flags,               // Flags
+            NULL,                       // pFeatureLevels
+            0,                          // FeatureLevels
+            D3D11_SDK_VERSION,          // SDKVersion
+            &s_rs.swap_chain_desc,     // pSwapChainDesc
+            &s_rs.swap_chain,          // ppSwapChain
+            &s_rs.device,              // ppDevice
+            &feature_level,             // pFeatureLevel
+            &s_rs.device_context);     // ppImmediateContext
+        if (SUCCEEDED(hr)) {
+            break;
+        } else {
+            create_flags &= ~D3D11_CREATE_DEVICE_DEBUG;
+        }
+    }
+    VALIDATE_V(FAILED(hr) && s_rs.swap_chain && s_rs.device && s_rs.device_context);
+
+    CreateDefaultRenderTargets();
+}
+bool OSRenderDestroy()
+{
+    DestroyDefaultRenderTargets();
+    SafeRelease(s_rs.swap_chain);
+    SafeRelease(s_rs.device_context);
+    SafeRelease(s_rs.device);
+}
+
+void OSRenderPresent()
+{
+    s_rs.swap_chain->Present(1, 0);
+    const Vec2 desired = SysGetWindowSize();
+    const Vec2 actual = ToVec2(s_rs.size);
+    if (desired.x && desired.y && desired != actual)
+    {
+        s_rs.size = ToVec2I(desired);
+        UpdateDefaultRenderTargets();
+    }
+}
+
+void OSGetRenderEnvironment(sg_environment* env)
+{
+    VALIDATE(env);
+    //
+    env->defaults.color_format = SG_PIXELFORMAT_BGRA8;
+    env->defaults.depth_format = s_rs.no_depth_buffer ? SG_PIXELFORMAT_NONE : SG_PIXELFORMAT_DEPTH_STENCIL;
+    env->defaults.sample_count = s_rs.sample_count;
+    //
+    env->d3d11.device = s_rs.device;
+    env->d3d11.device_context = s_rs.device_context;
+    //
 }
 
 //#pragma comment(lib, "iphlpapi.lib")

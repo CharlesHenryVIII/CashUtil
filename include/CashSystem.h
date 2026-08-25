@@ -274,6 +274,19 @@ void ParseCSV(PowershellResponse& out, const std::string& in, bool using_quotes)
 
 void SysProcessEvents();
 
+struct SysRenderInitDesc {
+    Vec2I size;
+    i32 sample_count;
+    bool no_depth_buffer;
+    const char* title;
+};
+struct sg_environment;
+bool SysRenderInit(const SysRenderInitDesc* desc);
+bool SysRenderDestroy();
+//DO NOT CALL confusing function name but is only called in RenderPresent() call that instead
+void SysRenderPresent();
+void SysGetRenderEnvironment(sg_environment* env);
+
 
 void SysShowErrorWindow(const std::string& title, const std::string& text);
 i32 SysShowCustomErrorWindow(const std::string& title, const std::string& text);

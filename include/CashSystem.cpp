@@ -771,6 +771,23 @@ void SysProcessEvents()
     }
 }
 
+bool SysRenderInit(const SysRenderInitDesc* desc)
+{
+    return OSRenderInit(desc);
+}
+bool SysRenderDestroy()
+{
+    return OSRenderDestroy();
+}
+void SysRenderPresent()
+{
+    OSRenderPresent();
+}
+void SysGetRenderEnvironment(sg_environment* env)
+{
+    OSGetRenderEnvironment(env);
+}
+
 void RunProcessJob::RunJob()
 {
     VALIDATE(!m_args_string.empty() || m_args_array.size());

@@ -17,6 +17,13 @@ bool OSInit(SDL_Window* window);
 void OSDestroy(SDL_Window* window);
 void* OSGetWindowHandle(SDL_Window* window);
 
+struct sg_environment;
+bool OSRenderInit(const SysRenderInitDesc* desc);
+bool OSRenderDestroy();
+void OSRenderPresent();
+void OSGetRenderEnvironment(sg_environment* env);
+
+
 bool OSHasAdminPrivledge();
 bool OSGetNetworkAdapters(std::vector<SysNetworkAdapterInfo>& out_adapters);
 bool OSSetNetAdapterIP(const std::string& adapter_guid, const SysNetAdapterConfig& adapter, const SysNetAdapterConfig& src_adapter);
