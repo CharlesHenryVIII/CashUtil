@@ -274,7 +274,6 @@ void ParseCSV(PowershellResponse& out, const std::string& in, bool using_quotes)
 
 void SysProcessEvents();
 
-
 void SysShowErrorWindow(const std::string& title, const std::string& text);
 i32 SysShowCustomErrorWindow(const std::string& title, const std::string& text);
 void SysFlashWindow(SDL_Window* window);
@@ -325,6 +324,11 @@ void SysExpandEnvironemntVariable(std::wstring& out, const std::wstring& in);
 ImFont* SysCreateImguiFont(const ArrayView<const u8> font_data, float font_size);
 ImFont* SysLoadFontForImgui(int resource_id, float fontSize);
 void* SysGetDataFromResource(i32* out_size, const i32 resource_id);
+
+u64 SysGetOsPageSize();
+void* SysReserveMemory(u64 bytes);
+void SysCommitMemory(void* p, u64 bytes);
+bool SysFreeMemory(void* p, u64 bytes);
 
 union Guid {
     uint64_t e[2];

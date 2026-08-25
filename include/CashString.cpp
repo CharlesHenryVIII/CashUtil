@@ -1,6 +1,26 @@
 #include "CashString.h"
 #include "CashSystem.h"
 
+
+String CreateString(Arena* arena, const char* fmt, ...)
+{
+    va_list args;
+    va_start(args, fmt);
+    const u32 buf_size = 4096;
+    char buffer[buf_size];
+    const i32 char_written = SYS_VSNPRINTF(buffer, buf_size - 1, fmt, args);
+    ASSERT(char_written < sizeof(buffer));
+    va_end(args);
+    return CreateString(buffer, arena);
+}
+String CreateString(const char* string, Arena* arena)
+{
+    String s = {};
+    s.len = strlen(string);
+    s.s = ArenaPushArray(arena, s.len, char);
+    return s;
+}
+
 const char* ReadEntireFileAsString(const char* fileName)
 {
     FILE* file;
@@ -308,7 +328,7 @@ std::string ToString(const char* fmt, ...)
     va_list args;
     va_start(args, fmt);
     char buffer[4096];
-    const i32 char_written = vsnprintf(buffer, arrsize(buffer), fmt, args);
+    const i32 char_written = SYS_VSNPRINTF(buffer, arrsize(buffer), fmt, args);
     ASSERT(char_written < sizeof(buffer));
     va_end(args);
     return buffer;

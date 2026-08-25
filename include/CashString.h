@@ -3,6 +3,7 @@
 #include "CashMath.h"
 #include "CashDebug.h"
 #include "CashArrayView.h"
+#include "CashMemoryArena.h"
 
 #include <string>
 #include <charconv>
@@ -19,6 +20,13 @@ enum StringCase {
     StringCase_Count,
 };
 ENUMOPS(StringCase);
+
+struct String {
+    u64 len = 0;
+    char* s = nullptr;
+};
+String CreateString(const char* string, Arena* arena);
+String CreateString(Arena* arena, const char* fmt, ...);
 
 template <u64 sizeT>
 struct InlineString

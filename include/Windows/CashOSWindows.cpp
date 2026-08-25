@@ -1433,6 +1433,58 @@ void* OSGetDataFromResource(i32* out_size, const i32 resource_id)
     return data;
 }
 
+struct SystemInfo {
+    SYSTEM_INFO  sys_info;
+    bool initialized = false;
+};
+SystemInfo& GetSystemInfo()
+{
+    static SystemInfo s = {};
+    if (!s.initialized)
+    {
+        GetSystemInfo(&s.sys_info);
+        s.initialized = true;
+    }
+    return s;
+}
+u64 OSGetPageSize()
+{
+    return (u64)GetSystemInfo().sys_info.dwPageSize;
+}
+
+void* OSReserveMemory(u64 bytes)
+{
+#if _DEBUG
+    void* data = VirtualAlloc(NULL, bytes, MEM_RESERVE, PAGE_NOACCESS);
+#else
+    void* data = VirtualAlloc(NULL, bytes, MEM_RESERVE, PAGE_READWRITE);
+#endif
+    if (!data)
+    {
+        DebugPrint("VirtualAlloc failed with error: %i", GetLastError());
+        FAIL;
+    }
+    return data;
+}
+
+void OSCommitMemory(void* p, u64 bytes)
+{
+    //u64 distance_to_boundary = u64(p) % s_default_page_size;
+    void* result = VirtualAlloc(p, bytes, MEM_COMMIT, PAGE_READWRITE);
+    if (result == NULL)
+    {
+        DebugPrint("VirtualAlloc failed with error: %i", GetLastError());
+        FAIL;
+    }
+}
+
+bool OSFreeMemory(void* p, u64 bytes)
+{
+    BOOL success = VirtualFree(p, bytes, MEM_RELEASE);
+    DebugPrint("VirtualFree: %s", success ? "succeeded" : "failed");
+    return success;
+}
+
 static_assert(sizeof(GUID) == sizeof(Guid));
 Guid OSNewGuid()
 {
