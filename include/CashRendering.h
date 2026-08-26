@@ -28,9 +28,12 @@ struct Renderer
 };
 extern Renderer gfx;
 
-bool RenderInit(ArrayView<const ArrayView<const u8>> app_icons);
-void RenderPresent();
-void RenderDestroy();
+bool CashRenderInit(ArrayView<const ArrayView<const u8>> app_icons);
+void CashRenderDestroy();
+void CashRender();
+void CashImguiInit();
+void CashImguiDestroy();
+void CashImguiNewFrame(double delta_time);
 
 
 //========================
@@ -143,7 +146,7 @@ struct TextureParams {
     TextureType type = TextureType_Texture;
     bool render_target;
     i32 bytes_per_pixel;
-    std::wstring name;
+    std::string name;
     u32 array_size = 1;
 };
 
@@ -153,8 +156,8 @@ struct Texture {
     TextureParams parameters;
 };
 
-bool CreateTexture(Texture** texture, const void* data, Vec3I size, TextureFormat format, i32 bytes_per_pixel, const std::wstring& name, TextureType type = TextureType_Texture);
-bool CreateTexture(Texture** texture, const char* fileLocation, TextureFormat format, TextureFilter filter, const std::wstring& name, TextureType type = TextureType_Texture);
+bool CreateTexture(Texture** texture, const void* data, Vec3I size, TextureFormat format, i32 bytes_per_pixel, const std::string& name, TextureType type = TextureType_Texture);
+bool CreateTexture(Texture** texture, const char* fileLocation, TextureFormat format, TextureFilter filter, const std::string& name, TextureType type = TextureType_Texture);
 bool CreateTexture(Texture** texture, const TextureParams& tp, u32 mip_levels, const u8* data);
 bool CreateTexture(Texture** texture, const TextureParams& tp, const void* data);
 bool UpdateTexture(Texture** texture, u32 mip_slice, void* data, u32 row_pitch_bytes, u32 depth_pitch_bytes);
@@ -182,11 +185,11 @@ enum GpuBufferType : u32 {
     GpuBufferType_Invalid,
     GpuBufferType_Vertex,
     GpuBufferType_Index,
-    GpuBufferType_Constant,
+    //GpuBufferType_Constant,
     GpuBufferType_Structure,
-    GpuBufferType_RWStructure,
-    GpuBufferType_AppendStructure,
-    GpuBufferType_IndirectArgs,
+    //GpuBufferType_RWStructure,
+    //GpuBufferType_AppendStructure,
+    //GpuBufferType_IndirectArgs,
     GpuBufferType_Count,
 };
 ENUMOPS(GpuBufferType);
@@ -201,13 +204,24 @@ enum GpuBufferBindLocation : u32 {
 };
 ENUMOPS(GpuBufferBindLocation);
 
+enum GpuBufferFlag : u32 {
+    GpuBufferFlag_None,
+    GpuBufferFlag_Dynamic = BIT(0),
+    GpuBufferFlag_Immutable = BIT(1),
+    GpuBufferFlag_StreamUpdate = BIT(2),
+    //GpuBufferFlag_WriteUnsealed = BIT(3),
+    GpuBufferFlag_All = GpuBufferFlag_StreamUpdate - 1,
+};
+ENUMOPS(GpuBufferFlag);
+
 struct GpuBuffer
 {
-    bool is_dymamic = true;
+    GpuBufferFlag flags = GpuBufferFlag_None;
     GpuBufferType type = GpuBufferType_Invalid;
-    std::wstring name;
+    std::string name;
     size_t count = 0;
     size_t element_size = 0;
+    bool has_uploaded = false;
 
     void Upload(const void* data, const size_t count, const u32 element_size, const bool is_byte_format = false);
     template<typename T>
@@ -222,16 +236,19 @@ struct GpuBuffer
         ASSERT(a.size());
         Upload(a.data, a.size(), (u32)a.ElementBytes());
     }
+    template<typename T, u64 size>
+    inline void Upload(const T (&source)[size])
+    {
+        Upload(source, size, sizeof(source[0]));
+    }
     template<typename T>
     inline void Upload(const T& a)
     {
         Upload(&a, 1, sizeof(a));
     }
-    //Bind a Constant or Structure buffer
-    void Bind(u32 slot, GpuBufferBindLocation binding);
 };
 
-bool CreateGpuBuffer(GpuBuffer** buffer, const std::wstring& name, bool is_dynamic, GpuBufferType type);
+bool CreateGpuBuffer(GpuBuffer** buffer, const char* name, GpuBufferType type, GpuBufferFlag flags);
 void DeleteBuffer(GpuBuffer** buffer);
 
 
@@ -333,3 +350,14 @@ inline bool CreateShader(Shader** s, const std::string& shader_file_location, Ar
     return CreateShader(s, shader_file_location, shader_file_location, input_layout, macros);
 }
 
+
+struct GpuBinding
+{
+    std::string name;
+
+    void BindVertex(const GpuBuffer* buffer, const i32 slot);
+    void BindIndex(const GpuBuffer* buffer);
+    void BindView(GpuBuffer* view);
+    void BindSampler(GpuBuffer* sampler);
+    void Apply();
+};

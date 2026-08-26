@@ -239,8 +239,8 @@ struct SysNetworkAdapterInfo
     bool multicast_enabled;
 };
 
-bool SysInit(SDL_Window* window);
-void SysDestroy(SDL_Window* window);
+bool CashInit(ArrayView<const ArrayView<const u8>> app_icons);
+void CashDestroy();
 void* SysGetWindowHandle(SDL_Window* window);
 i32 SysMain(i32 argc, char** argv);
 
@@ -278,14 +278,15 @@ struct SysRenderInitDesc {
     Vec2I size;
     i32 sample_count;
     bool no_depth_buffer;
-    const char* title;
 };
 struct sg_environment;
+struct sg_swapchain;
 bool SysRenderInit(const SysRenderInitDesc* desc);
-bool SysRenderDestroy();
-//DO NOT CALL confusing function name but is only called in RenderPresent() call that instead
+void SysRenderDestroy();
+//DO NOT CALL instead use CashRender()
 void SysRenderPresent();
 void SysGetRenderEnvironment(sg_environment* env);
+void SysGetRenderSwapchain(sg_swapchain* env);
 
 
 void SysShowErrorWindow(const std::string& title, const std::string& text);

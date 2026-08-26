@@ -6,9 +6,20 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb/stb_image.h"
 #include "ImGui/backends/imgui_impl_sdl3.h"
-#include "ImGui/backends/imgui_impl_sdlrenderer3.h"
-#include "sokol/sokol_gfx.h"
+//#define SOKOL_IMPL //Already defined in CashOsWindows.cpp
+#ifdef WIN32
+#define SOKOL_D3D11
+#elif defined(LINUX)
+#define SOKOL_VULKAN
+#elif defined(MACOS)
+#define SOKOL_METAL
+#else
+#error Add support for other OS
+#endif
 
+#define SOKOL_IMGUI_IMPL
+#include "sokol/sokol_gfx.h"
+#include "sokol/util/sokol_imgui.h"
 Renderer gfx;
 
 //typedef std::array<sg_vertex_attr_state, SG_MAX_VERTEX_ATTRIBUTES> SokolVertexLayout;
@@ -18,12 +29,25 @@ using SokolVertexLayout = std::array<sg_vertex_attr_state, SG_MAX_VERTEX_ATTRIBU
 
 struct GfxDevice {
     SokolVertexLayout vertex_layouts[VertexType_Count]= {};
-    sg_buffer fullscreen_verts = {};
+    GpuBuffer* fullscreen_verts = {};
+    sg_pass_action pass_action = {};
+    sg_swapchain swapchain = {};
 };
 static GfxDevice s_gfx;
 
 
 //void SysGetRenderEnvironment(sg_environment* env);
+
+sg_color ToSgColor(Color color)
+{
+    sg_color r = {
+        .r = color.r,
+        .g = color.g,
+        .b = color.b,
+        .a = color.a,
+    };
+    return r;
+}
 
 void SgLogFunc(
         const char* tag,                // always "sg"
@@ -57,69 +81,49 @@ void SgLogFunc(
 
 bool RenderInitSokol()
 {
-    SysRenderInitDesc sys_desc;
+    SysRenderInitDesc sys_desc = {};
+    sys_desc.size = gfx.window_size;
+    sys_desc.sample_count = 1;
+    sys_desc.no_depth_buffer = true;
     bool result = SysRenderInit(&sys_desc);
     sg_desc desc = { };
     //desc.environment.defaults.color_format = SG_PIXELFORMAT_RGBA8;
     //desc.environment.defaults.depth_format = SG_PIXELFORMAT_DEPTH_STENCIL;
     SysGetRenderEnvironment(&desc.environment);
-    sg_allocator alloc;
-    sg_logger logger;
     //TODO(CSH): override allocator with custom frame temp memory?
     desc.allocator;     // optional memory allocation hooks.  Default is malloc and free
     desc.logger = { SgLogFunc, nullptr };
     sg_setup(&desc);
-
+    SysGetRenderSwapchain(&s_gfx.swapchain);
 
 
     static_assert(VertexType_Count == 2); //NOTE(CSH): If this is wrong then you will need to update the vertex layout descriptions here:
+    //Vertex_2D
     s_gfx.vertex_layouts[VertexType_2D][0] = { .buffer_index = 0, .offset = offsetof(Vertex_2D, position),  .format = SG_VERTEXFORMAT_FLOAT2 };
     s_gfx.vertex_layouts[VertexType_2D][1] = { .buffer_index = 0, .offset = offsetof(Vertex_2D, uv),        .format = SG_VERTEXFORMAT_FLOAT2 };
     s_gfx.vertex_layouts[VertexType_2D][2] = { .buffer_index = 0, .offset = offsetof(Vertex_2D, color),     .format = SG_VERTEXFORMAT_UINT };
+    //Vertex_PNTC
+    s_gfx.vertex_layouts[VertexType_PNTC][0] = { .buffer_index = 0, .offset = offsetof(Vertex_PNTC, position),  .format = SG_VERTEXFORMAT_FLOAT3 };
+    s_gfx.vertex_layouts[VertexType_PNTC][1] = { .buffer_index = 0, .offset = offsetof(Vertex_PNTC, normal),    .format = SG_VERTEXFORMAT_FLOAT3 };
+    s_gfx.vertex_layouts[VertexType_PNTC][2] = { .buffer_index = 0, .offset = offsetof(Vertex_PNTC, uv),        .format = SG_VERTEXFORMAT_FLOAT2 };
+    s_gfx.vertex_layouts[VertexType_PNTC][2] = { .buffer_index = 0, .offset = offsetof(Vertex_PNTC, color),     .format = SG_VERTEXFORMAT_FLOAT4 };
+    //
 
-#error NOT DONE
-    s_gfx.vertex_layouts[VertexType_2D][0] = { .buffer_index = 0, .offset = offsetof(Vertex_2D, position),  .format = SG_VERTEXFORMAT_FLOAT2 };
-    s_gfx.vertex_layouts[VertexType_2D][1] = { .buffer_index = 0, .offset = offsetof(Vertex_2D, uv),        .format = SG_VERTEXFORMAT_FLOAT2 };
-    s_gfx.vertex_layouts[VertexType_2D][2] = { .buffer_index = 0, .offset = offsetof(Vertex_2D, color),     .format = SG_VERTEXFORMAT_UINT };
-
-        //Vertex_PNTC
-        s_gfx.vert_layouts[VertexType_PNTC]
-            .begin()
-            .add(bgfx::Attrib::Position, 3, bgfx::AttribType::Float)
-            .add(bgfx::Attrib::Normal, 3, bgfx::AttribType::Float)
-            .add(bgfx::Attrib::TexCoord0, 2, bgfx::AttribType::Float)
-            .add(bgfx::Attrib::Color0, 4, bgfx::AttribType::Float, true)
-            .end();
-        bgfx::createVertexLayout(s_gfx.vert_layouts[VertexType_PNTC]);
     {
         Vertex_2D verts[] = {
-            { { -1.0f, +1.0f }, {}, ToColorI(White) }, // Top Left
-            { { -1.0f, -3.0f }, {}, ToColorI(White) }, // Bot Left
-            { { +3.0f, +1.0f }, {}, ToColorI(White) } // Top Right
+            { { -1.0f, +1.0f }, {}, ToColorI(White) },  // Top Left
+            { { -1.0f, -3.0f }, {}, ToColorI(White) },  // Bot Left
+            { { +3.0f, +1.0f }, {}, ToColorI(White) }   // Top Right
         };
 
-        sg_buffer_desc d = {};
-        d.size = sizeof(verts);
-        d.data = SG_RANGE(verts);
-        d.usage.vertex_buffer = true;
-        d.usage.immutable = true;
-        d.label = "Fullscreen Triangle VB";
-        s_gfx.fullscreen_verts = sg_make_buffer(d);
+        CreateGpuBuffer(&s_gfx.fullscreen_verts, "Fullscreen Triangle VB", GpuBufferType_Vertex, GpuBufferFlag_Immutable);
+        s_gfx.fullscreen_verts->Upload(verts);
     }
 
+    s_gfx.pass_action.colors[0].load_action = SG_LOADACTION_CLEAR;
+    s_gfx.pass_action.colors[0].clear_value = ToSgColor(background_color);
 
-    Vec2  position;
-    Vec2  uv;
-    ColorI color;
-    Vertex_2D verts[] = {
-        { { -1.0f, +1.0f }, {}, ToColorI(White) }, // Top Left
-        { { -1.0f, -3.0f }, {}, ToColorI(White) }, // Bot Left
-        { { +3.0f, +1.0f }, {}, ToColorI(White) } // Top Right
-    };
-
-    s_gfx.fullscreen_verts = bgfx::createVertexBuffer(bgfx::makeRef(verts, sizeof(verts)), s_gfx.vert_layouts[VertexType_2D], BGFX_BUFFER_NONE);
-
-
+    return true;
 }
 void RenderDestroySokol()
 {
@@ -128,49 +132,7 @@ void RenderDestroySokol()
 }
 
 
-bool RenderInitBgfx()
-{
-    static_assert(VertexType_Count == 2); //NOTE(CSH): If this is wrong then you will need to update the vertex layout descriptions here:
-    {
-        //Vertex_2D
-        s_gfx.vert_layouts[VertexType_2D]
-            .begin()
-            .add(bgfx::Attrib::Position, 2, bgfx::AttribType::Float)
-            .add(bgfx::Attrib::TexCoord0, 2, bgfx::AttribType::Float)
-            .add(bgfx::Attrib::Color0, 4, bgfx::AttribType::Uint8, true)
-            .end();
-        bgfx::createVertexLayout(s_gfx.vert_layouts[VertexType_2D]);
-    }
-    {
-        //Vertex_PNTC
-        s_gfx.vert_layouts[VertexType_PNTC]
-            .begin()
-            .add(bgfx::Attrib::Position, 3, bgfx::AttribType::Float)
-            .add(bgfx::Attrib::Normal, 3, bgfx::AttribType::Float)
-            .add(bgfx::Attrib::TexCoord0, 2, bgfx::AttribType::Float)
-            .add(bgfx::Attrib::Color0, 4, bgfx::AttribType::Float, true)
-            .end();
-        bgfx::createVertexLayout(s_gfx.vert_layouts[VertexType_PNTC]);
-    }
-
-    Vec2  position;
-    Vec2  uv;
-    ColorI color;
-    Vertex_2D verts[] = {
-        { { -1.0f, +1.0f }, {}, ToColorI(White) }, // Top Left
-        { { -1.0f, -3.0f }, {}, ToColorI(White) }, // Bot Left
-        { { +3.0f, +1.0f }, {}, ToColorI(White) } // Top Right
-    };
-
-    s_gfx.fullscreen_verts = bgfx::createVertexBuffer(bgfx::makeRef(verts, sizeof(verts)), s_gfx.vert_layouts[VertexType_2D], BGFX_BUFFER_NONE);
-
-    //bgfx::createIndexBuffer();
-    //s_gfx.
-    CreateTexture();
-    return true;
-}
-
-bool RenderInit(ArrayView<const ArrayView<const u8>> app_icons)
+bool CashRenderInit(ArrayView<const ArrayView<const u8>> app_icons)
 {
     SDL_Init(SDL_INIT_VIDEO);
 
@@ -204,10 +166,12 @@ bool RenderInit(ArrayView<const ArrayView<const u8>> app_icons)
     if (!gfx.window)
     {
         DebugPrint("Failed to create window");
+        FAIL;
         return false;
     }
+
 #if 1
-    RenderInitBgfx();
+    RenderInitSokol();
 #else
 #if defined(WIN32)
     SDL_SetHint(SDL_HINT_RENDER_DRIVER, "direct3d11");
@@ -286,11 +250,89 @@ bool RenderInit(ArrayView<const ArrayView<const u8>> app_icons)
     return true;
 }
 
-void RenderPresent()
+void CashImguiInit()
+{
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO(); (void)io;
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+    io.IniFilename = NULL;
+
+    // Setup Dear ImGui style
+    ImGui::StyleColorsDark();
+
+    // Setup scaling
+    float main_scale = SysMonitorScale();
+    ImGuiStyle& style = ImGui::GetStyle();
+    style.ScaleAllSizes(main_scale);        // Bake a fixed style scale. (until we have a solution for dynamic style scaling, changing this requires resetting Style + calling this again)
+    style.FontScaleDpi = main_scale;        // Set initial font scale. (using io.ConfigDpiScaleFonts=true makes this unnecessary. We leave both here for documentation purpose)
+
+    simgui_desc_t desc = {};
+    desc.max_vertices;// default: 65536
+    desc.color_format;
+    desc.depth_format;
+    desc.sample_count;
+    desc.ini_filename;
+    desc.no_default_font = true;
+    desc.disable_paste_override;
+    desc.disable_set_mouse_cursor;
+    desc.disable_windows_resize_from_edges;
+    desc.write_alpha_channel;
+    desc.allocator;
+    desc.logger = { SgLogFunc, nullptr };
+
+    ImGui_ImplSDL3_InitForOther(gfx.window);
+    simgui_setup(&desc);
+}
+void CashImguiDestroy()
+{
+    ImGui_ImplSDL3_Shutdown();
+    simgui_shutdown();
+}
+
+void CashImguiNewFrame(double delta_time)
 {
     ZoneScoped;
+    {
+        ZoneScopedN("ImGui SDL Renderer3 New Frame");
+        simgui_frame_desc_t desc = {};
+        desc.width = gfx.window_size.x;
+        desc.height = gfx.window_size.y;
+        desc.delta_time = delta_time;
+        desc.dpi_scale = 1.0f; //unsure
+        simgui_new_frame(&desc);
+    }
+    {
+        ZoneScopedN("ImGui SDL3 New Frame");
+        //ImGui_ImplSDL3_NewFrame();
+    }
+    {
+        ZoneScopedN("ImGui New Frame");
+        //ImGui::NewFrame();
+    }
+}
+
+void CashRender()
+{
+    ZoneScoped;
+    sg_pass pass = {};
+    pass.action = s_gfx.pass_action;
+    pass.swapchain = s_gfx.swapchain;
+    sg_begin_pass(&pass);
+    {
+        ZoneScopedN("ImGui Render");
+        simgui_render();
+        //ImGui::Render();
+    }
 
 #ifdef CASH_SOKOL_RENDER
+    sg_end_pass();
+    sg_commit();
+    //sg_apply_pipeline(pip);
+    //sg_apply_bindings(&bindings);
+    //sg_apply_uniforms(...);
+    //sg_draw(...);
     SysRenderPresent();
 #elif CASH_SDL_RENDER
     static const ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
@@ -304,21 +346,39 @@ void RenderPresent()
 
 }
 
-void RenderDestroy()
+template <typename Public, typename Private>
+Private* GfxGenericCreate(Public** object, const char* name)
+{
+    VALIDATE_V(object, nullptr);
+    if (*object!= nullptr)
+    {
+        FAIL;
+        Private* ob = reinterpret_cast<Private*>(object);
+        DebugPrint("Error: Render object not null during create: '%s'", ob->name.c_str());
+        return nullptr;
+    }
+
+    Private* ob = new Private;
+    (*object) = reinterpret_cast<Public*>(ob);
+    ob->name = name;
+    return ob;
+}
+
+void CashRenderDestroy()
 {
     SDL_DestroyRenderer(gfx.context);
 }
 
-bool CreateTexture(Texture** texture, const void* data, Vec3I size, TextureFormat format, i32 bytes_per_pixel, const std::wstring& name, TextureType type = TextureType_Texture);
-bool CreateTexture(Texture** texture, const char* fileLocation, TextureFormat format, TextureFilter filter, const std::wstring& name, TextureType type = TextureType_Texture);
-bool CreateTexture(Texture** texture, const TextureParams& tp, u32 mip_levels, const u8* data);
-bool CreateTexture(Texture** texture, const TextureParams& tp, const void* data);
-bool UpdateTexture(Texture** texture, u32 mip_slice, void* data, u32 row_pitch_bytes, u32 depth_pitch_bytes);
-void DeleteTexture(Texture** texture)
-{
-
-}
-void* GetShaderResourceView(TextureIndex t);
+//bool CreateTexture(Texture** texture, const void* data, Vec3I size, TextureFormat format, i32 bytes_per_pixel, const std::string& name, TextureType type = TextureType_Texture);
+//bool CreateTexture(Texture** texture, const char* fileLocation, TextureFormat format, TextureFilter filter, const std::string& name, TextureType type = TextureType_Texture);
+//bool CreateTexture(Texture** texture, const TextureParams& tp, u32 mip_levels, const u8* data);
+//bool CreateTexture(Texture** texture, const TextureParams& tp, const void* data);
+//bool UpdateTexture(Texture** texture, u32 mip_slice, void* data, u32 row_pitch_bytes, u32 depth_pitch_bytes);
+//void DeleteTexture(Texture** texture)
+//{
+//
+//}
+//void* GetShaderResourceView(TextureIndex t);
 
 
 
@@ -328,300 +388,134 @@ void* GetShaderResourceView(TextureIndex t);
 //       GpuBuffer
 //========================
 
-    //s_gfx.fullscreen_verts = bgfx::createVertexBuffer(bgfx::makeRef(verts, sizeof(verts)), s_gfx.vert_layouts[VertexType_2D], BGFX_BUFFER_NONE);
-
 struct GfxGpuBuffer : public GpuBuffer
 {
-    union Handle {
-        bgfx::DynamicIndexBufferHandle  dynamic_index_buffer;
-        bgfx::DynamicVertexBufferHandle dynamic_vertex_buffer;
-        //bgfx::FrameBufferHandle         frame_buffer;
-        bgfx::IndexBufferHandle         index_buffer;
-        bgfx::IndirectBufferHandle      indirect_buffer;
-        //bgfx::OcclusionQueryHandle      occlusion_query;
-        //bgfx::ProgramHandle             program;
-        //bgfx::ShaderHandle              shader;
-        //bgfx::TextureHandle             texture;
-        //bgfx::UniformHandle             uniform;
-        bgfx::VertexBufferHandle        vertex_buffer;
-        bgfx::VertexLayoutHandle        vertex_layout;
-    }handle;
-
-
-
-    //D3D11_USAGE m_usage = D3D11_USAGE_DYNAMIC;
-    ID3D11Buffer* buffer = nullptr;
-    ID3D11ShaderResourceView* structure_resource_view = nullptr;
-    ID3D11UnorderedAccessView* unordered_access_view = nullptr;
-    //D3D11_BIND_FLAG m_target = {};
+    sg_buffer buffer;
 };
 
 void GpuBuffer::Upload(const void* data, const size_t in_count, const u32 in_element_size, const bool is_byte_format)
 {
     GfxGpuBuffer* buf = reinterpret_cast<GfxGpuBuffer*>(this);
+    VALIDATE(buf->buffer.id);
+    VALIDATE(in_count && in_element_size);
     count = in_count;
     element_size = in_element_size;
-    SafeRelease(buf->buffer);
-    VALIDATE(element_size);
-    VALIDATE(buf->type != GpuBufferType_Invalid);
-    VALIDATE(in_count);
-    UINT total_bytes = UINT(element_size * in_count);
-    //ASSERT(total_bytes / 16 == 0);
-    UINT buffer_type = 0;
-    UINT cpu_access_flags = 0;
-    UINT struct_byte_stride = 0;
-    UINT memory_pitch = 0;
-    UINT misc_flags = 0;
-    UINT uav_flags = 0;
-    D3D11_USAGE usage_flag = buf->is_dymamic ? D3D11_USAGE_DYNAMIC : D3D11_USAGE_DEFAULT;
-    DXGI_FORMAT format = DXGI_FORMAT_UNKNOWN;
-    bool create_srv = false;
-    bool create_uav = false;
+    const u64 bytes = in_count * in_element_size;
 
-
-
-
-    switch (buf->type)
+    if (!buf->has_uploaded)
     {
-    case GpuBufferType_Vertex:
-        buf->handle.vertex_buffer           = bgfx::createVertexBuffer(bgfx::makeRef(verts, sizeof(verts)), s_gfx.vert_layouts[VertexType_2D], BGFX_BUFFER_NONE);
-        buf->handle.dynamic_vertex_buffer   = bgfx::createDynamicVertexBuffer(bgfx::makeRef(verts, sizeof(verts)), s_gfx.vert_layouts[VertexType_2D], BGFX_BUFFER_NONE);
-    case GpuBufferType_Index:
-        buf->handle.index_buffer            = bgfx::createIndexBuffer(bgfx::makeRef(verts, sizeof(verts)), s_gfx.vert_layouts[VertexType_2D], BGFX_BUFFER_NONE);
-        buf->handle.dynamic_index_buffer    = bgfx::createDynamicIndexBuffer(bgfx::makeRef(verts, sizeof(verts)), s_gfx.vert_layouts[VertexType_2D], BGFX_BUFFER_NONE);
-    case GpuBufferType_Constant:
-    //NOTE(CSH): NO CONSTANT BUFFER OF GENERIC TYPE!!??
-        buf->handle.uniform = bgfx::createUniform(bgfx::makeRef(verts, sizeof(verts)), s_gfx.vert_layouts[VertexType_2D], BGFX_BUFFER_NONE);
-    case GpuBufferType_Structure:
-        buf->handle.vertex_buffer = bgfx::createVertexBuffer(bgfx::makeRef(verts, sizeof(verts)), s_gfx.vert_layouts[VertexType_2D], BGFX_BUFFER_NONE);
-        buf->handle.vertex_buffer = bgfx::createVertexBuffer(bgfx::makeRef(verts, sizeof(verts)), s_gfx.vert_layouts[VertexType_2D], BGFX_BUFFER_NONE);
-        buf->handle.vertex_buffer = bgfx::createVertexBuffer(bgfx::makeRef(verts, sizeof(verts)), s_gfx.vert_layouts[VertexType_2D], BGFX_BUFFER_NONE);
-        buf->handle.vertex_buffer = bgfx::createVertexBuffer(bgfx::makeRef(verts, sizeof(verts)), s_gfx.vert_layouts[VertexType_2D], BGFX_BUFFER_NONE);
-    case GpuBufferType_RWStructure:
-    case GpuBufferType_AppendStructure:
-    case GpuBufferType_IndirectArgs:
-    default: FAIL; return false;
-    }
+        sg_buffer_desc desc = {};
+        //desc.size = bytes; //Not sure about this
+        desc.data.ptr = data;
+        desc.data.size = bytes;
+        desc.usage.vertex_buffer = buf->type == GpuBufferType_Vertex;
+        desc.usage.index_buffer = buf->type == GpuBufferType_Index;
+        desc.usage.storage_buffer = buf->type == GpuBufferType_Structure;
+        desc.usage.immutable = FlagIntersects(buf->flags, GpuBufferFlag_Immutable);
+        desc.usage.dynamic_update = FlagIntersects(buf->flags, GpuBufferFlag_Dynamic);
+        desc.usage.stream_update = FlagIntersects(buf->flags, GpuBufferFlag_StreamUpdate);
+        desc.usage.write_unsealed = false;//FlagIntersects(buf->flags, GpuBufferFlag_WriteUnsealed);
+        desc.label = buf->name.c_str();
 
-
-
-
-
-
-    switch (buf->type)
-    {
-    case GpuBufferType_Vertex:
-        buffer_type = D3D11_BIND_VERTEX_BUFFER;
-        break;
-    case GpuBufferType_Index:
-        buffer_type = D3D11_BIND_INDEX_BUFFER;
-        break;
-    case GpuBufferType_Constant:
-        buffer_type = D3D11_BIND_CONSTANT_BUFFER;
-        cpu_access_flags = D3D11_CPU_ACCESS_WRITE;
-        break;
-    case GpuBufferType_Structure:
-        create_srv = true;
-        format = DXGI_FORMAT_UNKNOWN;
-        cpu_access_flags = D3D11_CPU_ACCESS_WRITE;
-        misc_flags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
-        buffer_type = D3D11_BIND_SHADER_RESOURCE;
-        ASSERT(!buf->is_dymamic);
-        struct_byte_stride = (UINT)element_size;
-        break;
-    case GpuBufferType_RWStructure:
-        create_srv = true;
-        create_uav = true;
-        format = DXGI_FORMAT_UNKNOWN;
-        cpu_access_flags = D3D11_CPU_ACCESS_WRITE;
-        misc_flags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
-        buffer_type = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_UNORDERED_ACCESS;
-        ASSERT(!buf->is_dymamic);
-        struct_byte_stride = (UINT)element_size;
-        break;
-    case GpuBufferType_AppendStructure:
-        create_srv = true;
-        create_uav = true;
-        format = DXGI_FORMAT_UNKNOWN;
-        cpu_access_flags = D3D11_CPU_ACCESS_WRITE;
-        misc_flags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
-        buffer_type = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_UNORDERED_ACCESS;
-        ASSERT(!buf->is_dymamic);
-        struct_byte_stride = (UINT)element_size;
-        uav_flags = D3D11_BUFFER_UAV_FLAG_APPEND;
-        break;
-    case GpuBufferType_IndirectArgs:
-        create_uav = true;
-        buffer_type = D3D11_BIND_UNORDERED_ACCESS;
-        misc_flags = D3D11_RESOURCE_MISC_DRAWINDIRECT_ARGS | D3D11_RESOURCE_MISC_BUFFER_ALLOW_RAW_VIEWS;
-        uav_flags |= D3D11_BUFFER_UAV_FLAG_RAW;
-        format = DXGI_FORMAT_R32_TYPELESS;
-        break;
-    default:
-        FAIL;
-    }
-
-    if (!buf->buffer)
-    {
-        {
-            D3D11_BUFFER_DESC desc;
-            desc.ByteWidth = total_bytes;
-            desc.Usage = usage_flag;
-            desc.BindFlags = buffer_type;
-            desc.CPUAccessFlags = buf->is_dymamic ? D3D11_CPU_ACCESS_WRITE | cpu_access_flags : cpu_access_flags;
-            desc.MiscFlags = misc_flags;
-            desc.StructureByteStride = struct_byte_stride;
-
-            D3D11_SUBRESOURCE_DATA dx11_data;
-            dx11_data.pSysMem = data;
-            dx11_data.SysMemPitch = memory_pitch;
-            dx11_data.SysMemSlicePitch = 0;
-
-			HR(s_dx11.device->CreateBuffer(
-				&desc,                                        //[in]            const D3D11_BUFFER_DESC * pDesc,
-				(data == nullptr) ? nullptr : &dx11_data,     //[in, optional]  const D3D11_SUBRESOURCE_DATA * pInitialData,
-				&buf->buffer                                  //[out, optional] ID3D11Buffer * *ppBuffer
-			));
-            SetResourceName(buf->buffer, buf->name);
-        }
-        DEBUG_LOG("Created and Uploaded data to gpu buffer: element: %i size: %i", element_size, in_count);
-
-        if (create_srv)
-        {
-            D3D11_SHADER_RESOURCE_VIEW_DESC desc;
-            ZeroMemory(&desc, sizeof(D3D11_SHADER_RESOURCE_VIEW_DESC));
-            desc.Format = format;
-            desc.ViewDimension = D3D_SRV_DIMENSION_BUFFER;
-            desc.Buffer.FirstElement = 0;
-            desc.Buffer.NumElements = (UINT)in_count;
-            HR(s_dx11.device->CreateShaderResourceView(
-                buf->buffer,                    //[in]            ID3D11Resource * pResource,
-                &desc,                          //[in, optional]  const D3D11_SHADER_RESOURCE_VIEW_DESC * pDesc,
-                &buf->structure_resource_view   //[out, optional] ID3D11ShaderResourceView * *ppSRView
-            ));
-        }
-
-        if (create_uav)
-        {
-            D3D11_UNORDERED_ACCESS_VIEW_DESC desc;
-            ZeroMemory(&desc, sizeof(D3D11_UNORDERED_ACCESS_VIEW_DESC));
-            desc.Format = format;
-            desc.ViewDimension = D3D11_UAV_DIMENSION_BUFFER;
-            desc.Buffer.FirstElement = 0;
-            desc.Buffer.NumElements = (UINT)in_count;
-            desc.Buffer.Flags = uav_flags;
-            HR(s_dx11.device->CreateUnorderedAccessView(
-                buf->buffer,
-                &desc,
-                &buf->unordered_access_view
-            ));
-        }
-
-        return;
-    }
-
-    if (buf->is_dymamic)
-    {
-        //map/unmap/memcopy
-        D3D11_MAPPED_SUBRESOURCE resource;
-        ZeroMemory(&resource, sizeof(D3D11_MAPPED_SUBRESOURCE));
-        HR(s_dx11.device_context->Map(
-            buf->buffer,          //[in]            ID3D11Resource * pResource,
-            0,                      //[in]            UINT                     Subresource,
-            D3D11_MAP_WRITE_DISCARD,//[in]            D3D11_MAP                MapType,
-            0,                      //[in]            UINT                     MapFlags,
-            &resource               //[out, optional] D3D11_MAPPED_SUBRESOURCE * pMappedResource
-        ));
-        memmove(resource.pData, data, element_size * in_count);
-        s_dx11.device_context->Unmap(buf->buffer, 0);
-        DEBUG_LOG("Uploaded dynamic_buffer data to gpu buffer: element: %i size: %i", element_size, in_count);
+        sg_init_buffer(buf->buffer, desc);
+        buf->has_uploaded = true;
     }
     else
     {
-        s_dx11.device_context->UpdateSubresource(
-            buf->buffer,  //[in]           ID3D11Resource * pDstResource,
-            0,              //[in]           UINT            DstSubresource,
-            NULL,           //[in, optional] const D3D11_BOX * pDstBox,
-            data,           //[in]           const void* pSrcData,
-            total_bytes,    //[in]           UINT            SrcRowPitch,
-            0               //[in]           UINT            SrcDepthPitch
-        );
-        DEBUG_LOG("Uploaded default_buffer data to gpu buffer: element: %i size: %i", element_size, in_count);
+        VALIDATE(FlagIntersects(buf->flags, GpuBufferFlag_Dynamic) || FlagIntersects(buf->flags, GpuBufferFlag_StreamUpdate));
+
+        sg_range update_data;
+        update_data.ptr = data;
+        update_data.size = bytes;
+
+        //Appends data to a stream buffer
+        //sg_append_buffer(buf->buffer, &update_data);
+        sg_update_buffer(buf->buffer, &update_data);
     }
 }
 
-void GpuBuffer::Bind(u32 slot, GpuBufferBindLocation binding)
+bool CreateGpuBuffer(GpuBuffer** buffer, const char* name, GpuBufferType type, GpuBufferFlag flags)
 {
-    DX11GpuBuffer* buf = reinterpret_cast<DX11GpuBuffer*>(this);
-    switch (type)
-    {
-    case GpuBufferType_Constant:
-    {
-        switch (binding)
-        {
-        case GpuBufferBindLocation_Vertex:
-            s_dx11.device_context->VSSetConstantBuffers(slot, 1, &buf->buffer);
-            break;
-        case GpuBufferBindLocation_Pixel:
-            s_dx11.device_context->PSSetConstantBuffers(slot, 1, &buf->buffer);
-            break;
-        case GpuBufferBindLocation_All:
-            s_dx11.device_context->VSSetConstantBuffers(slot, 1, &buf->buffer);
-            s_dx11.device_context->PSSetConstantBuffers(slot, 1, &buf->buffer);
-            break;
-        default:
-            FAIL;
-            break;
-        }
-        break;
-    }
-    case GpuBufferType_Structure:
-    {
-        switch (binding)
-        {
-        case GpuBufferBindLocation_Vertex:
-            s_dx11.device_context->VSSetShaderResources(slot, 1, &buf->structure_resource_view);
-            break;
-        case GpuBufferBindLocation_Pixel:
-            s_dx11.device_context->PSSetShaderResources(slot, 1, &buf->structure_resource_view);
-            break;
-        case GpuBufferBindLocation_All:
-            s_dx11.device_context->VSSetShaderResources(slot, 1, &buf->structure_resource_view);
-            s_dx11.device_context->PSSetShaderResources(slot, 1, &buf->structure_resource_view);
-            break;
-        case GpuBufferBindLocation_Compute:
-			s_dx11.device_context->CSSetShaderResources(slot, 1, &buf->structure_resource_view);
-			s_dx11.device_context->CSSetUnorderedAccessViews(slot, 1, &buf->unordered_access_view, nullptr);
-            break;
-        default:
-            FAIL;
-            break;
-        }
-        break;
-    }
-    default:
-        FAIL;
-    }
-}
-
-bool CreateGpuBuffer(GpuBuffer** buffer, const std::wstring& name, bool is_dynamic, GpuBufferType type)
-{
-    ASSERT(buffer);
-    ASSERT(*buffer == nullptr);
-    GfxGpuBuffer* buf = new GfxGpuBuffer;
-
-    buf->is_dymamic = is_dynamic;
+    GfxGpuBuffer* buf = GfxGenericCreate<GpuBuffer, GfxGpuBuffer>(buffer, name);
+    VALIDATE_V(buf, false);
     buf->type = type;
-    buf->name = name;
-    (*buffer) = reinterpret_cast<GpuBuffer*>(buf);
+    buf->flags = flags;
+    buf->buffer = sg_alloc_buffer();
     return true;
 }
 
 void DeleteBuffer(GpuBuffer** buffer)
 {
     VALIDATE(buffer);
-    DX11GpuBuffer* buf = reinterpret_cast<DX11GpuBuffer*>(*buffer);
-    SafeRelease(buf->buffer);
+    GfxGpuBuffer* buf = reinterpret_cast<GfxGpuBuffer*>(*buffer);
+    DEBUG_LOG("GPU Buffer deleted '%s': %i\n", buf->name.c_str(), buf->buffer);
+    sg_destroy_buffer(buf->buffer);
     delete buf;
-    DEBUG_LOG("GPU Buffer deleted %i, %i\n", m_target, m_handle);
 }
+
+
+
+
+
+//========================
+//       GpuBinding
+//========================
+
+struct GfxGpuBinding : GpuBinding
+{
+    sg_bindings binding;
+};
+
+bool CreateGpuBinding(GpuBinding** binding, const char* name)
+{
+    GfxGpuBinding* bind = GfxGenericCreate<GpuBinding, GfxGpuBinding>(binding, name);
+    VALIDATE_V(bind, false);
+    (*binding) = reinterpret_cast<GpuBinding*>(bind);
+    return true;
+}
+
+void DeleteBuffer(GpuBinding** binding)
+{
+    VALIDATE(binding);
+    GfxGpuBinding* bin = reinterpret_cast<GfxGpuBinding*>(*binding);
+    DEBUG_LOG("GPU binding deleted '%s'\n", bin->name.c_str());
+    delete bin;
+}
+
+void GpuBinding::BindVertex(const GpuBuffer* buffer, const i32 slot)
+{
+    VALIDATE(buffer && buffer->type == GpuBufferType_Vertex);
+    const GfxGpuBuffer* buf = reinterpret_cast<const GfxGpuBuffer*>(buffer);
+    GfxGpuBinding* bin = reinterpret_cast<GfxGpuBinding*>(this);
+    
+    sg_buffer& b = bin->binding.vertex_buffers[slot];
+    if (b.id != 0)
+        DebugPrint("Warning: Overwriting binding(%s) slot(%i) for vertex buffer (%s)", bin->name.c_str(), slot, buf->name.c_str());
+    b = buf->buffer;
+}
+void GpuBinding::BindIndex(const GpuBuffer* buffer)
+{
+    VALIDATE(buffer && buffer->type == GpuBufferType_Index);
+    const GfxGpuBuffer* buf = reinterpret_cast<const GfxGpuBuffer*>(buffer);
+    GfxGpuBinding* bin = reinterpret_cast<GfxGpuBinding*>(this);
+    sg_buffer& b = bin->binding.index_buffer;
+    if (b.id != 0)
+        DebugPrint("Warning: Overwriting binding (%s) for index buffer (%s)", bin->name.c_str(), buf->name.c_str());
+    b = buf->buffer;
+}
+void GpuBinding::BindView(GpuBuffer* view)
+{
+    FAIL;
+}
+void GpuBinding::BindSampler(GpuBuffer* sampler)
+{
+    FAIL;
+}
+
+void GpuBinding::Apply()
+{
+    GfxGpuBinding* bin = reinterpret_cast<GfxGpuBinding*>(this);
+    sg_apply_bindings(bin->binding);
+}
+
+
