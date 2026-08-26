@@ -19,6 +19,8 @@
 #include "../CashRendering.h"
 #include "Tracy.hpp"
 #include "../CashSystem.h"
+#define SOKOL_IMPL
+#define SOKOL_D3D11
 #include "sokol/sokol_gfx.h"
 
 #include <fstream>
@@ -260,12 +262,12 @@ void* OSGetWindowHandle(SDL_Window* window)
     return hwnd;
 }
 
-bool OSInit(SDL_Window* window)
+bool OSInit()
 {
     //HMODULE modh = GetModuleHandle(NULL);
     //VALIDATE_V(modh != NULL, false);
 
-    HWND hwnd = (HWND)OSGetWindowHandle(window);
+    HWND hwnd = (HWND)SysGetWindowHandle(gfx.window);
     if (!hwnd)
     {
         DebugPrint("Failed to get HWND: %s", SDL_GetError());
@@ -320,9 +322,9 @@ bool OSInit(SDL_Window* window)
     }
     return true;
 }
-void OSDestroy(SDL_Window* window)
+void OSDestroy()
 {
-    SDL_DestroyWindow(window);
+    SDL_DestroyWindow(gfx.window);
 }
 
 
@@ -330,6 +332,7 @@ void OSDestroy(SDL_Window* window)
 // RENDERING
 
 #define SWAP_CHAIN_FORMAT DXGI_FORMAT_B8G8R8A8_UNORM
+#define SWAP_CHAIN_FORMAT_SG SG_PIXELFORMAT_BGRA8
 
 static struct RenderState {
     bool quit_requested;
@@ -390,6 +393,16 @@ static struct RenderState {
     #endif
 #endif
 
+template <typename T>
+void SafeRelease(T*& unknown)
+{
+    if (unknown)
+    {
+        unknown->Release();
+        unknown = nullptr;
+    }
+}
+
 void SetResourceName(ID3D11Resource* r, const std::string& name)
 {
     VALIDATE(r);
@@ -425,9 +438,6 @@ void CreateRenderTargetView(ID3D11RenderTargetView** rtv,  DXGI_FORMAT format, I
 
 void CreateDefaultRenderTargets()
 {
-    HRESULT hr;
-
-    ID3D11Texture2D* backbuffer;
     VERIFY(SUCCEEDED(s_rs.swap_chain->GetBuffer(0, IID_PPV_ARGS(&s_rs.rt_tex))) && s_rs.rt_tex);
     VERIFY(SUCCEEDED(s_rs.device->CreateRenderTargetView(s_rs.rt_tex, NULL, &s_rs.rt_view)) && s_rs.rt_view);
 
@@ -483,9 +493,8 @@ void UpdateDefaultRenderTargets()
 bool OSRenderInit(const SysRenderInitDesc* desc)
 {
     VALIDATE_V(desc,            false);
-    VALIDATE_V(desc->size.x> 0, false);
-    VALIDATE_V(desc->size.y> 0, false);
-    VALIDATE_V(desc->title,     false);
+    VALIDATE_V(desc->size.x > 0, false);
+    VALIDATE_V(desc->size.y > 0, false);
 
     s_rs.size = desc->size;
     s_rs.sample_count = (desc->sample_count == 0) ? 1 : desc->sample_count;
@@ -535,11 +544,12 @@ bool OSRenderInit(const SysRenderInitDesc* desc)
             create_flags &= ~D3D11_CREATE_DEVICE_DEBUG;
         }
     }
-    VALIDATE_V(FAILED(hr) && s_rs.swap_chain && s_rs.device && s_rs.device_context);
+    VALIDATE_V(SUCCEEDED(hr) && s_rs.swap_chain && s_rs.device && s_rs.device_context, false);
 
     CreateDefaultRenderTargets();
+    return true;
 }
-bool OSRenderDestroy()
+void OSRenderDestroy()
 {
     DestroyDefaultRenderTargets();
     SafeRelease(s_rs.swap_chain);
@@ -563,13 +573,26 @@ void OSGetRenderEnvironment(sg_environment* env)
 {
     VALIDATE(env);
     //
-    env->defaults.color_format = SG_PIXELFORMAT_BGRA8;
+    env->defaults.color_format = SWAP_CHAIN_FORMAT_SG;
     env->defaults.depth_format = s_rs.no_depth_buffer ? SG_PIXELFORMAT_NONE : SG_PIXELFORMAT_DEPTH_STENCIL;
     env->defaults.sample_count = s_rs.sample_count;
     //
     env->d3d11.device = s_rs.device;
     env->d3d11.device_context = s_rs.device_context;
     //
+}
+
+void OSGetRenderSwapchain(sg_swapchain* sc)
+{
+    VALIDATE(sc);
+    sc->width = s_rs.size.x;
+    sc->height= s_rs.size.y;
+    sc->sample_count = s_rs.sample_count;
+    sc->color_format = SWAP_CHAIN_FORMAT_SG;
+    sc->depth_format = s_rs.no_depth_buffer ? SG_PIXELFORMAT_NONE : SG_PIXELFORMAT_DEPTH_STENCIL;
+    sc->d3d11.render_view = (s_rs.sample_count == 1) ? s_rs.rt_view : s_rs.msaa_view;
+    sc->d3d11.resolve_view = (s_rs.sample_count == 1) ? 0 : s_rs.rt_view;
+    sc->d3d11.depth_stencil_view = s_rs.ds_view;
 }
 
 //#pragma comment(lib, "iphlpapi.lib")
@@ -886,16 +909,6 @@ struct WMIServices
         return GetClassObject(&object_bstr, object_str);
     }
 };
-
-template <typename T>
-void SafeRelease(T*& unknown)
-{
-    if (unknown)
-    {
-        unknown->Release();
-        unknown = nullptr;
-    }
-}
 
 struct WinFunc
 {

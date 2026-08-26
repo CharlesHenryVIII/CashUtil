@@ -10,13 +10,21 @@
 
 SysInfo g_sysinfo;
 
-bool SysInit(SDL_Window* window)
+bool CashInit(ArrayView<const ArrayView<const u8>> app_icons)
 {
-    return OSInit(window);
+    if (!CashRenderInit(app_icons))
+        return false;
+    if (!OSInit())
+        return false;
+    CashImguiInit();
+    return true;
 }
-void SysDestroy(SDL_Window* window)
+void CashDestroy()
 {
-    OSDestroy(window);
+    CashImguiDestroy();
+    CashRenderDestroy();
+    OSDestroy();
+    SDL_Quit();
 }
 
 void* SysGetWindowHandle(SDL_Window* window)
@@ -775,9 +783,9 @@ bool SysRenderInit(const SysRenderInitDesc* desc)
 {
     return OSRenderInit(desc);
 }
-bool SysRenderDestroy()
+void SysRenderDestroy()
 {
-    return OSRenderDestroy();
+    OSRenderDestroy();
 }
 void SysRenderPresent()
 {
@@ -786,6 +794,10 @@ void SysRenderPresent()
 void SysGetRenderEnvironment(sg_environment* env)
 {
     OSGetRenderEnvironment(env);
+}
+void SysGetRenderSwapchain(sg_swapchain* env)
+{
+    OSGetRenderSwapchain(env);
 }
 
 void RunProcessJob::RunJob()

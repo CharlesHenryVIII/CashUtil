@@ -13,15 +13,18 @@ void OSWriteToAttachedConsole(const wchar_t* buffer, bool add_new_line);
 void OSDebugOutput(const char* s);
 void OSDebugOutput(const wchar_t* s);
 
-bool OSInit(SDL_Window* window);
-void OSDestroy(SDL_Window* window);
+bool OSInit();
+void OSDestroy();
 void* OSGetWindowHandle(SDL_Window* window);
 
+
 struct sg_environment;
+struct sg_swapchain;
 bool OSRenderInit(const SysRenderInitDesc* desc);
-bool OSRenderDestroy();
+void OSRenderDestroy();
 void OSRenderPresent();
 void OSGetRenderEnvironment(sg_environment* env);
+void OSGetRenderSwapchain(sg_swapchain* sc);
 
 
 bool OSHasAdminPrivledge();

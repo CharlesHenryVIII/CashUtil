@@ -64,34 +64,37 @@ using u64 = uint64_t;
 #define ToGibibytes(value) ((u64)(ToMegabytes(value) / 1024.0))
 #define ToTebibytes(value) ((u64)(ToGigabytes(value) / 1024.0))
 
-typedef gbVec4<float> Color;
+constexpr float pi = 3.14159f;
+constexpr float half_pi = pi / 2.0f;
+constexpr float tau = 2 * pi;
+const float inf = INFINITY;
 
-union ColorI {
-    u32 rgba;
-    struct { u8 r, g, b, a; };
-    u8 e[4];
-};
-
-MATH_CONSTEXPR_PREFIX Color ToColor(ColorI c)
-{
-    Color r;
-    r.r = c.r / float(UCHAR_MAX);
-    r.g = c.g / float(UCHAR_MAX);
-    r.b = c.b / float(UCHAR_MAX);
-    r.a = c.a / float(UCHAR_MAX);
-    return r;
-}
-
-MATH_CONSTEXPR_PREFIX ColorI ToColorI(Color c)
-{
-    ColorI r;
-    r.r = Min(c.r, 1.0f) * UCHAR_MAX;
-    r.g = Min(c.g, 1.0f) * UCHAR_MAX;
-    r.b = Min(c.b, 1.0f) * UCHAR_MAX;
-    r.a = Min(c.a, 1.0f) * UCHAR_MAX;
-    return r;
-}
-
+typedef gbVec2<float>   Vec2;
+typedef gbVec3<float>   Vec3;
+typedef gbVec4<float>   Vec4;
+typedef gbVec4<float>   Color;
+typedef gbMat2<float>   Mat2;
+typedef gbMat3<float>   Mat3;
+typedef gbMat4<float>   Mat4;
+typedef gbMat4x3<float> Mat4x3;
+typedef gbQuat<float>   Quat;
+typedef gbVec2<double>  Vec2d;
+typedef gbVec3<double>  Vec3d;
+typedef gbVec4<double>  Vec4d;
+typedef gbMat2<double>  Mat2d;
+typedef gbMat3<double>  Mat3d;
+typedef gbMat4<double>  Mat4d;
+typedef gbMat4x3<double>Mat4x3d;
+typedef gbQuat<double>  Quatd;
+typedef gbVec2<i32>     Vec2I;
+typedef gbVec3<i32>     Vec3I;
+typedef gbVec4<i32>     Vec4I;
+typedef gbVec2<u32>     Vec2U;
+typedef gbVec3<u32>     Vec3U;
+typedef gbVec4<u32>     Vec4U;
+typedef gbMat2<i32>     Mat2I;
+typedef gbMat3<i32>     Mat3I;
+typedef gbMat4<i32>     Mat4I;
 
 const Color Red         = { 1.00f, 0.00f, 0.00f, 1.00f };
 const Color Green       = { 0.00f, 1.00f, 0.00f, 1.00f };
@@ -116,41 +119,7 @@ const Color Grey        = { 0.50f, 0.50f, 0.50f, 1.00f };
 const Color transCyan   = { 0.60f, 0.60f, 1.00f, 0.50f };
 const Color Yellow      = { 1.00f, 1.00f, 0.00f, 1.00f };
 
-const Color backgroundColor = { 0.263f, 0.706f, 0.965f, 0.0f };
-
-const Color HealthBarBackground = { 0.25f, 0.33f, 0.25f, 1.0f};
-constexpr i32 blockSize = 32;
-
-constexpr float pi = 3.14159f;
-constexpr float half_pi = pi / 2.0f;
-constexpr float tau = 2 * pi;
-const float inf = INFINITY;
-
-typedef gbVec2<float>   Vec2;
-typedef gbVec3<float>   Vec3;
-typedef gbVec4<float>   Vec4;
-typedef gbMat2<float>   Mat2;
-typedef gbMat3<float>   Mat3;
-typedef gbMat4<float>   Mat4;
-typedef gbMat4x3<float> Mat4x3;
-typedef gbQuat<float>   Quat;
-typedef gbVec2<double>  Vec2d;
-typedef gbVec3<double>  Vec3d;
-typedef gbVec4<double>  Vec4d;
-typedef gbMat2<double>  Mat2d;
-typedef gbMat3<double>  Mat3d;
-typedef gbMat4<double>  Mat4d;
-typedef gbMat4x3<double>Mat4x3d;
-typedef gbQuat<double>  Quatd;
-typedef gbVec2<i32>     Vec2I;
-typedef gbVec3<i32>     Vec3I;
-typedef gbVec4<i32>     Vec4I;
-typedef gbVec2<u32>     Vec2U;
-typedef gbVec3<u32>     Vec3U;
-typedef gbVec4<u32>     Vec4U;
-typedef gbMat2<i32>     Mat2I;
-typedef gbMat3<i32>     Mat3I;
-typedef gbMat4<i32>     Mat4I;
+const Color background_color = { 0.263f, 0.706f, 0.965f, 1.0f };
 
 MATH_PREFIX Vec4 GetVec4(Vec3 a, float b)
 {
@@ -165,6 +134,52 @@ union U32Pack {
     struct { u8 x, y, z, w; };
     u8 e[4];
 };
+
+template <typename T>
+MATH_CONSTEXPR_PREFIX T Min(const T a, const T b)
+{
+    return a < b ? a : b;
+}
+
+ template <typename T>
+MATH_CONSTEXPR_PREFIX T Max(const T a, const T b)
+{
+    return a > b ? a : b;
+}
+
+template <typename T>
+MATH_CONSTEXPR_PREFIX T Clamp(const T v, const T min, const T max)
+{
+    return Max(min, Min(max, v));
+}
+
+
+union ColorI {
+    u32 rgba;
+    struct { u8 r, g, b, a; };
+    u8 e[4];
+};
+
+MATH_CONSTEXPR_PREFIX Color ToColor(ColorI c)
+{
+    Color r;
+    r.r = c.r / float(UCHAR_MAX);
+    r.g = c.g / float(UCHAR_MAX);
+    r.b = c.b / float(UCHAR_MAX);
+    r.a = c.a / float(UCHAR_MAX);
+    return r;
+}
+
+MATH_CONSTEXPR_PREFIX ColorI ToColorI(Color c)
+{
+    ColorI r;
+    r.r = (u8)(Min(c.r, 1.0f) * UCHAR_MAX);
+    r.g = (u8)(Min(c.g, 1.0f) * UCHAR_MAX);
+    r.b = (u8)(Min(c.b, 1.0f) * UCHAR_MAX);
+    r.a = (u8)(Min(c.a, 1.0f) * UCHAR_MAX);
+    return r;
+}
+
 
 //TODO(CSH): rename these to PTN, PNTC, PNC, etc (position, normal, texture, color)
 #pragma pack(push, 1)
@@ -454,24 +469,6 @@ inline void operator+=(Vec3& a, float b)
 inline void operator-=(Vec3& a, float b)
 {
     a = {a.x - b, a.y - b, a.z - b};
-}
-
-template <typename T>
-MATH_CONSTEXPR_PREFIX T Min(const T a, const T b)
-{
-    return a < b ? a : b;
-}
-
- template <typename T>
-MATH_CONSTEXPR_PREFIX T Max(const T a, const T b)
-{
-    return a > b ? a : b;
-}
-
-template <typename T>
-MATH_CONSTEXPR_PREFIX T Clamp(const T v, const T min, const T max)
-{
-    return Max(min, Min(max, v));
 }
 
 MATH_PREFIX Vec2 Floor(const Vec2& v)
