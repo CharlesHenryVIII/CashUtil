@@ -239,7 +239,7 @@ struct SysNetworkAdapterInfo
     bool multicast_enabled;
 };
 
-bool CashInit(ArrayView<const ArrayView<const u8>> app_icons);
+bool CashInit(ArrayView<const ArrayView<const u8>> app_icons, const std::string& logo, ArrayView<const u8> console_font_data);
 void CashDestroy();
 void* SysGetWindowHandle(SDL_Window* window);
 i32 SysMain(i32 argc, char** argv);
@@ -269,6 +269,7 @@ double SysGetTime();
 float SysMonitorScale();
 Vec2 SysGetMousePosition();
 Vec2 SysGetWindowSize();
+Vec2 SysGetScreenSize();
 
 void ParseCSV(PowershellResponse& out, const std::string& in, bool using_quotes);
 
@@ -337,7 +338,7 @@ void SysConvertMultibyteToWideChar(std::wstring& out, const std::string& in, Str
 void SysConvertWideCharToMultiByte(std::string& out, const std::wstring& in, StringEncoding encoding = StringEncoding_UTF8);
 void SysExpandEnvironemntVariable(std::wstring& out, const std::wstring& in);
 ImFont* SysCreateImguiFont(const ArrayView<const u8> font_data, float font_size);
-ImFont* SysLoadFontForImgui(int resource_id, float fontSize);
+ImFont* SysLoadFontForImgui(i32 resource_id, float fontSize);
 void* SysGetDataFromResource(i32* out_size, const i32 resource_id);
 
 union Guid {

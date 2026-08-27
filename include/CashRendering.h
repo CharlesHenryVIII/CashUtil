@@ -6,6 +6,8 @@
 //#define CASH_SDL_RENDER 1
 #define CASH_SOKOL_RENDER 1
 
+#define CASH_GFX_MAX_MIPS 16
+
 enum EmbededIcon : u32
 {
     EmbededIcon_Invalid,
@@ -36,95 +38,38 @@ void CashImguiDestroy();
 void CashImguiNewFrame(double delta_time);
 
 
+
+
 //========================
 //        Texture
 //========================
 
-enum TextureIndex : u32 {
-    TextureIndex_Invalid,
-    TextureIndex_Minecraft,
-    TextureIndex_Plain,
-    TextureIndex_Random,
-    TextureIndex_Backbuffer_Silhouette,
-    TextureIndex_Backbuffer_Depth,
-    TextureIndex_Backbuffer_HDR,
-    TextureIndex_Backbuffer_Shadow_Depth,
-    TextureIndex_FontStandard,
-    TextureIndex_FontBold,
-    TextureIndex_FontOptimusPrinceps,
-    TextureIndex_SkyboxDay,
-    TextureIndex_SkyboxNight,
-    //TextureIndex_Shadow_Map,
-    TextureIndex_EditorAssetCover,
-    TextureIndex_Count,
-};
-ENUMOPS(TextureIndex);
-
 enum TextureDimension : u32 {
     TextureDimension_Invalid,
-    TextureDimension_1D,
     TextureDimension_2D,
     TextureDimension_3D,
+    TextureDimension_CUBE,
+    TextureDimension_ARRAY,
     TextureDimension_Count,
 };
 ENUMOPS(TextureDimension);
 
-enum TextureFilter : u32 {
-    TextureFilter_Invalid,
-    TextureFilter_MIN_MAG_MIP_POINT,
-    TextureFilter_MIN_MAG_POINT_MIP_LINEAR,
-    TextureFilter_MIN_POINT_MAG_LINEAR_MIP_POINT,
-    TextureFilter_MIN_POINT_MAG_MIP_LINEAR,
-    TextureFilter_MIN_LINEAR_MAG_MIP_POINT,
-    TextureFilter_MIN_LINEAR_MAG_POINT_MIP_LINEAR,
-    TextureFilter_MIN_MAG_LINEAR_MIP_POINT,
-    TextureFilter_MIN_MAG_MIP_LINEAR,
-    TextureFilter_ANISOTROPIC,
-    TextureFilter_COMPARISON_MIN_MAG_MIP_POINT,
-    TextureFilter_COMPARISON_MIN_MAG_POINT_MIP_LINEAR,
-    TextureFilter_COMPARISON_MIN_POINT_MAG_LINEAR_MIP_POINT,
-    TextureFilter_COMPARISON_MIN_POINT_MAG_MIP_LINEAR,
-    TextureFilter_COMPARISON_MIN_LINEAR_MAG_MIP_POINT,
-    TextureFilter_COMPARISON_MIN_LINEAR_MAG_POINT_MIP_LINEAR,
-    TextureFilter_COMPARISON_MIN_MAG_LINEAR_MIP_POINT,
-    TextureFilter_COMPARISON_MIN_MAG_MIP_LINEAR,
-    TextureFilter_COMPARISON_ANISOTROPIC,
-    TextureFilter_Count,
-};
-ENUMOPS(TextureFilter);
-
-enum TextureAddressMode : u32 {
-    TextureAddressMode_Invalid,
-    TextureAddressMode_Wrap,
-    TextureAddressMode_Mirror,
-    TextureAddressMode_Clamp,
-    TextureAddressMode_Border,
-    TextureAddressMode_MirrorOnce,
-    TextureAddressMode_Count,
-};
-ENUMOPS(TextureAddressMode);
-
 enum TextureFormat : u32 {
     TextureFormat_UNKNOWN,
-    TextureFormat_R32G32B32A32_FLOAT,
-    TextureFormat_R32G32B32A32_UINT,
-    TextureFormat_R32G32B32_FLOAT,
-    TextureFormat_R32G32B32_UINT,
-    TextureFormat_R32G32_FLOAT,
-    TextureFormat_R16G16B16A16_UINT,
-    TextureFormat_R11G11B10_FLOAT,
-    TextureFormat_D32_FLOAT,
+    TextureFormat_RGBA32_FLOAT,
+    TextureFormat_RGBA32_UINT,
+    TextureFormat_RG32_FLOAT,
+    TextureFormat_RGBA16_UINT,
+    TextureFormat_RG11B10_FLOAT,
     TextureFormat_R32_FLOAT,
-    TextureFormat_D24_UNORM_S8_UINT,
-    TextureFormat_R24_UNORM_X8_TYPELESS,
-    TextureFormat_D16_UNORM,
-    TextureFormat_A8_UNORM,
-    TextureFormat_R8G8B8A8_UNORM,
-    TextureFormat_R8G8B8A8_UNORM_SRGB,
-    TextureFormat_R8G8B8A8_UINT,
-    TextureFormat_R8G8_UINT,
+    TextureFormat_RGBA8_UNORM,
+    TextureFormat_RGBA8_UNORM_SRGB,
+    TextureFormat_RGBA8_UINT,
+    TextureFormat_RG8_UINT,
     TextureFormat_R8_UNORM,
     TextureFormat_R8_UINT,
+    TextureFormat_Depth,
+    TextureFormat_DepthStencil,
     TextureFormat_Count,
 };
 ENUMOPS(TextureFormat);
@@ -133,36 +78,110 @@ enum TextureType : u32 {
     TextureType_Invalid,
     TextureType_Texture,
     TextureType_Depth,
-    TextureType_TextureCube,
     TextureType_Count,
 };
 ENUMOPS(TextureType);
 
+enum TextureFlag : u32 {
+    TextureFlag_None = 0,
+    TextureFlag_RenderTarget = BIT(0), //Texture can be rendered to
+    TextureFlag_DepthStencil = BIT(1), //Texture is a depth buffer otherwise its for color
+    TextureFlag_Immutable    = BIT(3), //Texture Updated by CPU: Never
+    TextureFlag_Dynamic      = BIT(2), //Texture Updated by CPU: Infrequently
+    TextureFlag_StreamUpdate = BIT(4), //Texture Updated by CPU: Every Frame
+    TextureFlag_All          = BIT(5) - 1,
+};
+ENUMOPS(TextureFlag);
+
 struct TextureParams {
-    Vec3I size;
-    TextureFormat format = TextureFormat_R8G8B8A8_UINT;
-    TextureAddressMode mode = TextureAddressMode_Wrap;
-    TextureFilter filter = TextureFilter_ANISOTROPIC;
+    Vec3I size; // .x = width, .y = height, .z = "Depth" for 3D texture / "Slices" for Array / 6 Slices for cubemap
+    i32 msaa_samples = 1; //1 = No MSAA, 2 = 2x MSAA, 4 = 4x MSAA, etc
+    i32 mip_count = 1;
+
+    TextureFlag flags = TextureFlag_None;
+    TextureDimension dimension = TextureDimension_2D;
+    TextureFormat format = TextureFormat_RGBA8_UINT;
     TextureType type = TextureType_Texture;
-    bool render_target;
-    i32 bytes_per_pixel;
-    std::string name;
-    u32 array_size = 1;
 };
 
 struct Texture {
-    u32 mip_levels = 1;
-    TextureDimension dimension;
+    std::string name;
     TextureParams parameters;
+    u32 mip_levels = 1;
 };
 
-bool CreateTexture(Texture** texture, const void* data, Vec3I size, TextureFormat format, i32 bytes_per_pixel, const std::string& name, TextureType type = TextureType_Texture);
-bool CreateTexture(Texture** texture, const char* fileLocation, TextureFormat format, TextureFilter filter, const std::string& name, TextureType type = TextureType_Texture);
-bool CreateTexture(Texture** texture, const TextureParams& tp, u32 mip_levels, const u8* data);
-bool CreateTexture(Texture** texture, const TextureParams& tp, const void* data);
-bool UpdateTexture(Texture** texture, u32 mip_slice, void* data, u32 row_pitch_bytes, u32 depth_pitch_bytes);
+bool CreateTextureAndUpload(Texture** texture, const char* name, const TextureParams& tp, ArrayView<u8> data);
+bool CreateTextureAndUpload(Texture** texture, const char* name, const TextureParams& tp, ArrayView<u8> data[CASH_GFX_MAX_MIPS]);
+//bool CreateTexture(Texture** texture, Vec3I size, TextureFormat format, i32 bytes_per_pixel, const std::string& name, TextureType type = TextureType_Texture);
+//bool CreateTexture(Texture** texture, TextureFormat format, TextureFilter filter, const std::string& name, TextureType type = TextureType_Texture);
+//bool UpdateTexture(Texture** texture, u32 mip_slice, void* data, u32 row_pitch_bytes, u32 depth_pitch_bytes);
 void DeleteTexture(Texture** texture);
-void* GetShaderResourceView(TextureIndex t);
+
+
+
+
+//========================
+//       Sampler
+//========================
+
+enum SamplerFilter : u32 {
+    SamplerFilter_Nearest,
+    SamplerFilter_Linear,
+    SamplerFilter_Count,
+};
+ENUMOPS(SamplerFilter);
+
+enum SamplerWrap : u32 {
+    SamplerWrap_Repeat,
+    SamplerWrap_ClampToEdge,
+    SamplerWrap_ClampToBorder,
+    SamplerWrap_Mirrored_Repeat,
+    SamplerWrap_Count,
+};
+ENUMOPS(SamplerWrap);
+
+enum SamplerBorderColor : u32 {
+    SamplerBorderColor_TransparentBlack,
+    SamplerBorderColor_OpaqueBlack,
+    SamplerBorderColor_OpaqueWhite,
+    SamplerBorderColor_Count,
+};
+ENUMOPS(SamplerBorderColor);
+
+enum SamplerCompareFunc : u32 {
+    SamplerCompareFunc_Never,
+    SamplerCompareFunc_Less,
+    SamplerCompareFunc_Equal,
+    SamplerCompareFunc_Less_equal,
+    SamplerCompareFunc_Greater,
+    SamplerCompareFunc_Not_equal,
+    SamplerCompareFunc_Greater_equal,
+    SamplerCompareFunc_Always,
+    SamplerCompareFunc_Count,
+};
+ENUMOPS(SamplerCompareFunc);
+
+struct SamplerParams {
+    SamplerFilter min_filter = SamplerFilter_Linear;
+    SamplerFilter mag_filter = SamplerFilter_Linear;
+    SamplerFilter mipmap_filter = SamplerFilter_Linear;
+    SamplerWrap wrap_u = SamplerWrap_Repeat;
+    SamplerWrap wrap_v = SamplerWrap_Repeat;
+    SamplerWrap wrap_w = SamplerWrap_Repeat;
+    float min_lod = 0.0f;
+    float max_lod = FLT_MAX;
+    SamplerBorderColor border_color = SamplerBorderColor_TransparentBlack;
+    SamplerCompareFunc compare_func = SamplerCompareFunc_Always;
+    uint32_t max_anisotropy = 1; //must be between 1 and 16
+};
+
+struct Sampler {
+    std::string name;
+    SamplerParams params;
+};
+
+bool CreateSampler(Sampler** buffer, const char* name, const SamplerParams& params);
+void DeleteSampler(Sampler** buffer);
 
 
 
@@ -205,20 +224,20 @@ enum GpuBufferBindLocation : u32 {
 ENUMOPS(GpuBufferBindLocation);
 
 enum GpuBufferFlag : u32 {
-    GpuBufferFlag_None,
-    GpuBufferFlag_Dynamic = BIT(0),
-    GpuBufferFlag_Immutable = BIT(1),
-    GpuBufferFlag_StreamUpdate = BIT(2),
+    GpuBufferFlag_None = 0,
+    GpuBufferFlag_Immutable     = BIT(0), //Buffer Updated by CPU: Never
+    GpuBufferFlag_Dynamic       = BIT(1), //Buffer Updated by CPU: Infrequently
+    GpuBufferFlag_StreamUpdate  = BIT(2), //Buffer Updated by CPU: Every Frame
     //GpuBufferFlag_WriteUnsealed = BIT(3),
-    GpuBufferFlag_All = GpuBufferFlag_StreamUpdate - 1,
+    GpuBufferFlag_All = BIT(3) - 1,
 };
 ENUMOPS(GpuBufferFlag);
 
 struct GpuBuffer
 {
+    std::string name;
     GpuBufferFlag flags = GpuBufferFlag_None;
     GpuBufferType type = GpuBufferType_Invalid;
-    std::string name;
     size_t count = 0;
     size_t element_size = 0;
     bool has_uploaded = false;
@@ -322,6 +341,7 @@ struct Shader
     ~Shader();
     void CheckForUpdate();
 
+    std::string name;
     std::string vertex_file;
     std::string pixel_file;
     std::string compute_file;
@@ -361,3 +381,5 @@ struct GpuBinding
     void BindSampler(GpuBuffer* sampler);
     void Apply();
 };
+bool CreateGpuBinding(GpuBinding** binding, const char* name);
+void DeleteBuffer(GpuBinding** binding);

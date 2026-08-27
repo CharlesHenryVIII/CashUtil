@@ -54,7 +54,7 @@ using u64 = uint64_t;
 #define ToGigabytesFloat(value) (ToMegabytesFloat(value) / 1000.0)
 #define ToTerabytesFloat(value) (ToGigabytesFloat(value) / 1000.0)
 
-#define Kibibyte(value)  (         (value) * 1024L)
+#define Kibibytes(value) (         (value) * 1024L)
 #define Mebibytes(value) (Kilobytes(value) * 1024L)
 #define Gibibytes(value) (Megabytes(value) * 1024L)
 #define Tebibytes(value) (Gigabytes(value) * 1024L)

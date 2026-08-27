@@ -72,6 +72,10 @@ static bool  stbInsertChars(TextEditString* string, int start, char* characters,
 
 #define STB_TEXTEDIT_IMPLEMENTATION
 #include "stb/stb_textedit.h"
+#define STB_TRUETYPE_IMPLEMENTATION
+#include "stb/stb_truetype.h"
+//#define STB_RECT_PACK_IMPLEMENTATION
+//#include "stb/stb_rect_pack.h"
 
 // CONFIG:
 static const float OPEN_TIME          = 0.5f;  // Seconds to fully open the console
@@ -530,15 +534,61 @@ void ConsoleCheckForInit()
     logStrings.clear();
 }
 
-void ConsoleInit(const std::string& logo, const Vec2 font_size, Console_FuncDrawRect* DrawRect, Console_FuncDrawText* DrawText, Console_FuncPushScissor* PushScissor, Console_FuncPopScissor* PopScissor)
+#define FONT_BITMAP_SIZE  512
+#define FONT_CHAR_START 0
+#define FONT_CHAR_COUNT 1586
+static stbtt_bakedchar s_char_data[FONT_CHAR_COUNT] = {};
+Texture* font_texture = nullptr;
+
+void ConsoleInit(const std::string& logo, ArrayView<const u8> console_font_data)
 {
     s_logo_string = logo;
-    s_ConsoleDrawRect     = DrawRect;
-    s_ConsoleDrawText     = DrawText;
-    s_ConsolePushScissor  = PushScissor;
-    s_ConsolePopScissor   = PopScissor;
-    s_font_size = font_size;
+    //stbtt_BakeFontBitmap();
+    //s_ConsoleDrawRect     = DrawRect;
+    //s_ConsoleDrawText     = DrawText;
+    //s_ConsolePushScissor  = PushScissor;
+    //s_ConsolePopScissor   = PopScissor;
+    const Vec2 window_size = SysGetWindowSize();
+    const Vec2 screen_size = SysGetScreenSize();
+    s_font_size = Vec2(9, 16);
+    u8 temp_font_bitmap[FONT_BITMAP_SIZE][FONT_BITMAP_SIZE] = {};
+
+    i32 r = stbtt_BakeFontBitmap(console_font_data.data, 0,         // font location (use offset=0 for plain .ttf)
+                                s_font_size.y,                     // height of font in pixels
+                                (unsigned char*)temp_font_bitmap, FONT_BITMAP_SIZE, FONT_BITMAP_SIZE,  // bitmap to be filled in
+                                FONT_CHAR_START, FONT_CHAR_COUNT,  // characters to bake
+                                s_char_data);                      // you allocate this, it's num_chars long
+    if (r == 0)
+    {
+        DebugPrint("Error: BakeFontBitmap(): no characters fit and no rows were used");
+        FAIL;
+    }
+    else if (r < 0)
+    {
+        DebugPrint("Error: BakeFontBitmap(): %i number of characters fit", r);
+        FAIL;
+    }
+
+    TextureParams tp = {
+        .size = { FONT_BITMAP_SIZE, FONT_BITMAP_SIZE, 0 },
+        .msaa_samples = 1,
+        .mip_count = 1,
+
+        .flags = TextureFlag_Immutable,
+        .dimension = TextureDimension_2D,
+        .format = TextureFormat_R8_UINT,
+        .type = TextureType_Texture,
+    };
+    ArrayView<u8> font_bitmap_view = CreateArrayView((u8*)temp_font_bitmap, FONT_BITMAP_SIZE * FONT_BITMAP_SIZE);
+    CreateTextureAndUpload(&font_texture, "Console Font", tp, font_bitmap_view);
+    //stbtt_GetBakedQuad();
+
     ConsoleCheckForInit();
+}
+
+void DrawText(const char* string, Vec2 bot_left_p, Color color, float scale)
+{
+
 }
 
 void DrawString(Vec2 location, Color color, const char* text, ...)

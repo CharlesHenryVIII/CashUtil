@@ -2,6 +2,7 @@
 #include "CashRendering.h"
 #include "CashArrayView.h"
 #include "CashOS.h"
+#include "CashConsole.h"
 
 #include <array>
 
@@ -10,13 +11,15 @@
 
 SysInfo g_sysinfo;
 
-bool CashInit(ArrayView<const ArrayView<const u8>> app_icons)
+bool CashInit(ArrayView<const ArrayView<const u8>> app_icons, const std::string& logo, ArrayView<const u8> console_font_data)
 {
     if (!CashRenderInit(app_icons))
         return false;
     if (!OSInit())
         return false;
     CashImguiInit();
+    ConsoleInit(logo, console_font_data);
+
     return true;
 }
 void CashDestroy()
@@ -330,6 +333,24 @@ Vec2 SysGetWindowSize()
     Vec2 result = ToVec2(resulti);
     return result;
 }
+Vec2 SysGetScreenSize()
+{
+    Vec2I resulti;
+    const SDL_DisplayMode* mode = SDL_GetCurrentDisplayMode(SDL_GetPrimaryDisplay());
+    if (mode)
+    {
+        resulti.x = mode->w;
+        resulti.y = mode->h;
+    }
+    else
+    {
+        FAIL;
+        DebugPrint("Failed to get window mode from SDL");
+        return {};
+    }
+    Vec2 result = ToVec2(resulti);
+    return result;
+}
 
 void ParseCSV(PowershellResponse& out, const std::string& in, bool using_quotes)
 {
@@ -603,10 +624,10 @@ ImFont* SysCreateImguiFont(const ArrayView<const u8> font_data, float font_size)
     return font;
 }
 
-ImFont* SysLoadFontForImgui(int resource_id, float font_size)
+ImFont* SysLoadFontForImgui(i32 resource_id, float font_size)
 {
     i32 size;
-    void* data = OSGetDataFromResource(&size, resource_id);
+    void* data = SysGetDataFromResource(&size, resource_id);
     if (!data || size == 0)
         return nullptr;
 
@@ -789,6 +810,7 @@ void SysRenderDestroy()
 }
 void SysRenderPresent()
 {
+    ZoneScoped;
     OSRenderPresent();
 }
 void SysGetRenderEnvironment(sg_environment* env)
