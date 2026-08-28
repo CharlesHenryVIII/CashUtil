@@ -6,6 +6,8 @@
 
 #define _CSH_CONCAT(a, b) a ## b
 #define CSH_CONCAT(a, b) _CSH_CONCAT(a, b)
+#define _CSH_TOSTRING(x) #x
+#define CSH_TOSTRING(x)  _CSH_TOSTRING(x)
 #define UNUSED(a) ((void)a)
 #define REQUIRE_SEMICOLON enum {}
 

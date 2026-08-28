@@ -554,10 +554,10 @@ void ConsoleInit(const std::string& logo, ArrayView<const u8> console_font_data)
     u8 temp_font_bitmap[FONT_BITMAP_SIZE][FONT_BITMAP_SIZE] = {};
 
     i32 r = stbtt_BakeFontBitmap(console_font_data.data, 0,         // font location (use offset=0 for plain .ttf)
-                                s_font_size.y,                     // height of font in pixels
+                                s_font_size.y,                      // height of font in pixels
                                 (unsigned char*)temp_font_bitmap, FONT_BITMAP_SIZE, FONT_BITMAP_SIZE,  // bitmap to be filled in
-                                FONT_CHAR_START, FONT_CHAR_COUNT,  // characters to bake
-                                s_char_data);                      // you allocate this, it's num_chars long
+                                FONT_CHAR_START, FONT_CHAR_COUNT,   // characters to bake
+                                s_char_data);                       // you allocate this, it's num_chars long
     if (r == 0)
     {
         DebugPrint("Error: BakeFontBitmap(): no characters fit and no rows were used");
@@ -606,7 +606,7 @@ void DrawString(Vec2 location, Color color, const char* text, ...)
         vsnprintf(&buffer[0], buffer.size() + 1, text, write_args);
         assert(*(buffer.data() + buffer.size()) == 0);
         //DrawText(ConsoleFont(), color, s_console.font_scale, { i32(location.x), i32(location.y) }, UIX::left, UIY::bot, RenderPrio::Console, buffer.c_str());
-        (*s_ConsoleDrawText)(buffer.c_str(), location, color, s_console.font_scale);
+        DrawText(buffer.c_str(), location, color, s_console.font_scale);
     }
 }
 

@@ -186,8 +186,8 @@ MATH_CONSTEXPR_PREFIX ColorI ToColorI(Color c)
 struct Vertex_2D
 {
     Vec2  position;
+    Color color;
     Vec2  uv;
-    ColorI color;
 };
 struct Vertex_PNTC
 {
