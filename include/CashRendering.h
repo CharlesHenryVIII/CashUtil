@@ -273,6 +273,28 @@ void DeleteBuffer(GpuBuffer** buffer);
 
 
 
+
+//========================
+//       GpuBinding
+//========================
+
+struct GpuBinding
+{
+    std::string name;
+
+    void BindVertex(const GpuBuffer* buffer, const i32 slot);
+    void BindIndex(const GpuBuffer* buffer);
+    void BindView(GpuBuffer* view);
+    void BindSampler(GpuBuffer* sampler);
+    void Apply();
+};
+bool CreateGpuBinding(GpuBinding** binding, const char* name);
+void DeleteBuffer(GpuBinding** binding);
+
+
+
+
+
 //========================
 //        Shader
 //========================
@@ -324,6 +346,72 @@ enum ShaderClass : u32 {
 };
 ENUMOPS(ShaderClass);
 
+struct ShaderFile
+{
+    Path filepath;
+    const char* text;
+    u64 last_updated = {};
+};
+
+enum ShaderConstantType : u32 {
+    ShaderConstant_Invalid,
+    ShaderConstant_Float,
+    ShaderConstant_Float2,
+    ShaderConstant_Float3,
+    ShaderConstant_Float4,
+    ShaderConstant_Int,
+    ShaderConstant_Int2,
+    ShaderConstant_Int3,
+    ShaderConstant_Int4,
+    ShaderConstant_Mat4,
+    ShaderConstant_Count,
+};
+#define MAX_SHADER_CONSTANTS 16
+#define MAX_SHADER_TEXTURES 12
+
+//The memory MUST be 4 byte Aligned and/or follow STD140 normal gpu memory alignment
+struct ShaderConstant {
+    ShaderConstantType type;
+    u32 array_count;            // 0 or 1 for scalars, >1 for arrays
+    const char* name;// glsl name binding is required on GL 4.1 and WebGL2
+};
+
+struct ShaderConstantsContainer {
+    u32 size = 0;
+    u8 slot = 0;
+    ShaderConstant constants[MAX_SHADER_CONSTANTS];
+};
+
+struct ShaderTexture {
+    Texture* texture;
+    Sampler* sampler;
+    const char* name; //This must match OpenGL and WebGL shader name
+};
+
+struct ShaderParams
+{
+    ShaderFile vertex;
+    ShaderFile pixel;
+    //ShaderFile compute;
+    VertexType vertex_type;
+    ShaderConstantsContainer constants_container;
+    ShaderTexture textures[MAX_SHADER_TEXTURES] = {};
+
+    //Path vertex_file;
+    //Path pixel_file;
+    //Path compute_file;
+    ////
+    //const char* vertex_text = nullptr;
+    //const char* pixel_text = nullptr;
+    //const char* compute_text = nullptr;
+
+    std::vector<ShaderMacro> macros;
+    u32 vertex_component_count = 0;
+    u32 input_stride_bytes = 0;
+    std::vector<std::string> reference_file_names;
+    std::vector<u64>         reference_file_times;
+};
+
 struct Shader
 {
     struct InputElementDesc {
@@ -342,26 +430,12 @@ struct Shader
     void CheckForUpdate();
 
     std::string name;
-    std::string vertex_file;
-    std::string pixel_file;
-    std::string compute_file;
-    std::vector<ShaderMacro> macros;
-    u64 vertex_last_write_time = {};
-    u64 pixel_last_write_time = {};
-    u64 compute_last_write_time = {};
-    u32 vertex_component_count = 0;
-    u32 input_stride_bytes = 0;
-    std::vector<std::string> reference_file_names;
-    std::vector<u64>         reference_file_times;
+    ShaderParams params;
 
     bool CompileShader(std::string text, const std::string& file_name, ShaderType shader_type, std::string entry_name = "");
     //bool CompileShader(std::string text, const std::string& file_name, ShaderType shader_type);
 };
-bool CreateShader(Shader** shader,
-    const std::string& vertexFileLocation,
-    const std::string& pixelFileLocation,
-    ArrayView<Shader::InputElementDesc> input_layout,
-    std::vector<ShaderMacro> macros = std::vector<ShaderMacro>());
+bool CreateShader(Shader** shader, const char* name, const ShaderParams& params);
 bool CreateComputeShader(Shader** shader,
     const std::string file_location,
     const std::string entry_point);
@@ -371,15 +445,38 @@ inline bool CreateShader(Shader** s, const std::string& shader_file_location, Ar
 }
 
 
-struct GpuBinding
-{
-    std::string name;
 
-    void BindVertex(const GpuBuffer* buffer, const i32 slot);
-    void BindIndex(const GpuBuffer* buffer);
-    void BindView(GpuBuffer* view);
-    void BindSampler(GpuBuffer* sampler);
-    void Apply();
+
+
+
+struct CashDrawCall
+{
+    RenderType renderType;
+    Rectangle sRect = {};
+    Rectangle dRect = {};
+    Rectangle scissor = {};
+    RenderPrio prio;
+    ShaderProgram shader = ShaderProgram::Sprite;
+    uint32 prioIndex;
+    Color color = { 1.0f, 1.0f, 1.0f, 1.0f };
+    CoordinateSpace coordSpace;
+    int32 vertexIndex;
+    int32 vertexLength;
+    TextureRenderUnion texture; // Union?
 };
-bool CreateGpuBinding(GpuBinding** binding, const char* name);
-void DeleteBuffer(GpuBinding** binding);
+
+struct GeneralRenderParams {
+    std::string name;
+    DX11GpuBuffer* v_buffer = nullptr;
+    DX11GpuBuffer* i_buffer = nullptr;
+    DX11GpuBuffer* instance_buffer = nullptr;
+    DX11GpuBuffer* test_buffer = nullptr;
+    ShaderIndex vertex_shader = ShaderIndex_Invalid;
+    ShaderIndex pixel_shader = ShaderIndex_Invalid;
+    Rasterizer rasterizer = Rasterizer_SolidBackCull;
+    DX11Texture* texture = nullptr;
+    D3D_PRIMITIVE_TOPOLOGY topology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+    ID3D11DepthStencilState* depth_state = s_dx11.depth_state_depth;
+    ID3D11RenderTargetView* target_rtv = s_dx11.rtv_hdr;
+    bool rendering_shadows;
+};

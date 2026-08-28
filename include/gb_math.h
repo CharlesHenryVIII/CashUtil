@@ -1914,12 +1914,12 @@ gbHalf gb_float_to_half(float value) {
 
         gb_math_u64 h = seed ^ (num_bytes * m);
 
-        gb_math_u64 *data = (gb_math_u64 *)(key);
-        gb_math_u64 *end = data + (num_bytes / 8);
+        gb_math_u64 *text = (gb_math_u64 *)(key);
+        gb_math_u64 *end = text + (num_bytes / 8);
         unsigned char *data2;
 
-        while (data != end) {
-            gb_math_u64 k = *data++;
+        while (text != end) {
+            gb_math_u64 k = *text++;
             k *= m;
             k ^= k >> r;
             k *= m;
@@ -1927,7 +1927,7 @@ gbHalf gb_float_to_half(float value) {
             h *= m;
         }
 
-        data2 = (unsigned char *)data;
+        data2 = (unsigned char *)text;
 
         switch (num_bytes & 7) {
         case 7: h ^= (gb_math_u64)data2[6] << 48;
@@ -1955,12 +1955,12 @@ gbHalf gb_float_to_half(float value) {
         gb_math_u32 h1 = (gb_math_u32)seed ^ (gb_math_u32)num_bytes;
         gb_math_u32 h2 = (gb_math_u32)((gb_math_u64)seed >> 32);
 
-        gb_math_u32 *data = (gb_math_u32 *)key;
+        gb_math_u32 *text = (gb_math_u32 *)key;
 
 
         while (num_bytes >= 8) {
             gb_math_u32 k1, k2;
-            k1 = *data++;
+            k1 = *text++;
             k1 *= m;
             k1 ^= k1 >> r;
             k1 *= m;
@@ -1968,7 +1968,7 @@ gbHalf gb_float_to_half(float value) {
             h1 ^= k1;
             num_bytes -= 4;
 
-            k2 = *data++;
+            k2 = *text++;
             k2 *= m;
             k2 ^= k2 >> r;
             k2 *= m;
@@ -1978,7 +1978,7 @@ gbHalf gb_float_to_half(float value) {
         }
 
         if (num_bytes >= 4) {
-            gb_math_u32 k1 = *data++;
+            gb_math_u32 k1 = *text++;
             k1 *= m;
             k1 ^= k1 >> r;
             k1 *= m;
@@ -1989,9 +1989,9 @@ gbHalf gb_float_to_half(float value) {
 
         switch (num_bytes) {
         gb_math_u32 a, b, c;
-        case 3: c = data[2]; h2 ^= c << 16;
-        case 2: b = data[1]; h2 ^= b <<  8;
-        case 1: a = data[0]; h2 ^= a <<  0;
+        case 3: c = text[2]; h2 ^= c << 16;
+        case 2: b = text[1]; h2 ^= b <<  8;
+        case 1: a = text[0]; h2 ^= a <<  0;
             h2 *= m;
         };
 
