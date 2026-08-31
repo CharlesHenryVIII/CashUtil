@@ -20,24 +20,22 @@
 #define SOKOL_IMGUI_IMPL
 #include "sokol/sokol_gfx.h"
 #include "sokol/util/sokol_imgui.h"
+#define SOKOL_SHDC_IMPL
+#include "CashUtil/include/Shaders/Blit2D.h"
+
 Renderer gfx;
 
-//typedef std::array<sg_vertex_attr_state, SG_MAX_VERTEX_ATTRIBUTES> SokolVertexLayout;
-//typedef sg_vertex_attr_state SokolVertexLayout[SG_MAX_VERTEX_ATTRIBUTES];
-//using SokolVertexLayout = sg_vertex_attr_state[SG_MAX_VERTEX_ATTRIBUTES];
 struct VertexData {
     sg_vertex_attr_state state[SG_MAX_VERTEX_ATTRIBUTES] = {};
     sg_shader_vertex_attr attr[SG_MAX_VERTEX_ATTRIBUTES] = {};
     i32 count = 0;
 };
-//using SokolVertexLayout = std::array<VertexData, SG_MAX_VERTEX_ATTRIBUTES>;
 
-struct GfxDevice {
+static struct GfxDevice {
     VertexData vertex_layouts[VertexType_Count]= {};
     GpuBuffer* fullscreen_verts = {};
     sg_pass_action pass_action = {};
-};
-static GfxDevice s_gfx;
+} s_gfx;
 
 struct GfxTexture;
 struct GfxSampler;
@@ -45,7 +43,56 @@ struct GfxGpuBuffer;
 struct GfxGpuBinding;
 struct GfxShader;
 
-//void SysGetRenderEnvironment(sg_environment* env);
+
+//========================
+//        Utility
+//========================
+
+#define _ASGFX_DEFINITION(_Public, _Private) inline [[nodiscard]] _Private* AsGfx(_Public* c) { return reinterpret_cast<_Private*>(c); }\
+inline [[nodiscard]] const _Private* AsGfx(const _Public* c) { return reinterpret_cast<const _Private*>(c); }
+#define _ASGFX_DEFINITION_COMMON(_name) _ASGFX_DEFINITION(_name, Gfx ## _name)
+
+_ASGFX_DEFINITION_COMMON(Texture);
+_ASGFX_DEFINITION_COMMON(GpuBuffer);
+_ASGFX_DEFINITION_COMMON(GpuBinding);
+_ASGFX_DEFINITION_COMMON(Sampler);
+_ASGFX_DEFINITION_COMMON(Shader);
+
+template <typename Public, typename Private>
+Private* GfxGenericCreate(Public** object, const char* name)
+{
+    VALIDATE_V(object, nullptr);
+    if (*object != nullptr)
+    {
+        FAIL;
+        Private* ob = AsGfx(*object);
+        //Private* ob = reinterpret_cast<Private*>(object);
+        DebugPrint("Error: Render object not null during create: '%s'", ob->name.c_str());
+        return nullptr;
+    }
+
+    Private* ob = new Private;
+    (*object) = AsGfx(ob);
+    ob->name = name;
+    return ob;
+}
+
+constexpr sg_backend ToSokol(CashRenderBackend d)
+{
+    switch (d)
+    {
+    case CashRenderBackend_Glcore:          return SG_BACKEND_GLCORE;
+    case CashRenderBackend_Gles3:           return SG_BACKEND_GLES3;
+    case CashRenderBackend_D3D11:           return SG_BACKEND_D3D11;
+    case CashRenderBackend_Metal_Ios:       return SG_BACKEND_METAL_IOS;
+    case CashRenderBackend_Metal_Macos:     return SG_BACKEND_METAL_MACOS;
+    case CashRenderBackend_Metal_Simulator: return SG_BACKEND_METAL_SIMULATOR;
+    case CashRenderBackend_WGpu:            return SG_BACKEND_WGPU;
+    case CashRenderBackend_Vulkan:          return SG_BACKEND_VULKAN;
+    case CashRenderBackend_Count:           [[fallthrough]];
+    default: FAIL;                          return SG_BACKEND_DUMMY;
+    }
+}
 
 sg_color ToSgColor(Color color)
 {
@@ -88,64 +135,65 @@ void SgLogFunc(
     DebugPrint("%s", log.c_str());
 }
 
-#pragma("pack(push, 1)")
+#pragma pack(push, 1)
 struct ShaderConstants_2D {
     Mat4 orthographic;
 };
-#pragma("pack(pop)")
+#pragma pack(pop)
 
 
-static const char* vertex_shader_text_2d = R"TERM(
-cbuffer ShaderConstants_2D : register (b0) {
-    float4x4 orthographic;
-};
 
-struct VS_INPUT
-{
-    float2 pos : POSITION;
-    float4 col : COLOR;
-    float2 uv  : TEXCOORD;
-};
-
-struct VS_OUTPUT
-{
-    float4 pos : SV_POSITION;
-    float4 col : COLOR;
-    float2 uv  : TEXCOORD;
-};
-
-VS_OUTPUT main(VS_INPUT input)
-{
-    VS_OUTPUT output;
-    output.pos = mul(ProjectionMatrix, float4(input.pos.xy, 0.f, 1.f));
-    output.col = input.col;
-    output.uv  = input.uv;
-    return output;
-}
-)TERM";
-
-static const char* pixel_shader_text_2d = R"TERM(
-struct PS_INPUT
-{
-    float4 pos : SV_POSITION;
-    float4 col : COLOR;
-    float2 uv  : TEXCOORD;
-};
-struct PS_OUTPUT
-{
-    float4 col : SV_Target;
-}
-
-sampler     sampler : register(s0);
-Texture2D   texture : register(t0)
-
-PS_OUTPUT main(PS_INPUT input) : SV_Target
-{
-    PS_OUTPUT output;
-    output.col = input.col * texture.Sample(sampler0, input.uv);
-    return output;
-}
-)TERM";
+//static const char* vertex_shader_text_2d = R"TERM(
+//cbuffer ShaderConstants_2D : register (b0) {
+//    float4x4 orthographic;
+//};
+//
+//struct VS_INPUT
+//{
+//    float2 pos : POSITION;
+//    float4 col : COLOR;
+//    float2 uv  : TEXCOORD;
+//};
+//
+//struct VS_OUTPUT
+//{
+//    float4 pos : SV_POSITION;
+//    float4 col : COLOR;
+//    float2 uv  : TEXCOORD;
+//};
+//
+//VS_OUTPUT main(VS_INPUT input)
+//{
+//    VS_OUTPUT output;
+//    output.pos = mul(ProjectionMatrix, float4(input.pos.xy, 0.f, 1.f));
+//    output.col = input.col;
+//    output.uv  = input.uv;
+//    return output;
+//}
+//)TERM";
+//
+//static const char* pixel_shader_text_2d = R"TERM(
+//struct PS_INPUT
+//{
+//    float4 pos : SV_POSITION;
+//    float4 col : COLOR;
+//    float2 uv  : TEXCOORD;
+//};
+//struct PS_OUTPUT
+//{
+//    float4 col : SV_Target;
+//}
+//
+//sampler     sampler : register(s0);
+//Texture2D   texture : register(t0)
+//
+//PS_OUTPUT main(PS_INPUT input) : SV_Target
+//{
+//    PS_OUTPUT output;
+//    output.col = input.col * texture.Sample(sampler0, input.uv);
+//    return output;
+//}
+//)TERM";
 
 //semantic name: https://learn.microsoft.com/en-us/windows/win32/direct3dhlsl/dx-graphics-hlsl-semantics
 //semantic index: incrementing amount of that specific semantic name.  IE:
@@ -189,8 +237,7 @@ void SetVertexData(VertexData& d, i32 vertex_index, i32 buffer_index, i32 offset
         DebugPrint("Trying to add more vertex attributes than supported: %i of %i", d.count, SG_MAX_VERTEX_ATTRIBUTES);
         return;
     }
-    ASSERT(d.count < vertex_index); // did you mean to overwrite the vertex data?
-    ASSERT(d.count == vertex_index); // did you mean to skip over some vertex data?
+    ASSERT(d.count == vertex_index); // did you mean to overwrite the vertex data?
     ++d.count;
 
     sg_vertex_attr_state& s = d.state[vertex_index];
@@ -201,13 +248,13 @@ void SetVertexData(VertexData& d, i32 vertex_index, i32 buffer_index, i32 offset
     
     switch (format)
     {
-        case SG_VERTEXFORMAT_HALF2:FAIL;[[fallthrough]]//is this correct?
+        case SG_VERTEXFORMAT_HALF2:FAIL;[[fallthrough]];//is this correct?
         case SG_VERTEXFORMAT_HALF4:FAIL;a.base_type = SG_SHADERATTRBASETYPE_UNDEFINED; break;//is this correct?
 
         case SG_VERTEXFORMAT_FLOAT:     [[fallthrough]];
         case SG_VERTEXFORMAT_FLOAT2:    [[fallthrough]];
         case SG_VERTEXFORMAT_FLOAT3:    [[fallthrough]];
-        case SG_VERTEXFORMAT_FLOAT4:    a.base_type =  SG_SHADERATTRBASETYPE_FLOAT;
+        case SG_VERTEXFORMAT_FLOAT4:    a.base_type = SG_SHADERATTRBASETYPE_FLOAT; break;
 
         case SG_VERTEXFORMAT_INT:       [[fallthrough]];
         case SG_VERTEXFORMAT_INT2:      [[fallthrough]];
@@ -247,6 +294,18 @@ bool RenderInitSokol()
     sys_desc.size = gfx.window_size;
     sys_desc.sample_count = 1;
     sys_desc.no_depth_buffer = true;
+
+#ifdef WIN32
+    gfx.backend = sys_desc.backend = CashRenderBackend_D3D11;
+#elif defined(LINUX)
+    sys_desc.backend = CashRenderBackend_Vulkan;
+#elif defined(MACOS)
+    sys_desc.backend = CashRenderBackend_Metal_Macos;
+#else
+    sys_desc.backend = CashRenderBackend_Glcore;
+#error what is this OS supposed to support?
+#endif
+
     bool result = SysRenderInit(&sys_desc);
     sg_desc desc = { };
     //desc.environment.defaults.color_format = SG_PIXELFORMAT_RGBA8;
@@ -282,6 +341,12 @@ bool RenderInitSokol()
 
     s_gfx.pass_action.colors[0].load_action = SG_LOADACTION_CLEAR;
     s_gfx.pass_action.colors[0].clear_value = ToSgColor(background_color);
+
+    {
+        const sg_shader_desc* desc = Blit2D_shader_desc(ToSokol(gfx.backend));
+        CreateShader(&gfx.blit2d_shader, "Blit 2D Shader", desc);
+    }
+    
 
     return true;
 }
@@ -517,37 +582,6 @@ void CashRenderDestroy()
 
 
 
-//========================
-//        Utility
-//========================
-
-#define _ASGFX_DEFINITION(_Public, _Private) inline [[nodiscard]] _Private* AsGfx(_Public* c) { return reinterpret_cast<_Private*>(c); }
-#define _ASGFX_DEFINITION_COMMON(_name) _ASGFX_DEFINITION(_name, Gfx ## _name)
-
-_ASGFX_DEFINITION_COMMON(Texture);
-_ASGFX_DEFINITION_COMMON(GpuBuffer);
-_ASGFX_DEFINITION_COMMON(GpuBinding);
-_ASGFX_DEFINITION_COMMON(Sampler);
-_ASGFX_DEFINITION_COMMON(Shader);
-
-template <typename Public, typename Private>
-Private* GfxGenericCreate(Public** object, const char* name)
-{
-    VALIDATE_V(object, nullptr);
-    if (*object != nullptr)
-    {
-        FAIL;
-        Private* ob = AsGfx(*object);
-        //Private* ob = reinterpret_cast<Private*>(object);
-        DebugPrint("Error: Render object not null during create: '%s'", ob->name.c_str());
-        return nullptr;
-    }
-
-    Private* ob = new Private;
-    (*object) = reinterpret_cast<Public*>(ob);
-    ob->name = name;
-    return ob;
-}
 
 
 
@@ -564,7 +598,7 @@ struct GfxTexture : public Texture {
     sg_view_desc view_desc = {};
 };
 
-sg_image_type ToSokol(TextureDimension d)
+constexpr sg_image_type ToSokol(TextureDimension d)
 {
     switch (d)
     {
@@ -578,7 +612,7 @@ sg_image_type ToSokol(TextureDimension d)
     }
 }
 
-sg_pixel_format ToSokol(const TextureFormat f)
+constexpr sg_pixel_format ToSokol(const TextureFormat f)
 {
     switch (f)
     {
@@ -707,7 +741,7 @@ struct GfxSampler : Sampler {
 };
 
 
-sg_wrap ToSokol(const SamplerWrap a)
+constexpr sg_wrap ToSokol(const SamplerWrap a)
 {
     switch (a)
     {
@@ -720,7 +754,7 @@ sg_wrap ToSokol(const SamplerWrap a)
     }
 }
 
-sg_filter ToSokol(const SamplerFilter a)
+constexpr sg_filter ToSokol(const SamplerFilter a)
 {
     switch (a)
     {
@@ -731,7 +765,7 @@ sg_filter ToSokol(const SamplerFilter a)
     }
 }
 
-sg_border_color ToSokol(const SamplerBorderColor a)
+constexpr sg_border_color ToSokol(const SamplerBorderColor a)
 {
     switch (a)
     {
@@ -743,7 +777,7 @@ sg_border_color ToSokol(const SamplerBorderColor a)
     }
 }
 
-sg_compare_func ToSokol(const SamplerCompareFunc a)
+constexpr sg_compare_func ToSokol(const SamplerCompareFunc a)
 {
     switch (a)
     {
@@ -789,7 +823,7 @@ void DeleteSampler(Sampler** sampler)
 {
     ZoneScoped;
     VALIDATE(sampler);
-    GfxSampler* sam = reinterpret_cast<GfxSampler*>(*sampler);
+    GfxSampler* sam = AsGfx(*sampler);
     DEBUG_LOG("GPU sampler deleted '%s': %i\n", sam->name.c_str(), sam->sampler);
     sg_destroy_sampler(sam->sampler);
     delete sam;
@@ -823,7 +857,7 @@ void DeleteBuffer(GpuBuffer** buffer)
 {
     ZoneScoped;
     VALIDATE(buffer);
-    GfxGpuBuffer* buf = reinterpret_cast<GfxGpuBuffer*>(*buffer);
+    GfxGpuBuffer* buf = AsGfx(*buffer);
     DEBUG_LOG("GPU Buffer deleted '%s': %i\n", buf->name.c_str(), buf->buffer);
     sg_destroy_buffer(buf->buffer);
     delete buf;
@@ -832,7 +866,7 @@ void DeleteBuffer(GpuBuffer** buffer)
 void GpuBuffer::Upload(const void* data, const size_t in_count, const u32 in_element_size, const bool is_byte_format)
 {
     ZoneScoped;
-    GfxGpuBuffer* buf = reinterpret_cast<GfxGpuBuffer*>(this);
+    GfxGpuBuffer* buf = AsGfx(this);
     VALIDATE(buf->buffer.id);
     VALIDATE(in_count && in_element_size);
     count = in_count;
@@ -889,7 +923,7 @@ bool CreateGpuBinding(GpuBinding** binding, const char* name)
     ZoneScoped;
     GfxGpuBinding* bind = GfxGenericCreate<GpuBinding, GfxGpuBinding>(binding, name);
     VALIDATE_V(bind, false);
-    (*binding) = reinterpret_cast<GpuBinding*>(bind);
+    (*binding) = AsGfx(bind);
     return true;
 }
 
@@ -897,7 +931,7 @@ void DeleteBuffer(GpuBinding** binding)
 {
     ZoneScoped;
     VALIDATE(binding);
-    GfxGpuBinding* bin = reinterpret_cast<GfxGpuBinding*>(*binding);
+    GfxGpuBinding* bin = AsGfx(*binding);
     DEBUG_LOG("GPU binding deleted '%s'\n", bin->name.c_str());
     delete bin;
 }
@@ -906,8 +940,8 @@ void GpuBinding::BindVertex(const GpuBuffer* buffer, const i32 slot)
 {
     ZoneScoped;
     VALIDATE(buffer && buffer->type == GpuBufferType_Vertex);
-    const GfxGpuBuffer* buf = reinterpret_cast<const GfxGpuBuffer*>(buffer);
-    GfxGpuBinding* bin = reinterpret_cast<GfxGpuBinding*>(this);
+    const GfxGpuBuffer* buf = AsGfx(buffer);
+    GfxGpuBinding* bin = AsGfx(this);
     
     sg_buffer& b = bin->binding.vertex_buffers[slot];
     if (b.id != 0)
@@ -918,8 +952,8 @@ void GpuBinding::BindIndex(const GpuBuffer* buffer)
 {
     ZoneScoped;
     VALIDATE(buffer && buffer->type == GpuBufferType_Index);
-    const GfxGpuBuffer* buf = reinterpret_cast<const GfxGpuBuffer*>(buffer);
-    GfxGpuBinding* bin = reinterpret_cast<GfxGpuBinding*>(this);
+    const GfxGpuBuffer* buf = AsGfx(buffer);
+    GfxGpuBinding* bin = AsGfx(this);
     sg_buffer& b = bin->binding.index_buffer;
     if (b.id != 0)
         DebugPrint("Warning: Overwriting binding (%s) for index buffer (%s)", bin->name.c_str(), buf->name.c_str());
@@ -939,7 +973,7 @@ void GpuBinding::BindSampler(GpuBuffer* sampler)
 void GpuBinding::Apply()
 {
     ZoneScoped;
-    GfxGpuBinding* bin = reinterpret_cast<GfxGpuBinding*>(this);
+    GfxGpuBinding* bin = AsGfx(this);
     sg_apply_bindings(bin->binding);
 }
 
@@ -977,7 +1011,7 @@ static_assert(MAX_SHADER_TEXTURES <= SG_MAX_TEXTURE_SAMPLER_PAIRS);
 //    ArrayView<Shader::InputElementDesc> input_layout,
 //    std::vector<ShaderMacro> macros = std::vector<ShaderMacro>())
 
-sg_shader_function ToSokol(const ShaderFile& s, const char* entry, const char* target)
+constexpr sg_shader_function ToSokol(const ShaderFile& s, const char* entry, const char* target)
 {
     sg_shader_function sf = {
         .source = s.text,
@@ -989,7 +1023,7 @@ sg_shader_function ToSokol(const ShaderFile& s, const char* entry, const char* t
 }
 
 //should we be trying ps_5_0/vs_5_0 instead?
-sg_uniform_type ToSokol(const ShaderConstantType a)
+constexpr sg_uniform_type ToSokol(const ShaderConstantType a)
 {
     switch (a)
     {
@@ -1077,13 +1111,28 @@ sg_sampler_type  GetSokolSamplerType(const sg_image_sample_type a, const bool is
     }
 }
 
-#define STB_INCLUDE_IMPLEMENTATION
-#define STB_INCLUDE_LINE_NONE
-#include "stb/stb_include.h"
-bool CreateShader(Shader** shader, const char* name, const Path& vertex_filepath, const Path& pixel_filepath)//, const Path& compute_filepath)
+//#define STB_INCLUDE_IMPLEMENTATION
+//#define STB_INCLUDE_LINE_NONE
+//#include "stb/stb_include.h"
+//bool CreateShader(Shader** shader, const char* name, const Path& vertex_filepath, const Path& pixel_filepath)//, const Path& compute_filepath)
+//{
+//#error load ourselves!
+//    //char *stb_include_file(char *filename, char *inject, char *path_to_includes, char error[256]);
+//}
+
+//const sg_shader_desc* Blit2D_shader_desc(sg_backend backend)
+
+bool CreateShader(Shader** shader, const char* name, const sg_shader_desc* shader_desc)
 {
-#error load ourselves!
-    char *stb_include_file(char *filename, char *inject, char *path_to_includes, char error[256]);
+    VALIDATE_V(shader_desc, false);
+
+    ZoneScoped;
+    GfxShader* s = GfxGenericCreate<Shader, GfxShader>(shader, name);
+    VALIDATE_V(s, false);
+    (*shader) = AsGfx(s);
+    s->shader_desc = *shader_desc;
+    s->shader = sg_make_shader(s->shader_desc);
+    return true;
 }
 
 bool CreateShader(Shader** shader, const char* name, const ShaderParams& params)
@@ -1094,7 +1143,7 @@ bool CreateShader(Shader** shader, const char* name, const ShaderParams& params)
     ZoneScoped;
     GfxShader* s = GfxGenericCreate<Shader, GfxShader>(shader, name);
     VALIDATE_V(s, false);
-    (*shader) = reinterpret_cast<Shader*>(s);
+    (*shader) = AsGfx(s);
 
     sg_shader_desc& desc = s->shader_desc;
 

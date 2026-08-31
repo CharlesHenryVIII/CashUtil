@@ -3,6 +3,7 @@
 #include "CashMath.h"
 #include "CashArrayView.h"
 #include "CashString.h"
+#include "CashRendering.h"
 
 #include "SDL3/SDL.h"
 //#include "SDL3/SDL_events.h"
@@ -279,6 +280,7 @@ struct SysRenderInitDesc {
     Vec2I size;
     i32 sample_count;
     bool no_depth_buffer;
+    CashRenderBackend backend;
 };
 struct sg_environment;
 struct sg_swapchain;

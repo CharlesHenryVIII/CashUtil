@@ -495,6 +495,7 @@ bool OSRenderInit(const SysRenderInitDesc* desc)
     VALIDATE_V(desc,            false);
     VALIDATE_V(desc->size.x > 0, false);
     VALIDATE_V(desc->size.y > 0, false);
+    VALIDATE_V(desc->backend == CashRenderBackend_D3D11, false);
 
     s_rs.size = desc->size;
     s_rs.sample_count = (desc->sample_count == 0) ? 1 : desc->sample_count;

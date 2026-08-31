@@ -1,6 +1,7 @@
 #pragma once
 #include "CashMath.h"
 #include "CashArrayView.h"
+#include "CashString.h"
 
 #include "SDL3/SDL.h"
 //#define CASH_SDL_RENDER 1
@@ -21,12 +22,27 @@ enum EmbededIcon : u32
     EmbededIcon_Count,
 };
 
+enum CashRenderBackend : u32 {
+    CashRenderBackend_Glcore,
+    CashRenderBackend_Gles3,
+    CashRenderBackend_D3D11,
+    CashRenderBackend_Metal_Ios,
+    CashRenderBackend_Metal_Macos,
+    CashRenderBackend_Metal_Simulator,
+    CashRenderBackend_WGpu,
+    CashRenderBackend_Vulkan,
+    CashRenderBackend_Count,
+};
+
+struct Shader;
 struct Renderer
 {
     SDL_Window* window;
     SDL_Renderer* context;
     Vec2I screen_size;
     Vec2I window_size;
+    Shader* blit2d_shader = {};
+    CashRenderBackend backend;
 };
 extern Renderer gfx;
 
@@ -414,69 +430,64 @@ struct ShaderParams
 
 struct Shader
 {
-    struct InputElementDesc {
-        const char* semantic_name;
-        u32 semantic_index = 0;
-        TextureFormat Format;
-        u32 input_slot;
-        u32 AlignedByteOffset;
-        ShaderClass input_class;
-        u32 instance_step_rate;
-    };
+    //struct InputElementDesc {
+    //    const char* semantic_name;
+    //    u32 semantic_index = 0;
+    //    TextureFormat Format;
+    //    u32 input_slot;
+    //    u32 AlignedByteOffset;
+    //    ShaderClass input_class;
+    //    u32 instance_step_rate;
+    //};
 
-    static const u32 vertex_component_max = 4;
+    //static const u32 vertex_component_max = 4;
 
-    ~Shader();
-    void CheckForUpdate();
+    //~Shader();
+    //void CheckForUpdate();
 
     std::string name;
     ShaderParams params;
 
-    bool CompileShader(std::string text, const std::string& file_name, ShaderType shader_type, std::string entry_name = "");
+    //bool CompileShader(std::string text, const std::string& file_name, ShaderType shader_type, std::string entry_name = "");
     //bool CompileShader(std::string text, const std::string& file_name, ShaderType shader_type);
 };
+struct sg_shader_desc;
+bool CreateShader(Shader** shader, const char* name, const sg_shader_desc* shader_desc);
 bool CreateShader(Shader** shader, const char* name, const ShaderParams& params);
-bool CreateComputeShader(Shader** shader,
-    const std::string file_location,
-    const std::string entry_point);
-inline bool CreateShader(Shader** s, const std::string& shader_file_location, ArrayView<Shader::InputElementDesc> input_layout, std::vector<ShaderMacro> macros = std::vector<ShaderMacro>())
-{
-    return CreateShader(s, shader_file_location, shader_file_location, input_layout, macros);
-}
 
 
 
 
 
 
-struct CashDrawCall
-{
-    RenderType renderType;
-    Rectangle sRect = {};
-    Rectangle dRect = {};
-    Rectangle scissor = {};
-    RenderPrio prio;
-    ShaderProgram shader = ShaderProgram::Sprite;
-    uint32 prioIndex;
-    Color color = { 1.0f, 1.0f, 1.0f, 1.0f };
-    CoordinateSpace coordSpace;
-    int32 vertexIndex;
-    int32 vertexLength;
-    TextureRenderUnion texture; // Union?
-};
-
-struct GeneralRenderParams {
-    std::string name;
-    DX11GpuBuffer* v_buffer = nullptr;
-    DX11GpuBuffer* i_buffer = nullptr;
-    DX11GpuBuffer* instance_buffer = nullptr;
-    DX11GpuBuffer* test_buffer = nullptr;
-    ShaderIndex vertex_shader = ShaderIndex_Invalid;
-    ShaderIndex pixel_shader = ShaderIndex_Invalid;
-    Rasterizer rasterizer = Rasterizer_SolidBackCull;
-    DX11Texture* texture = nullptr;
-    D3D_PRIMITIVE_TOPOLOGY topology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-    ID3D11DepthStencilState* depth_state = s_dx11.depth_state_depth;
-    ID3D11RenderTargetView* target_rtv = s_dx11.rtv_hdr;
-    bool rendering_shadows;
-};
+//struct CashDrawCall
+//{
+//    RenderType renderType;
+//    Rectangle sRect = {};
+//    Rectangle dRect = {};
+//    Rectangle scissor = {};
+//    RenderPrio prio;
+//    ShaderProgram shader = ShaderProgram::Sprite;
+//    uint32 prioIndex;
+//    Color color = { 1.0f, 1.0f, 1.0f, 1.0f };
+//    CoordinateSpace coordSpace;
+//    int32 vertexIndex;
+//    int32 vertexLength;
+//    TextureRenderUnion texture; // Union?
+//};
+//
+//struct GeneralRenderParams {
+//    std::string name;
+//    DX11GpuBuffer* v_buffer = nullptr;
+//    DX11GpuBuffer* i_buffer = nullptr;
+//    DX11GpuBuffer* instance_buffer = nullptr;
+//    DX11GpuBuffer* test_buffer = nullptr;
+//    ShaderIndex vertex_shader = ShaderIndex_Invalid;
+//    ShaderIndex pixel_shader = ShaderIndex_Invalid;
+//    Rasterizer rasterizer = Rasterizer_SolidBackCull;
+//    DX11Texture* texture = nullptr;
+//    D3D_PRIMITIVE_TOPOLOGY topology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+//    ID3D11DepthStencilState* depth_state = s_dx11.depth_state_depth;
+//    ID3D11RenderTargetView* target_rtv = s_dx11.rtv_hdr;
+//    bool rendering_shadows;
+//};
