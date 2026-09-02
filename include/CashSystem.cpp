@@ -639,6 +639,10 @@ std::string Guid::ToString() const
     return ::ToString("%08X-%04X-%04X-%04X-%04X%08X", a, b >> 16, b & 0XFFFF, c >> 16, c & 0XFFFF, d);
 }
 
+void* SysReserveMemory(u64 bytes) { return OSReserveMemory(bytes); };
+void SysCommitMemory(void* p, u64 bytes) { OSCommitMemory(p, bytes); };
+bool SysFreeMemory(void* p, u64 bytes) { return OSFreeMemory(p, bytes); };
+
 Guid GuidFromString(const char* s)
 {
     Guid r = {};

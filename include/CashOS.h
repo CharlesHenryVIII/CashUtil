@@ -48,4 +48,8 @@ void OSConvertWideCharToMultiByte(std::string& out, const std::wstring& in, Stri
 void OSExpandEnvironemntVariable(std::wstring& out, const std::wstring& in);
 void* OSGetDataFromResource(i32* out_size, const i32 resource_id);
 
+void* OSReserveMemory(u64 bytes);
+void OSCommitMemory(void* p, u64 bytes);
+bool OSFreeMemory(void* p, u64 bytes);
+
 Guid OSNewGuid();

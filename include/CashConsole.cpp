@@ -588,7 +588,7 @@ void ConsoleInit(const std::string& logo, ArrayView<const u8> console_font_data)
 
 void DrawText(const char* string, Vec2 bot_left_p, Color color, float scale)
 {
-
+    //CashDrawCall& call = AllocDrawCall();
 }
 
 void DrawString(Vec2 location, Color color, const char* text, ...)

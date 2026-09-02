@@ -343,6 +343,10 @@ ImFont* SysCreateImguiFont(const ArrayView<const u8> font_data, float font_size)
 ImFont* SysLoadFontForImgui(i32 resource_id, float fontSize);
 void* SysGetDataFromResource(i32* out_size, const i32 resource_id);
 
+void* SysReserveMemory(u64 bytes);
+void SysCommitMemory(void* p, u64 bytes);
+bool SysFreeMemory(void* p, u64 bytes);
+
 union Guid {
     uint64_t e[2];
     //struct {
