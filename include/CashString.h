@@ -4,6 +4,7 @@
 #include "CashDebug.h"
 #include "CashArrayView.h"
 #include "CashMemoryArena.h"
+#include "CashStaticArray.h"
 
 #include <string>
 #include <charconv>

@@ -2,6 +2,7 @@
 #include "CashDebug.h"
 #include "CashSystem.h"
 #include "resource.h"
+#include "CashIdArray.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb/stb_image.h"
@@ -26,13 +27,16 @@
 Renderer gfx;
 
 struct VertexData {
-    sg_vertex_attr_state state[SG_MAX_VERTEX_ATTRIBUTES] = {};
+    VertexID data_id;
+    sg_vertex_layout_state state = {};
     sg_shader_vertex_attr attr[SG_MAX_VERTEX_ATTRIBUTES] = {};
+    VertexParams params[SG_MAX_VERTEX_ATTRIBUTES] = {};
     i32 count = 0;
 };
 
+
 static struct GfxDevice {
-    VertexData vertex_layouts[VertexType_Count]= {};
+    StaticIdArray<VertexData, VertexID, 256> vertex_layouts;
     GpuBuffer* fullscreen_verts = {};
     sg_pass_action pass_action = {};
 } s_gfx;
@@ -42,6 +46,8 @@ struct GfxSampler;
 struct GfxGpuBuffer;
 struct GfxGpuBinding;
 struct GfxShader;
+struct GfxPipeline;
+struct GfxDrawCall;
 
 
 //========================
@@ -57,6 +63,8 @@ _ASGFX_DEFINITION_COMMON(GpuBuffer);
 _ASGFX_DEFINITION_COMMON(GpuBinding);
 _ASGFX_DEFINITION_COMMON(Sampler);
 _ASGFX_DEFINITION_COMMON(Shader);
+_ASGFX_DEFINITION_COMMON(Pipeline);
+_ASGFX_DEFINITION_COMMON(DrawCall);
 
 template <typename Public, typename Private>
 Private* GfxGenericCreate(Public** object, const char* name)
@@ -94,7 +102,7 @@ constexpr sg_backend ToSokol(CashRenderBackend d)
     }
 }
 
-sg_color ToSgColor(Color color)
+sg_color ToSokol(Color color)
 {
     sg_color r = {
         .r = color.r,
@@ -195,99 +203,6 @@ struct ShaderConstants_2D {
 //}
 //)TERM";
 
-//semantic name: https://learn.microsoft.com/en-us/windows/win32/direct3dhlsl/dx-graphics-hlsl-semantics
-//semantic index: incrementing amount of that specific semantic name.  IE:
-// POSITION = 0
-// COLOR = 0,
-// POSITION = 1,
-// COLOR = 0,
-// POSITION = 2, etc
-enum VertexSemantic : u32 {
-    VertexSemantic_Binormal,
-    VertexSemantic_BlendIndices,
-    VertexSemantic_BlendWeight,
-    VertexSemantic_Color,       //Diffuse and specular color
-    VertexSemantic_Normal,      //Normal Vector
-    VertexSemantic_Position,    //Vertex Position
-    VertexSemantic_PositionT,   //Transformed Vertex Position
-    VertexSemantic_PSize,       //Point size
-    VertexSemantic_Tangent,
-    VertexSemantic_TexCoord,
-    VertexSemantic_Count,
-};
-
-static const char* s_vertex_semantic_strings[VertexSemantic_Count] = {
-    "BINORMAL",
-    "BLENDINDICES",
-    "BLENDWEIGHT",
-    "COLOR, ",
-    "NORMAL",
-    "POSITION",
-    "POSITIONT",
-    "PSIZE,  ",
-    "TANGENT",
-    "TEXCOORD",
-};
-
-void SetVertexData(VertexData& d, i32 vertex_index, i32 buffer_index, i32 offset, sg_vertex_format format, VertexSemantic semantic, i32 semantic_index)
-{
-    if (d.count >= SG_MAX_VERTEX_ATTRIBUTES)
-    {
-        FAIL;
-        DebugPrint("Trying to add more vertex attributes than supported: %i of %i", d.count, SG_MAX_VERTEX_ATTRIBUTES);
-        return;
-    }
-    ASSERT(d.count == vertex_index); // did you mean to overwrite the vertex data?
-    ++d.count;
-
-    sg_vertex_attr_state& s = d.state[vertex_index];
-    sg_shader_vertex_attr& a = d.attr[vertex_index];
-    s.buffer_index = buffer_index;
-    s.offset = offset;
-    s.format = format;
-    
-    switch (format)
-    {
-        case SG_VERTEXFORMAT_HALF2:FAIL;[[fallthrough]];//is this correct?
-        case SG_VERTEXFORMAT_HALF4:FAIL;a.base_type = SG_SHADERATTRBASETYPE_UNDEFINED; break;//is this correct?
-
-        case SG_VERTEXFORMAT_FLOAT:     [[fallthrough]];
-        case SG_VERTEXFORMAT_FLOAT2:    [[fallthrough]];
-        case SG_VERTEXFORMAT_FLOAT3:    [[fallthrough]];
-        case SG_VERTEXFORMAT_FLOAT4:    a.base_type = SG_SHADERATTRBASETYPE_FLOAT; break;
-
-        case SG_VERTEXFORMAT_INT:       [[fallthrough]];
-        case SG_VERTEXFORMAT_INT2:      [[fallthrough]];
-        case SG_VERTEXFORMAT_INT3:      [[fallthrough]];
-        case SG_VERTEXFORMAT_INT4:      [[fallthrough]];
-        case SG_VERTEXFORMAT_BYTE4:     [[fallthrough]];
-        case SG_VERTEXFORMAT_BYTE4N:    [[fallthrough]];
-        case SG_VERTEXFORMAT_SHORT2:    [[fallthrough]];
-        case SG_VERTEXFORMAT_SHORT2N:   [[fallthrough]];
-        case SG_VERTEXFORMAT_SHORT4:    [[fallthrough]];
-        case SG_VERTEXFORMAT_SHORT4N:   [[fallthrough]];
-        case SG_VERTEXFORMAT_INT10_N2:  a.base_type = SG_SHADERATTRBASETYPE_SINT; break;
-
-        case SG_VERTEXFORMAT_UINT:      [[fallthrough]];
-        case SG_VERTEXFORMAT_UINT2:     [[fallthrough]];
-        case SG_VERTEXFORMAT_UINT3:     [[fallthrough]];
-        case SG_VERTEXFORMAT_UINT4:     [[fallthrough]];
-        case SG_VERTEXFORMAT_UBYTE4:    [[fallthrough]];
-        case SG_VERTEXFORMAT_UBYTE4N:   [[fallthrough]];
-        case SG_VERTEXFORMAT_USHORT2:   [[fallthrough]];
-        case SG_VERTEXFORMAT_USHORT2N:  [[fallthrough]];
-        case SG_VERTEXFORMAT_USHORT4:   [[fallthrough]];
-        case SG_VERTEXFORMAT_USHORT4N:  [[fallthrough]];
-        case SG_VERTEXFORMAT_UINT10_N2: a.base_type = SG_SHADERATTRBASETYPE_UINT; break;
-
-        default: FAIL;                  a.base_type = SG_SHADERATTRBASETYPE_UNDEFINED; break;
-    }
-
-    //d.attr.glsl_name
-    a.hlsl_sem_name = s_vertex_semantic_strings[semantic];
-    a.hlsl_sem_index = semantic_index;
-}
-
 bool RenderInitSokol()
 {
     SysRenderInitDesc sys_desc = {};
@@ -316,17 +231,23 @@ bool RenderInitSokol()
     desc.logger = { SgLogFunc, nullptr };
     sg_setup(&desc);
 
-    static_assert(VertexType_Count == 2); //NOTE(CSH): If this is wrong then you will need to update the vertex layout descriptions here:
-    //Vertex_2D
-    SetVertexData(s_gfx.vertex_layouts[VertexType_2D],  0,  0, offsetof(Vertex_2D, position),   SG_VERTEXFORMAT_FLOAT2, VertexSemantic_Position,0);
-    SetVertexData(s_gfx.vertex_layouts[VertexType_2D],  1,  0, offsetof(Vertex_2D, color),      SG_VERTEXFORMAT_FLOAT4, VertexSemantic_Color,   0);
-    SetVertexData(s_gfx.vertex_layouts[VertexType_2D],  2,  0, offsetof(Vertex_2D, uv),         SG_VERTEXFORMAT_FLOAT2, VertexSemantic_TexCoord,0);
-    //Vertex_PNTC
-    SetVertexData(s_gfx.vertex_layouts[VertexType_PNTC], 0, 0, offsetof(Vertex_PNTC, position), SG_VERTEXFORMAT_FLOAT3, VertexSemantic_Position,0);
-    SetVertexData(s_gfx.vertex_layouts[VertexType_PNTC], 1, 0, offsetof(Vertex_PNTC, normal),   SG_VERTEXFORMAT_FLOAT3, VertexSemantic_Normal,  0);
-    SetVertexData(s_gfx.vertex_layouts[VertexType_PNTC], 2, 0, offsetof(Vertex_PNTC, uv),       SG_VERTEXFORMAT_FLOAT2, VertexSemantic_TexCoord,0);
-    SetVertexData(s_gfx.vertex_layouts[VertexType_PNTC], 3, 0, offsetof(Vertex_PNTC, color),    SG_VERTEXFORMAT_FLOAT4, VertexSemantic_Color,   0);
-    //
+    {// Vertex_2D
+        VertexParams params[] = {
+            { 0, 0, offsetof(Vertex_2D, position),  VertexFormat_Float2,    VertexSemantic_Position,    0, VertexStep_Vertex, 0 },
+            { 1, 0, offsetof(Vertex_2D, color),     VertexFormat_Float4,    VertexSemantic_Color,       0, VertexStep_Vertex, 0 },
+            { 2, 0, offsetof(Vertex_2D, uv),        VertexFormat_Float2,    VertexSemantic_TexCoord,    0, VertexStep_Vertex, 0 },
+        };
+        g_vertex_2d = CreateVertexLayout(CreateArrayView(params));
+    }
+    {// Vertex_PNTC
+        VertexParams params[] = {
+            { 0, 0, offsetof(Vertex_PNTC, position), VertexFormat_Float,    VertexSemantic_Position,    0, VertexStep_Vertex, 0 },
+            { 1, 0, offsetof(Vertex_PNTC, normal),   VertexFormat_Float3,   VertexSemantic_Normal,      0, VertexStep_Vertex, 0 },
+            { 2, 0, offsetof(Vertex_PNTC, uv),       VertexFormat_Float2,   VertexSemantic_TexCoord,    0, VertexStep_Vertex, 0 },
+            { 3, 0, offsetof(Vertex_PNTC, color),    VertexFormat_Float4,   VertexSemantic_Color,       0, VertexStep_Vertex, 0 },
+        };
+        g_vertex_pntc = CreateVertexLayout(CreateArrayView(params));
+    }
 
     {
         Vertex_2D verts[] = {
@@ -340,13 +261,13 @@ bool RenderInitSokol()
     }
 
     s_gfx.pass_action.colors[0].load_action = SG_LOADACTION_CLEAR;
-    s_gfx.pass_action.colors[0].clear_value = ToSgColor(background_color);
+    s_gfx.pass_action.colors[0].clear_value = ToSokol(background_color);
 
     {
         const sg_shader_desc* desc = Blit2D_shader_desc(ToSokol(gfx.backend));
         CreateShader(&gfx.blit2d_shader, "Blit 2D Shader", desc);
     }
-    
+
 
     return true;
 }
@@ -541,42 +462,178 @@ void CashImguiNewFrame(double delta_time)
 void CashRender()
 {
     ZoneScoped;
-    sg_pass pass = {};
-    pass.action = s_gfx.pass_action;
-    SysGetRenderSwapchain(&pass.swapchain);
-    sg_begin_pass(&pass);
+    {
+        Render();
+    }
+
     {
         ZoneScopedN("ImGui Render");
+        sg_pass pass = {};
+        pass.action = s_gfx.pass_action;
+        SysGetRenderSwapchain(&pass.swapchain);
+        sg_begin_pass(&pass);
         simgui_render();
         //ImGui::Render();
-    }
-
-#ifdef CASH_SOKOL_RENDER
-    {
-        ZoneScopedN("Sokol End Pass");
         sg_end_pass();
-        sg_commit();
     }
-    //sg_apply_pipeline(pip);
-    //sg_apply_bindings(&bindings);
-    //sg_apply_uniforms(...);
-    //sg_draw(...);
-    SysRenderPresent();
-#elif CASH_SDL_RENDER
-    static const ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
-    ImGuiIO& io = ImGui::GetIO(); (void)io;
-    SDL_SetRenderScale(gfx.context, io.DisplayFramebufferScale.x, io.DisplayFramebufferScale.y);
-    SDL_SetRenderDrawColorFloat(gfx.context, clear_color.x, clear_color.y, clear_color.z, clear_color.w);
-    SDL_RenderClear(gfx.context);
-    ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), gfx.context);
-    SDL_RenderPresent(gfx.context);
-#endif
 
+    sg_commit();
+    SysRenderPresent();
 }
 
 void CashRenderDestroy()
 {
     SDL_DestroyRenderer(gfx.context);
+}
+
+
+
+
+
+
+
+//========================
+//      Vertex Data
+//========================
+
+VertexID g_vertex_2d;
+VertexID g_vertex_pntc;
+
+constexpr sg_vertex_format ToSokol(VertexFormat d)
+{
+    switch (d)
+    {
+        case VertexFormat_Float:    return SG_VERTEXFORMAT_FLOAT;
+        case VertexFormat_Float2:   return SG_VERTEXFORMAT_FLOAT2;
+        case VertexFormat_Float3:   return SG_VERTEXFORMAT_FLOAT3;
+        case VertexFormat_Float4:   return SG_VERTEXFORMAT_FLOAT4;
+        case VertexFormat_Int:      return SG_VERTEXFORMAT_INT;
+        case VertexFormat_Int2:     return SG_VERTEXFORMAT_INT2;
+        case VertexFormat_Int3:     return SG_VERTEXFORMAT_INT3;
+        case VertexFormat_Int4:     return SG_VERTEXFORMAT_INT4;
+        case VertexFormat_UInt:     return SG_VERTEXFORMAT_UINT;
+        case VertexFormat_UInt2:    return SG_VERTEXFORMAT_UINT2;
+        case VertexFormat_UInt3:    return SG_VERTEXFORMAT_UINT3;
+        case VertexFormat_UInt4:    return SG_VERTEXFORMAT_UINT4;
+        case VertexFormat_Byte4:    return SG_VERTEXFORMAT_BYTE4;
+        case VertexFormat_Byte4N:   return SG_VERTEXFORMAT_BYTE4N;
+        case VertexFormat_UByte4:   return SG_VERTEXFORMAT_UBYTE4;
+        case VertexFormat_UByte4N:  return SG_VERTEXFORMAT_UBYTE4N;
+        case VertexFormat_Short2:   return SG_VERTEXFORMAT_SHORT2;
+        case VertexFormat_Short2N:  return SG_VERTEXFORMAT_SHORT2N;
+        case VertexFormat_UShort2:  return SG_VERTEXFORMAT_USHORT2;
+        case VertexFormat_UShort2N: return SG_VERTEXFORMAT_USHORT2N;
+        case VertexFormat_Short4:   return SG_VERTEXFORMAT_SHORT4;
+        case VertexFormat_Short4N:  return SG_VERTEXFORMAT_SHORT4N;
+        case VertexFormat_UShort4:  return SG_VERTEXFORMAT_USHORT4;
+        case VertexFormat_UShort4N: return SG_VERTEXFORMAT_USHORT4N;
+        case VertexFormat_Int10_N2: return SG_VERTEXFORMAT_INT10_N2;
+        case VertexFormat_UInt10_N2:return SG_VERTEXFORMAT_UINT10_N2;
+        case VertexFormat_Half2:    return SG_VERTEXFORMAT_HALF2;
+        case VertexFormat_Half4:    return SG_VERTEXFORMAT_HALF4;
+        case VertexFormat_Invalid:  [[fallthrough]];
+        case VertexFormat_Count:    [[fallthrough]];
+        default: FAIL;              return SG_VERTEXFORMAT_INVALID;
+    }
+}
+
+static const char* s_vertex_semantic_strings[VertexSemantic_Count] = {
+    "BINORMAL",
+    "BLENDINDICES",
+    "BLENDWEIGHT",
+    "COLOR, ",
+    "NORMAL",
+    "POSITION",
+    "POSITIONT",
+    "PSIZE,  ",
+    "TANGENT",
+    "TEXCOORD",
+};
+
+sg_vertex_step ToSokol(const VertexStep a)
+{
+    switch (a)
+    {
+        case VertexStep_Vertex: return SG_VERTEXSTEP_PER_VERTEX;
+        case VertexStep_Instance: return SG_VERTEXSTEP_PER_INSTANCE;
+        default: FAIL; return _SG_VERTEXSTEP_DEFAULT;
+    }
+}
+
+VertexID CreateVertexLayout(ArrayView<VertexParams> vertex_layout)
+{
+    VALIDATE_V(vertex_layout.count < SG_MAX_VERTEX_ATTRIBUTES, VertexID());
+    VALIDATE_V(vertex_layout.count, VertexID());
+
+    VertexData* _d = s_gfx.vertex_layouts.CreateNew();
+    VALIDATE_V(_d, VertexID());
+    VertexData& d = *_d;
+
+    for (i32 i = 0; i < vertex_layout.count; i++)
+    {
+        const VertexParams& p = vertex_layout[i];
+        sg_vertex_attr_state&           s = d.state.attrs[p.vertex_index];
+        sg_vertex_buffer_layout_state&  b = d.state.buffers[p.vertex_index];
+        sg_shader_vertex_attr&          a = d.attr[p.vertex_index];
+
+        ++d.count;
+        d.params[i] = p;
+        s.buffer_index = p.buffer_index;
+        s.offset = p.offset;
+        s.format = ToSokol(p.format);
+
+        b.stride = 0;
+        b.step_func = ToSokol(p.vertex_step);
+        b.step_rate = p.vertex_step_rate;
+
+        switch (s.format)
+        {
+        case SG_VERTEXFORMAT_HALF2:FAIL; [[fallthrough]];//is this correct?
+        case SG_VERTEXFORMAT_HALF4:FAIL; a.base_type = SG_SHADERATTRBASETYPE_UNDEFINED; break;//is this correct?
+
+        case SG_VERTEXFORMAT_FLOAT:     [[fallthrough]];
+        case SG_VERTEXFORMAT_FLOAT2:    [[fallthrough]];
+        case SG_VERTEXFORMAT_FLOAT3:    [[fallthrough]];
+        case SG_VERTEXFORMAT_FLOAT4:    a.base_type = SG_SHADERATTRBASETYPE_FLOAT; break;
+
+        case SG_VERTEXFORMAT_INT:       [[fallthrough]];
+        case SG_VERTEXFORMAT_INT2:      [[fallthrough]];
+        case SG_VERTEXFORMAT_INT3:      [[fallthrough]];
+        case SG_VERTEXFORMAT_INT4:      [[fallthrough]];
+        case SG_VERTEXFORMAT_BYTE4:     [[fallthrough]];
+        case SG_VERTEXFORMAT_BYTE4N:    [[fallthrough]];
+        case SG_VERTEXFORMAT_SHORT2:    [[fallthrough]];
+        case SG_VERTEXFORMAT_SHORT2N:   [[fallthrough]];
+        case SG_VERTEXFORMAT_SHORT4:    [[fallthrough]];
+        case SG_VERTEXFORMAT_SHORT4N:   [[fallthrough]];
+        case SG_VERTEXFORMAT_INT10_N2:  a.base_type = SG_SHADERATTRBASETYPE_SINT; break;
+
+        case SG_VERTEXFORMAT_UINT:      [[fallthrough]];
+        case SG_VERTEXFORMAT_UINT2:     [[fallthrough]];
+        case SG_VERTEXFORMAT_UINT3:     [[fallthrough]];
+        case SG_VERTEXFORMAT_UINT4:     [[fallthrough]];
+        case SG_VERTEXFORMAT_UBYTE4:    [[fallthrough]];
+        case SG_VERTEXFORMAT_UBYTE4N:   [[fallthrough]];
+        case SG_VERTEXFORMAT_USHORT2:   [[fallthrough]];
+        case SG_VERTEXFORMAT_USHORT2N:  [[fallthrough]];
+        case SG_VERTEXFORMAT_USHORT4:   [[fallthrough]];
+        case SG_VERTEXFORMAT_USHORT4N:  [[fallthrough]];
+        case SG_VERTEXFORMAT_UINT10_N2: a.base_type = SG_SHADERATTRBASETYPE_UINT; break;
+
+        default: FAIL;                  a.base_type = SG_SHADERATTRBASETYPE_UNDEFINED; break;
+        }
+
+        //d.attr.glsl_name
+        a.hlsl_sem_name = s_vertex_semantic_strings[p.semantic];
+        a.hlsl_sem_index = p.semantic_index;
+    }
+
+    return d.data_id;
+}
+
+bool DeleteVertexLayout(VertexID id)
+{
+    return s_gfx.vertex_layouts.Erase(id);
 }
 
 
@@ -777,19 +834,19 @@ constexpr sg_border_color ToSokol(const SamplerBorderColor a)
     }
 }
 
-constexpr sg_compare_func ToSokol(const SamplerCompareFunc a)
+constexpr sg_compare_func ToSokol(const GpuCompareFunc a)
 {
     switch (a)
     {
-        case SamplerCompareFunc_Never:          return SG_COMPAREFUNC_NEVER;
-        case SamplerCompareFunc_Less:           return SG_COMPAREFUNC_LESS;
-        case SamplerCompareFunc_Equal:          return SG_COMPAREFUNC_EQUAL;
-        case SamplerCompareFunc_Less_equal:     return SG_COMPAREFUNC_LESS_EQUAL;
-        case SamplerCompareFunc_Greater:        return SG_COMPAREFUNC_GREATER;
-        case SamplerCompareFunc_Not_equal:      return SG_COMPAREFUNC_NOT_EQUAL;
-        case SamplerCompareFunc_Greater_equal:  return SG_COMPAREFUNC_GREATER_EQUAL;
-        case SamplerCompareFunc_Always:         return SG_COMPAREFUNC_ALWAYS;
-        case SamplerCompareFunc_Count: [[fallthrough]];
+        case GpuCompareFunc_Never:          return SG_COMPAREFUNC_NEVER;
+        case GpuCompareFunc_Less:           return SG_COMPAREFUNC_LESS;
+        case GpuCompareFunc_Equal:          return SG_COMPAREFUNC_EQUAL;
+        case GpuCompareFunc_Less_equal:     return SG_COMPAREFUNC_LESS_EQUAL;
+        case GpuCompareFunc_Greater:        return SG_COMPAREFUNC_GREATER;
+        case GpuCompareFunc_Not_equal:      return SG_COMPAREFUNC_NOT_EQUAL;
+        case GpuCompareFunc_Greater_equal:  return SG_COMPAREFUNC_GREATER_EQUAL;
+        case GpuCompareFunc_Always:         return SG_COMPAREFUNC_ALWAYS;
+        case GpuCompareFunc_Count: [[fallthrough]];
         default: FAIL;                          return _SG_COMPAREFUNC_DEFAULT;
     }
 }
@@ -942,7 +999,7 @@ void GpuBinding::BindVertex(const GpuBuffer* buffer, const i32 slot)
     VALIDATE(buffer && buffer->type == GpuBufferType_Vertex);
     const GfxGpuBuffer* buf = AsGfx(buffer);
     GfxGpuBinding* bin = AsGfx(this);
-    
+
     sg_buffer& b = bin->binding.vertex_buffers[slot];
     if (b.id != 0)
         DebugPrint("Warning: Overwriting binding(%s) slot(%i) for vertex buffer (%s)", bin->name.c_str(), slot, buf->name.c_str());
@@ -1072,13 +1129,13 @@ sg_image_sample_type GetSokolSampleType(const TextureFormat f)
     }
 }
 
-sg_sampler_type  GetSokolSamplerType(const sg_image_sample_type a, const bool is_linear_filter, const SamplerCompareFunc compare_func)
+sg_sampler_type  GetSokolSamplerType(const sg_image_sample_type a, const bool is_linear_filter, const GpuCompareFunc compare_func)
 {
     switch (a)
     {
     case SG_IMAGESAMPLETYPE_FLOAT:
     {
-        ASSERT(compare_func == SamplerCompareFunc_Never);
+        ASSERT(compare_func == GpuCompareFunc_Never);
         if (is_linear_filter)
             return SG_SAMPLERTYPE_NONFILTERING;
         else
@@ -1086,25 +1143,25 @@ sg_sampler_type  GetSokolSamplerType(const sg_image_sample_type a, const bool is
     }
     case SG_IMAGESAMPLETYPE_UNFILTERABLE_FLOAT:
     {
-        ASSERT(compare_func == SamplerCompareFunc_Never);
+        ASSERT(compare_func == GpuCompareFunc_Never);
         ASSERT(is_linear_filter);
         return SG_SAMPLERTYPE_NONFILTERING;
     }
     case SG_IMAGESAMPLETYPE_SINT:
     {
-        ASSERT(compare_func == SamplerCompareFunc_Never);
+        ASSERT(compare_func == GpuCompareFunc_Never);
         ASSERT(is_linear_filter);
         return SG_SAMPLERTYPE_NONFILTERING;
     }
     case SG_IMAGESAMPLETYPE_UINT:
     {
-        ASSERT(compare_func == SamplerCompareFunc_Never);
+        ASSERT(compare_func == GpuCompareFunc_Never);
         ASSERT(is_linear_filter);
         return SG_SAMPLERTYPE_NONFILTERING;
     }
     case SG_IMAGESAMPLETYPE_DEPTH:
     {
-        ASSERT(compare_func != SamplerCompareFunc_Never);
+        ASSERT(compare_func != GpuCompareFunc_Never);
         return SG_SAMPLERTYPE_COMPARISON;
     }
     default: FAIL; return _SG_SAMPLERTYPE_DEFAULT;
@@ -1129,7 +1186,7 @@ bool CreateShader(Shader** shader, const char* name, const sg_shader_desc* shade
     ZoneScoped;
     GfxShader* s = GfxGenericCreate<Shader, GfxShader>(shader, name);
     VALIDATE_V(s, false);
-    (*shader) = AsGfx(s);
+    (*shader) = s;
     s->shader_desc = *shader_desc;
     s->shader = sg_make_shader(s->shader_desc);
     return true;
@@ -1139,11 +1196,12 @@ bool CreateShader(Shader** shader, const char* name, const ShaderParams& params)
 {
     // VALIDATE_V(params.vertex.text || params.pixel.text || params.compute.text, false);
     VALIDATE_V(params.vertex.text || params.pixel.text, false);
+    VALIDATE_V(params.vertex_layout.e, false);
 
     ZoneScoped;
     GfxShader* s = GfxGenericCreate<Shader, GfxShader>(shader, name);
     VALIDATE_V(s, false);
-    (*shader) = AsGfx(s);
+    (*shader) = s;
 
     sg_shader_desc& desc = s->shader_desc;
 
@@ -1154,11 +1212,12 @@ bool CreateShader(Shader** shader, const char* name, const ShaderParams& params)
         desc.fragment_func = ToSokol(params.pixel, "Pixel_Main", CSH_TOSTRING(D3D11_SHADER_MODEL_PIXEL));
     //if (params.compute.text)
     //    desc.compute_func = ToSokol(params.compute, "Main", CSH_TOSTRING(D3D11_SHADER_MODEL_COMPUTE));
-    
-    const VertexData& vd = s_gfx.vertex_layouts[params.vertex_type];
-    for (i32 i = 0; i < vd.count; i++)
+
+    const VertexData* vd = s_gfx.vertex_layouts.TryGet(params.vertex_layout);
+    VALIDATE_V(vd, false);
+    for (i32 i = 0; i < vd->count; i++)
     {
-        desc.attrs[i] = vd.attr[i];
+        desc.attrs[i] = vd->attr[i];
     }
 
     //Shader Constants
@@ -1251,4 +1310,331 @@ bool CreateShader(Shader** shader, const char* name, const ShaderParams& params)
 
     s->shader = sg_make_shader(s->shader_desc);
     return true;
+}
+
+void DeleteShader(Shader** shader)
+{
+    ZoneScoped;
+    VALIDATE(shader);
+    GfxShader* s = AsGfx(*shader);
+    sg_destroy_shader(s->shader);
+    DEBUG_LOG("GPU SHader deleted '%s'\n", s->name.c_str());
+    delete s;
+}
+
+
+
+
+
+//========================
+//       Pipeline
+//========================
+
+struct GfxPipeline : Pipeline {
+    sg_pipeline pipe;
+    sg_pipeline_desc pipe_desc;
+};
+
+sg_stencil_op ToSokol(const StencilOp a)
+{
+    switch (a)
+    {
+        case StencilOp_Keep:        return SG_STENCILOP_KEEP;
+        case StencilOp_Zero:        return SG_STENCILOP_ZERO;
+        case StencilOp_Replace:     return SG_STENCILOP_REPLACE;
+        case StencilOp_IncrClamp:   return SG_STENCILOP_INCR_CLAMP;
+        case StencilOp_DecrClamp:   return SG_STENCILOP_DECR_CLAMP;
+        case StencilOp_Invert:      return SG_STENCILOP_INVERT;
+        case StencilOp_IncrWrap:    return SG_STENCILOP_INCR_WRAP;
+        case StencilOp_DecrWrap:    return SG_STENCILOP_DECR_WRAP;
+        case StencilOp_Count:       [[fallthrough]];
+        default: FAIL;              return _SG_STENCILOP_DEFAULT;
+    }
+}
+
+sg_stencil_face_state ToSokol(const StencilState& a)
+{
+    sg_stencil_face_state r = {
+        .compare = ToSokol(a.compare),
+        .fail_op = ToSokol(a.fail_op),
+        .depth_fail_op = ToSokol(a.depth_fail_op),
+        .pass_op = ToSokol(a.pass_op),
+    };
+    return r;
+}
+
+sg_blend_factor ToSokol(const BlendFactor a)
+{
+    switch (a)
+    {
+        case BlendFactor_Zero:              return SG_BLENDFACTOR_ZERO;
+        case BlendFactor_One:               return SG_BLENDFACTOR_ONE;
+        case BlendFactor_SrcColor:          return SG_BLENDFACTOR_SRC_COLOR;
+        case BlendFactor_OneMinusSrcColor:  return SG_BLENDFACTOR_ONE_MINUS_SRC_COLOR;
+        case BlendFactor_SrcAlpha:          return SG_BLENDFACTOR_SRC_ALPHA;
+        case BlendFactor_OneMinusSrcAlpha:  return SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
+        case BlendFactor_DstColor:          return SG_BLENDFACTOR_DST_COLOR;
+        case BlendFactor_OneMinusDstColor:  return SG_BLENDFACTOR_ONE_MINUS_DST_COLOR;
+        case BlendFactor_DstAlpha:          return SG_BLENDFACTOR_DST_ALPHA;
+        case BlendFactor_OneMinusDstAlpha:  return SG_BLENDFACTOR_ONE_MINUS_DST_ALPHA;
+        case BlendFactor_SrcAlphaSaturated: return SG_BLENDFACTOR_SRC_ALPHA_SATURATED;
+        case BlendFactor_BlendColor:        return SG_BLENDFACTOR_BLEND_COLOR;
+        case BlendFactor_OneMinusBlendColor:return SG_BLENDFACTOR_ONE_MINUS_BLEND_COLOR;
+        case BlendFactor_BlendAlpha:        return SG_BLENDFACTOR_BLEND_ALPHA;
+        case BlendFactor_OneMinusBlendAlpha:return SG_BLENDFACTOR_ONE_MINUS_BLEND_ALPHA;
+        case BlendFactor_Src1Color:         return SG_BLENDFACTOR_SRC1_COLOR;
+        case BlendFactor_OneMinusSrc1Color: return SG_BLENDFACTOR_ONE_MINUS_SRC1_COLOR;
+        case BlendFactor_Src1Alpha:         return SG_BLENDFACTOR_SRC1_ALPHA;
+        case BlendFactor_OneMinusSrc1Alpha: return SG_BLENDFACTOR_ONE_MINUS_SRC1_ALPHA;
+        case BlendFactor_Count:             [[fallthrough]];
+        default: FAIL;                      return _SG_BLENDFACTOR_DEFAULT;
+    }
+}
+
+sg_blend_op ToSokol(const BlendOp a)
+{
+    switch (a)
+    {
+    case BlendOp_Add:               return SG_BLENDOP_ADD;
+    case BlendOp_Subtract:          return SG_BLENDOP_SUBTRACT;
+    case BlendOp_ReverseSubtract:   return SG_BLENDOP_REVERSE_SUBTRACT;
+    case BlendOp_Min:               return SG_BLENDOP_MIN;
+    case BlendOp_Max:               return SG_BLENDOP_MAX;
+    case BlendOp_Count:             [[fallthrough]];
+    default:    FAIL;               return _SG_BLENDOP_DEFAULT;
+    }
+}
+
+sg_primitive_type ToSokol(const PrimitiveType a)
+{
+    switch (a)
+    {
+        case PrimitiveType_Points:          return SG_PRIMITIVETYPE_POINTS;
+        case PrimitiveType_Lines:           return SG_PRIMITIVETYPE_LINES;
+        case PrimitiveType_LineStrip:       return SG_PRIMITIVETYPE_LINE_STRIP;
+        case PrimitiveType_Triangles:       return SG_PRIMITIVETYPE_TRIANGLES;
+        case PrimitiveType_TriangleStrip:   return SG_PRIMITIVETYPE_TRIANGLE_STRIP;
+        case PrimitveType_Count:            [[fallthrough]];
+        default: FAIL;                      return _SG_PRIMITIVETYPE_DEFAULT;
+    }
+}
+
+sg_cull_mode ToSokol(const RenderCullMode a)
+{
+    switch (a)
+    {
+        case RenderCullMode_None:   return SG_CULLMODE_NONE;
+        case RenderCullMode_Front:  return SG_CULLMODE_FRONT;
+        case RenderCullMode_Back:   return SG_CULLMODE_BACK;
+        case RenderCullMode_Count:  [[fallthrough]];
+        default: FAIL;              return _SG_CULLMODE_DEFAULT;
+    }
+}
+
+bool CreatePipeline(Pipeline** pipe, const char* name, const PipelineParams& params)
+{
+    ZoneScoped;
+    GfxPipeline* p = GfxGenericCreate<Pipeline, GfxPipeline>(pipe, name);
+    VALIDATE_V(p, false);
+    (*pipe) = p;
+    p->name = name;
+    const GfxShader* shader = AsGfx(params.shader);
+    GfxTexture* depth = AsGfx(params.depth);
+
+    sg_pipeline_desc& desc = p->pipe_desc;
+    desc = {};
+    desc.compute = false;
+    desc.shader = shader->shader;
+    VertexData* vertex_layout = s_gfx.vertex_layouts.TryGet(shader->params.vertex_layout);
+    desc.layout = vertex_layout->state;
+
+    //Depth
+    VALIDATE_V(depth->image_desc.sample_count == params.msaa_sample_count, false);
+    desc.depth.pixel_format = depth->image_desc.pixel_format;
+    desc.depth.compare = ToSokol(params.depth_compare_func);
+    desc.depth.write_enabled = false; //NOTE(CSH): Forced no write for now until needed
+    desc.depth.bias = params.depth_bias;
+    desc.depth.bias_slope_scale = params.depth_bias_slope_scale;
+    desc.depth.bias_clamp = params.depth_bias_clamp;
+
+    desc.stencil.enabled = params.stencil_enabled;
+    desc.stencil.front = ToSokol(params.stencil_front_face);
+    desc.stencil.back = ToSokol(params.stencil_back_face);
+    desc.stencil.read_mask = params.stencil_read_mask;
+    desc.stencil.write_mask = params.stencil_write_mask;
+    desc.stencil.ref = params.stencil_ref_value;
+
+    for (i32 i = 0; i < MAX_SHADER_TEXTURES; i++)
+    {
+        const RenderTarget& target = params.targets[i];
+        if (target.texture)
+        {
+            GfxTexture* t = AsGfx(target.texture);
+
+            VALIDATE_V(t->image_desc.sample_count == params.msaa_sample_count, false);
+
+            sg_color_target_state& ts = desc.colors[i];
+            ts.pixel_format = t->image_desc.pixel_format;
+            ts.write_mask = SG_COLORMASK_RGBA;
+
+            if (target.blend_enabled)
+            {
+                ts.blend.enabled = target.blend_enabled;
+                ts.blend.src_factor_rgb     = ToSokol(target.src_factor_rgb);
+                ts.blend.dst_factor_rgb     = ToSokol(target.dst_factor_rgb);
+                ts.blend.op_rgb     = ToSokol(target.op_rgb);
+                ts.blend.src_factor_alpha   = ToSokol(target.src_factor_alpha);
+                ts.blend.dst_factor_alpha   = ToSokol(target.dst_factor_alpha);
+                ts.blend.op_alpha   = ToSokol(target.op_alpha);
+            }
+            else
+            {
+                ts.blend = {};
+            }
+
+            desc.color_count = i + 1;
+        }
+    }
+    desc.primitive_type = ToSokol(params.primitive_type);
+    desc.index_type = params.has_index_buffer ? SG_INDEXTYPE_UINT32 : SG_INDEXTYPE_NONE;
+    desc.cull_mode = ToSokol(params.cull_mode);
+    desc.face_winding = params.front_ccw_winding_order ? SG_FACEWINDING_CCW : SG_FACEWINDING_CW;
+    desc.sample_count = params.msaa_sample_count;
+    desc.blend_color = {}; //NOTE(CSH): Not sure what to do with this
+    desc.alpha_to_coverage_enabled = params.alpha_to_coverage_enabled;
+    desc.label = p->name.c_str();
+    p->pipe = sg_make_pipeline(desc);
+    return true;
+
+}
+
+void DeletePipeline(Pipeline** pipeline)
+{
+    ZoneScoped;
+    VALIDATE(pipeline);
+    GfxPipeline* pipe = AsGfx(*pipeline);
+    VALIDATE(pipe);
+    sg_destroy_pipeline(pipe->pipe);
+    DEBUG_LOG("Deleted pipeline'%s': %i\n", pipe->name.c_str(), pipe->pipe);
+    delete pipe;
+}
+
+
+
+
+
+
+//========================
+//       Draw Call
+//========================
+
+IdArray<DrawCall, DrawID> s_draws;
+
+struct GfxDrawCall : DrawCall
+{
+};
+
+bool CreateDrawCall(DrawCall** drawcall, const char* name, const DrawCallParams& params)
+{
+    ZoneScoped;
+    GfxDrawCall* draw = GfxGenericCreate<DrawCall, GfxDrawCall>(drawcall, name);
+    VALIDATE_V(draw, false);
+    draw->name = name;
+    draw->params = params;
+
+
+
+    buf->buffer = sg_make_pipeline();
+    *drawcall = draw;
+    return true;
+    
+}
+
+//DrawCall& AllocDrawCall()
+//{
+//    DrawCall* draw = s_draws.CreateNew();
+//    if (!draw)
+//    {
+//        FAIL;
+//        DebugPrint("Something seriously wrong CreateNew returned nullptr");
+//    }
+//    //if (!scissorStack.empty())
+//    //{
+//    //    info.scissor = scissorStack.back();
+//    //}
+//
+//    return *draw;
+//}
+
+
+
+
+
+
+
+//========================
+//        Render
+//========================
+
+void RenderDrawCalls()
+{
+    sg_swapchain swapchain = {};
+    SysGetRenderSwapchain(&swapchain);
+
+    foreach(drawcall, s_draws)
+    {
+        const GfxDrawCall* draw = AsGfx(drawcall);
+        const DrawCallParams& params = draw->params;
+        const GfxPipeline* pipe = AsGfx(params.pipeline);
+        const GfxGpuBinding* bind = AsGfx(params.binding);
+
+        sg_pass pass = {};
+        pass.compute = false;
+        //Set Actions
+        //color
+        static_assert(SG_MAX_COLOR_ATTACHMENTS == MAX_COLOR_ATTACHMENTS);
+        for (i32 i = 0; i < SG_MAX_COLOR_ATTACHMENTS; i++)
+        {
+            pass.action.colors[i].load_action = params.color_actions[i].clear_on_load ? SG_LOADACTION_CLEAR : SG_LOADACTION_LOAD;
+            pass.action.colors[i].store_action = _SG_STOREACTION_DEFAULT;
+            pass.action.colors[i].clear_value = ToSokol(params.color_actions[i].clear_color);
+        }
+        //depth
+        pass.action.depth.load_action = params.depth_action.clear_on_load ? SG_LOADACTION_CLEAR : SG_LOADACTION_LOAD;
+        pass.action.depth.store_action = _SG_STOREACTION_DEFAULT;
+        pass.action.depth.clear_value = params.depth_action.clear_value;
+        //stencil
+        pass.action.stencil.load_action = params.stencil_action.clear_on_load ? SG_LOADACTION_CLEAR : SG_LOADACTION_LOAD;
+        pass.action.stencil.store_action = _SG_STOREACTION_DEFAULT;
+        pass.action.stencil.clear_value = params.stencil_action.clear_value;
+
+        //Bind Attachments
+        for (i32 i = 0; i < SG_MAX_COLOR_ATTACHMENTS; i++)
+        {
+            GfxTexture* t = AsGfx(params.color_textures[i]);
+            if (t)
+                pass.attachments.colors[i] = t->view;
+
+            //pass.attachments.resolves; //NOTE(CSH): Unsure what the point of this is
+        }
+        GfxTexture* depth_texture = AsGfx(params.depth_stencil_texture);
+        if (depth_texture)
+            pass.attachments.depth_stencil = depth_texture->view;
+
+        if (params.draw_to_backbuffer)
+            pass.swapchain = swapchain;
+        pass.label = draw->name.c_str();
+        sg_begin_pass(&pass);
+
+        sg_apply_pipeline(pipe->pipe);
+        sg_apply_bindings(bind->binding);
+
+        sg_apply_uniforms(SG_SHADERSTAGE_VERTEX, SLOT_my_matrices, &SG_RANGE(matrix_data));
+
+        sg_draw(0, index_count, 1);
+
+        sg_end_pass();
+    }
+    
+    g_swapchain->Present(1, 0);
 }

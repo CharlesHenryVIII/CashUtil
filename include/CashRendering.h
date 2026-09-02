@@ -2,10 +2,9 @@
 #include "CashMath.h"
 #include "CashArrayView.h"
 #include "CashString.h"
+#include "CashIdArray.h"
 
 #include "SDL3/SDL.h"
-//#define CASH_SDL_RENDER 1
-#define CASH_SOKOL_RENDER 1
 
 #define CASH_GFX_MAX_MIPS 16
 
@@ -21,6 +20,7 @@ enum EmbededIcon : u32
     EmbededIcon_FullSize,
     EmbededIcon_Count,
 };
+ENUMOPS_PURE(EmbededIcon);
 
 enum CashRenderBackend : u32 {
     CashRenderBackend_Glcore,
@@ -33,6 +33,7 @@ enum CashRenderBackend : u32 {
     CashRenderBackend_Vulkan,
     CashRenderBackend_Count,
 };
+ENUMOPS_PURE(CashRenderBackend);
 
 struct Shader;
 struct Renderer
@@ -52,6 +53,97 @@ void CashRender();
 void CashImguiInit();
 void CashImguiDestroy();
 void CashImguiNewFrame(double delta_time);
+
+
+
+
+
+
+//========================
+//     Vertex Data
+//========================
+
+DATAID_TYPE(VertexID)
+
+extern VertexID g_vertex_2d;
+extern VertexID g_vertex_pntc;
+
+enum VertexFormat : u32 {
+    VertexFormat_Invalid,
+    VertexFormat_Float,
+    VertexFormat_Float2,
+    VertexFormat_Float3,
+    VertexFormat_Float4,
+    VertexFormat_Int,
+    VertexFormat_Int2,
+    VertexFormat_Int3,
+    VertexFormat_Int4,
+    VertexFormat_UInt,
+    VertexFormat_UInt2,
+    VertexFormat_UInt3,
+    VertexFormat_UInt4,
+    VertexFormat_Byte4,
+    VertexFormat_Byte4N,
+    VertexFormat_UByte4,
+    VertexFormat_UByte4N,
+    VertexFormat_Short2,
+    VertexFormat_Short2N,
+    VertexFormat_UShort2,
+    VertexFormat_UShort2N,
+    VertexFormat_Short4,
+    VertexFormat_Short4N,
+    VertexFormat_UShort4,
+    VertexFormat_UShort4N,
+    VertexFormat_Int10_N2,
+    VertexFormat_UInt10_N2,
+    VertexFormat_Half2,
+    VertexFormat_Half4,
+    VertexFormat_Count,
+};
+ENUMOPS_PURE(VertexFormat);
+
+//semantic name: https://learn.microsoft.com/en-us/windows/win32/direct3dhlsl/dx-graphics-hlsl-semantics
+//semantic index: incrementing amount of that specific semantic name.  IE:
+// POSITION = 0
+// COLOR = 0,
+// POSITION = 1,
+// COLOR = 0,
+// POSITION = 2, etc
+enum VertexSemantic : u32 {
+    VertexSemantic_Binormal,
+    VertexSemantic_BlendIndices,
+    VertexSemantic_BlendWeight,
+    VertexSemantic_Color,       //Diffuse and specular color
+    VertexSemantic_Normal,      //Normal Vector
+    VertexSemantic_Position,    //Vertex Position
+    VertexSemantic_PositionT,   //Transformed Vertex Position
+    VertexSemantic_PSize,       //Point size
+    VertexSemantic_Tangent,
+    VertexSemantic_TexCoord,
+    VertexSemantic_Count,
+};
+ENUMOPS_PURE(VertexSemantic);
+
+enum VertexStep : u32 {
+        VertexStep_Vertex,
+        VertexStep_Instance,
+        VertexStep_Count,
+};
+ENUMOPS_PURE(VertexStep);
+
+struct VertexParams {
+    i32 vertex_index;
+    i32 buffer_index;
+    i32 offset;
+    VertexFormat format;
+    VertexSemantic semantic;
+    i32 semantic_index;
+    VertexStep vertex_step;
+    i32 vertex_step_rate;
+};
+
+VertexID CreateVertexLayout(ArrayView<VertexParams> vertex_layout);
+bool DeleteVertexLayout(VertexID id);
 
 
 
@@ -164,18 +256,18 @@ enum SamplerBorderColor : u32 {
 };
 ENUMOPS(SamplerBorderColor);
 
-enum SamplerCompareFunc : u32 {
-    SamplerCompareFunc_Never,
-    SamplerCompareFunc_Less,
-    SamplerCompareFunc_Equal,
-    SamplerCompareFunc_Less_equal,
-    SamplerCompareFunc_Greater,
-    SamplerCompareFunc_Not_equal,
-    SamplerCompareFunc_Greater_equal,
-    SamplerCompareFunc_Always,
-    SamplerCompareFunc_Count,
+enum GpuCompareFunc : u32 {
+    GpuCompareFunc_Never,
+    GpuCompareFunc_Less,
+    GpuCompareFunc_Equal,
+    GpuCompareFunc_Less_equal,
+    GpuCompareFunc_Greater,
+    GpuCompareFunc_Not_equal,
+    GpuCompareFunc_Greater_equal,
+    GpuCompareFunc_Always,
+    GpuCompareFunc_Count,
 };
-ENUMOPS(SamplerCompareFunc);
+ENUMOPS(GpuCompareFunc);
 
 struct SamplerParams {
     SamplerFilter min_filter = SamplerFilter_Linear;
@@ -187,7 +279,7 @@ struct SamplerParams {
     float min_lod = 0.0f;
     float max_lod = FLT_MAX;
     SamplerBorderColor border_color = SamplerBorderColor_TransparentBlack;
-    SamplerCompareFunc compare_func = SamplerCompareFunc_Always;
+    GpuCompareFunc compare_func = GpuCompareFunc_Always;
     uint32_t max_anisotropy = 1; //must be between 1 and 16
 };
 
@@ -207,14 +299,6 @@ void DeleteSampler(Sampler** buffer);
 //========================
 
 typedef u32 Index;
-
-enum VertexType : u32
-{
-    VertexType_2D,
-    VertexType_PNTC,
-    VertexType_Count,
-};
-ENUMOPS_PURE(VertexType);
 
 enum GpuBufferType : u32 {
     GpuBufferType_Invalid,
@@ -384,6 +468,7 @@ enum ShaderConstantType : u32 {
 };
 #define MAX_SHADER_CONSTANTS 16
 #define MAX_SHADER_TEXTURES 12
+#define MAX_COLOR_ATTACHMENTS 8
 
 //The memory MUST be 4 byte Aligned and/or follow STD140 normal gpu memory alignment
 struct ShaderConstant {
@@ -409,7 +494,7 @@ struct ShaderParams
     ShaderFile vertex;
     ShaderFile pixel;
     //ShaderFile compute;
-    VertexType vertex_type;
+    VertexID vertex_layout;
     ShaderConstantsContainer constants_container;
     ShaderTexture textures[MAX_SHADER_TEXTURES] = {};
 
@@ -430,16 +515,6 @@ struct ShaderParams
 
 struct Shader
 {
-    //struct InputElementDesc {
-    //    const char* semantic_name;
-    //    u32 semantic_index = 0;
-    //    TextureFormat Format;
-    //    u32 input_slot;
-    //    u32 AlignedByteOffset;
-    //    ShaderClass input_class;
-    //    u32 instance_step_rate;
-    //};
-
     //static const u32 vertex_component_max = 4;
 
     //~Shader();
@@ -454,12 +529,183 @@ struct Shader
 struct sg_shader_desc;
 bool CreateShader(Shader** shader, const char* name, const sg_shader_desc* shader_desc);
 bool CreateShader(Shader** shader, const char* name, const ShaderParams& params);
+void DeleteShader(Shader** shader);
+
+
+
+
+
+//========================
+//       Pipeline
+//========================
+
+enum StencilOp : u32 {
+    StencilOp_Keep,
+    StencilOp_Zero,
+    StencilOp_Replace,
+    StencilOp_IncrClamp,
+    StencilOp_DecrClamp,
+    StencilOp_Invert,
+    StencilOp_IncrWrap,
+    StencilOp_DecrWrap,
+    StencilOp_Count,
+};
+ENUMOPS_PURE(StencilOp);
+
+struct StencilState {
+    GpuCompareFunc compare = GpuCompareFunc_Always;
+    StencilOp fail_op = StencilOp_Keep;
+    StencilOp depth_fail_op;
+    StencilOp pass_op;
+};
+
+enum BlendFactor : u32 {
+    BlendFactor_Zero,
+    BlendFactor_One,
+    BlendFactor_SrcColor,
+    BlendFactor_OneMinusSrcColor,
+    BlendFactor_SrcAlpha,
+    BlendFactor_OneMinusSrcAlpha,
+    BlendFactor_DstColor,
+    BlendFactor_OneMinusDstColor,
+    BlendFactor_DstAlpha,
+    BlendFactor_OneMinusDstAlpha,
+    BlendFactor_SrcAlphaSaturated,
+    BlendFactor_BlendColor,
+    BlendFactor_OneMinusBlendColor,
+    BlendFactor_BlendAlpha,
+    BlendFactor_OneMinusBlendAlpha,
+    BlendFactor_Src1Color,
+    BlendFactor_OneMinusSrc1Color,
+    BlendFactor_Src1Alpha,
+    BlendFactor_OneMinusSrc1Alpha,
+    BlendFactor_Count,
+};
+ENUMOPS_PURE(BlendFactor);
+
+enum BlendOp : u32 {
+    BlendOp_Add,
+    BlendOp_Subtract,
+    BlendOp_ReverseSubtract,
+    BlendOp_Min,
+    BlendOp_Max,
+    BlendOp_Count,
+};
+ENUMOPS_PURE(BlendOp);
+
+enum PrimitiveType : u32 {
+    PrimitiveType_Points,
+    PrimitiveType_Lines,
+    PrimitiveType_LineStrip,
+    PrimitiveType_Triangles,
+    PrimitiveType_TriangleStrip,
+    PrimitveType_Count,
+};
+ENUMOPS_PURE(PrimitiveType);
+
+enum RenderCullMode : u32 {
+    RenderCullMode_None,
+    RenderCullMode_Front,
+    RenderCullMode_Back,
+    RenderCullMode_Count,
+};
+ENUMOPS_PURE(RenderCullMode);
+
+struct RenderTarget {
+    Texture* texture;
+
+    bool blend_enabled = true;
+    BlendFactor src_factor_rgb = BlendFactor_SrcAlpha;
+    BlendFactor dst_factor_rgb = BlendFactor_OneMinusSrcAlpha;
+    BlendOp op_rgb      = BlendOp_Add;
+    BlendFactor src_factor_alpha = BlendFactor_One;
+    BlendFactor dst_factor_alpha = BlendFactor_OneMinusSrcAlpha;
+    BlendOp op_alpha    = BlendOp_Add;
+};
+
+struct PipelineParams {
+    Shader* shader;
+    PrimitiveType primitive_type;
+    RenderCullMode cull_mode;
+    i32 msaa_sample_count = 1;
+
+    bool has_index_buffer;
+    bool front_ccw_winding_order = true;
+    bool alpha_to_coverage_enabled = false;
+
+    //Textures
+    RenderTarget targets[MAX_SHADER_TEXTURES] = {};
+    
+    //Depth
+    Texture* depth;
+    GpuCompareFunc depth_compare_func;
+    float depth_bias = 0.0f;
+    float depth_bias_slope_scale = 0.0f;
+    float depth_bias_clamp = 0.0f;
+
+    //Stencil
+    //example of how the stencil draw works:
+    // if (ref [COMPARE_FUNCTION] buffer_value) { draw pixel }
+    bool stencil_enabled = false;
+    StencilState stencil_front_face = { .depth_fail_op = StencilOp_Replace, .pass_op = StencilOp_Replace };
+    StencilState stencil_back_face  = { .depth_fail_op = StencilOp_Keep,    .pass_op = StencilOp_Keep    };
+    u8 stencil_read_mask    = 0;
+    u8 stencil_write_mask   = 0;
+    u8 stencil_ref_value    = 0;
+
+};
+
+struct Pipeline {
+    std::string name;
+    PipelineParams params;
+};
+
+bool CreatePipeline(Pipeline** pipeline, const char* name, const PipelineParams& params);
+void DeletePipeline(Pipeline** pipeline);
 
 
 
 
 
 
+
+//========================
+//       Draw Call
+//========================
+
+struct RenderColorAction {
+    bool clear_on_load = true;
+    Color clear_color = { };
+};
+struct RenderDepthAction
+{
+    bool clear_on_load = true;
+    float clear_value = 1.0f;
+};
+struct RenderStencilAction
+{
+    bool clear_on_load = true;
+    u8 clear_value = 0;
+};
+
+DATAID_TYPE(DrawID);
+struct DrawCallParams {
+    DrawID data_id;
+    Pipeline* pipeline;
+    GpuBinding* binding;
+
+    RenderColorAction color_actions[MAX_SHADER_TEXTURES] = {};
+    RenderDepthAction depth_action;
+    RenderStencilAction stencil_action;
+
+    Texture* color_textures[MAX_COLOR_ATTACHMENTS] = {};
+    Texture* depth_stencil_texture;
+    bool draw_to_backbuffer;
+    //sg_view resolves[SG_MAX_COLOR_ATTACHMENTS];
+};
+struct DrawCall {
+    std::string name;
+    DrawCallParams params;
 //struct CashDrawCall
 //{
 //    RenderType renderType;
@@ -491,3 +737,6 @@ bool CreateShader(Shader** shader, const char* name, const ShaderParams& params)
 //    ID3D11RenderTargetView* target_rtv = s_dx11.rtv_hdr;
 //    bool rendering_shadows;
 //};
+};
+//DrawCall& AllocDrawCall();
+bool CreateDrawCall(DrawCall** draw, const char* name, const DrawCallParams& params);
