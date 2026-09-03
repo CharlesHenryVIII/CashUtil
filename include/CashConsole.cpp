@@ -160,14 +160,13 @@ struct Console
 
     // STB:
     STB_TexteditState           te_state = {};
+
+    // Rendering
+    Pipeline*                   pipeline = nullptr;
 };
 static Console s_console;
 
 static std::string s_logo_string;
-static Console_FuncDrawRect*    s_ConsoleDrawRect    = nullptr;
-static Console_FuncDrawText*    s_ConsoleDrawText    = nullptr;
-static Console_FuncPushScissor* s_ConsolePushScissor = nullptr;
-static Console_FuncPopScissor*  s_ConsolePopScissor  = nullptr;
 static Vec2 s_font_size;
 
 
@@ -581,14 +580,90 @@ void ConsoleInit(const std::string& logo, ArrayView<const u8> console_font_data)
     };
     ArrayView<u8> font_bitmap_view = CreateArrayView((u8*)temp_font_bitmap, FONT_BITMAP_SIZE * FONT_BITMAP_SIZE);
     CreateTextureAndUpload(&font_texture, "Console Font", tp, font_bitmap_view);
-    //stbtt_GetBakedQuad();
+
+
+    {
+        PipelineParams params = {
+            .shader = gfx.blit2d_shader,
+            .primitive_type = PrimitiveType_Triangles,
+            .cull_mode = RenderCullMode_None,
+            .msaa_sample_count = 1,
+            .has_index_buffer = false,
+            .front_ccw_winding_order = true,
+            .alpha_to_coverage_enabled = false,
+
+            //.depth,
+            //.depth_compare_func,
+            //.depth_bias = 0.0f,
+            //.depth_bias_slope_scale = 0.0f,
+            //.depth_bias_clamp = 0.0f,
+
+            .stencil = gfx.common_stencil,
+        };
+
+        params.targets[0] = {
+            .texture = gfx.hdr_target,
+            .blend = gfx.blend_normal,
+        },
+        CreatePipeline(&s_console.pipeline, "Console Pipeline", params);
+    }
 
     ConsoleCheckForInit();
 }
 
 void DrawText(const char* string, Vec2 bot_left_p, Color color, float scale)
 {
-    //CashDrawCall& call = AllocDrawCall();
+    size_t len = SYS_STRNLEN(string, Megabytes(1));
+    for (size_t i = 0; i < len; i++)
+    {
+        const char& c = string[i];
+        stbtt_aligned_quad q;
+        stbtt_GetBakedQuad(s_char_data, FONT_BITMAP_SIZE, FONT_BITMAP_SIZE, c - 32, &bot_left_p.x, &bot_left_p.y, &q, 1);
+        const float uv_l; //left
+        const float uv_r; //right
+        const float uv_t; //top
+        const float uv_b; //bot
+        const SimpleRect tex_coords = {
+            .botLeft  = { q.s0, q.t1 },
+            .topRight = { q.s1, q.t0 },
+        };
+        const SimpleRect vert_coords = {
+            .botLeft  = { q.x0, q.y1 },
+            .topRight = { q.x1, q.y0 },
+        };
+
+
+        Vertex_2D verts[6] = {
+            { vert_coords.botLeft.x }, // Top Left
+            { }, // Bot Left
+            { }, // Top Right
+
+            { }, // Top Right
+            { }, // Bot Left
+            { }, // Bot Left
+        };
+    }
+         //stbtt_GetBakedQuad(cdata, 512,512, *text-32, &x,&y,&q,1);//1=opengl & d3d10+,0=d3d9
+
+    DrawCallParams draw = {};
+    draw.pipeline = s_console.pipeline;
+    draw.bindings = {};
+    draw.bindings.vertex_buffer = 
+    draw.bindings.read_textures.Add(font_texture);
+    draw.bindings.samplers.Add(gfx.common_sampler);
+
+    RenderColorAction color_actions[MAX_SHADER_TEXTURES] = {};
+    RenderDepthAction depth_action;
+    RenderStencilAction stencil_action;
+
+    ShaderUniformData uniforms[MAX_SHADER_UNIFORMS];
+
+    Texture* color_textures[MAX_COLOR_ATTACHMENTS] = {};
+    Texture* depth_stencil_texture;
+    bool draw_to_backbuffer;
+    //sg_view resolves[SG_MAX_COLOR_ATTACHMENTS];
+
+    CreateDrawCall("Console Draw Text", );
 }
 
 void DrawString(Vec2 location, Color color, const char* text, ...)

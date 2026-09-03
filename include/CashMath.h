@@ -263,7 +263,28 @@ struct Rect {
     {
         return topRight.y - botLeft.y;
     }
+};
 
+struct SimpleRect {
+    float left;
+    float right;
+    float top;
+    float bot;
+
+    float Width() const
+    {
+        return right - left;
+    }
+
+    float Height() const
+    {
+        return top - bot;
+    }
+
+    Vec2 TopLeft()  const { return { left,  top }; }
+    Vec2 BotLeft()  const { return { left,  bot }; }
+    Vec2 TopRight() const { return { right, top }; }
+    Vec2 BotRight() const { return { right, bot }; }
 };
 
 struct LineSegment {

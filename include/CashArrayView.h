@@ -177,7 +177,7 @@ template<typename T>
 }
 
 template<typename T>
-void CopyArrayView(const ArrayView<T> source, ArrayView<T>& dest)
+bool CopyArrayView(const ArrayView<T> source, ArrayView<T>& dest)
 {
     if (dest.Bytes() != source.Bytes())
     {
@@ -186,11 +186,12 @@ void CopyArrayView(const ArrayView<T> source, ArrayView<T>& dest)
         //DebugPrint(msg.c_str());
         //ASSERT_MSG(false, msg.c_str());
         FAIL;
-        return;
+        return false;
     }
     ASSERT(source.count == dest.count);//what do we do here if this isn't true?
     //dest.count = source.count;
     memmove((void*)dest.data, (void*)source.data, source.Bytes());
+    return true;
 }
 
 template<typename T>
