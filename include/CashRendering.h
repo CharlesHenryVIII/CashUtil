@@ -7,6 +7,12 @@
 #include "SDL3/SDL.h"
 
 #define CASH_GFX_MAX_MIPS 16
+#define MAX_SHADER_UNIFORMS 8
+#define MAX_SHADER_UNIFORM_MEMBERS 16
+#define MAX_SHADER_TEXTURES 12
+#define MAX_COLOR_ATTACHMENTS 8
+#define MAX_SHADER_READ_TEXTURES 32
+#define MAX_SHADER_SAMPLERS 12
 
 enum EmbededIcon : u32
 {
@@ -35,18 +41,6 @@ enum CashRenderBackend : u32 {
 };
 ENUMOPS_PURE(CashRenderBackend);
 
-struct Shader;
-struct Renderer
-{
-    SDL_Window* window;
-    SDL_Renderer* context;
-    Vec2I screen_size;
-    Vec2I window_size;
-    Shader* blit2d_shader = {};
-    CashRenderBackend backend;
-};
-extern Renderer gfx;
-
 bool CashRenderInit(ArrayView<const ArrayView<const u8>> app_icons);
 void CashRenderDestroy();
 void CashRender();
@@ -64,9 +58,6 @@ void CashImguiNewFrame(double delta_time);
 //========================
 
 DATAID_TYPE(VertexID)
-
-extern VertexID g_vertex_2d;
-extern VertexID g_vertex_pntc;
 
 enum VertexFormat : u32 {
     VertexFormat_Invalid,
@@ -378,18 +369,18 @@ void DeleteBuffer(GpuBuffer** buffer);
 //       GpuBinding
 //========================
 
-struct GpuBinding
-{
-    std::string name;
-
-    void BindVertex(const GpuBuffer* buffer, const i32 slot);
-    void BindIndex(const GpuBuffer* buffer);
-    void BindView(GpuBuffer* view);
-    void BindSampler(GpuBuffer* sampler);
-    void Apply();
-};
-bool CreateGpuBinding(GpuBinding** binding, const char* name);
-void DeleteBuffer(GpuBinding** binding);
+//struct GpuBinding
+//{
+//    std::string name;
+//
+//    void BindVertex(const GpuBuffer* buffer, const i32 slot);
+//    void BindIndex(const GpuBuffer* buffer);
+//    void BindView(GpuBuffer* view);
+//    void BindSampler(GpuBuffer* sampler);
+//    void Apply();
+//};
+//bool CreateGpuBinding(GpuBinding** binding, const char* name);
+//void DeleteBuffer(GpuBinding** binding);
 
 
 
@@ -466,9 +457,6 @@ enum ShaderConstantType : u32 {
     ShaderConstant_Mat4,
     ShaderConstant_Count,
 };
-#define MAX_SHADER_CONSTANTS 16
-#define MAX_SHADER_TEXTURES 12
-#define MAX_COLOR_ATTACHMENTS 8
 
 //The memory MUST be 4 byte Aligned and/or follow STD140 normal gpu memory alignment
 struct ShaderConstant {
@@ -480,7 +468,7 @@ struct ShaderConstant {
 struct ShaderConstantsContainer {
     u32 size = 0;
     u8 slot = 0;
-    ShaderConstant constants[MAX_SHADER_CONSTANTS];
+    ShaderConstant constants[MAX_SHADER_UNIFORM_MEMBERS];
 };
 
 struct ShaderTexture {
@@ -495,7 +483,7 @@ struct ShaderParams
     ShaderFile pixel;
     //ShaderFile compute;
     VertexID vertex_layout;
-    ShaderConstantsContainer constants_container;
+    ShaderConstantsContainer constants_container[MAX_SHADER_UNIFORMS];
     ShaderTexture textures[MAX_SHADER_TEXTURES] = {};
 
     //Path vertex_file;
@@ -528,7 +516,7 @@ struct Shader
 };
 struct sg_shader_desc;
 bool CreateShader(Shader** shader, const char* name, const sg_shader_desc* shader_desc);
-bool CreateShader(Shader** shader, const char* name, const ShaderParams& params);
+//bool CreateShader(Shader** shader, const char* name, const ShaderParams& params);
 void DeleteShader(Shader** shader);
 
 
@@ -551,13 +539,6 @@ enum StencilOp : u32 {
     StencilOp_Count,
 };
 ENUMOPS_PURE(StencilOp);
-
-struct StencilState {
-    GpuCompareFunc compare = GpuCompareFunc_Always;
-    StencilOp fail_op = StencilOp_Keep;
-    StencilOp depth_fail_op;
-    StencilOp pass_op;
-};
 
 enum BlendFactor : u32 {
     BlendFactor_Zero,
@@ -611,16 +592,35 @@ enum RenderCullMode : u32 {
 };
 ENUMOPS_PURE(RenderCullMode);
 
-struct RenderTarget {
-    Texture* texture;
-
-    bool blend_enabled = true;
+struct BlendState {
+    bool enabled = true;
     BlendFactor src_factor_rgb = BlendFactor_SrcAlpha;
     BlendFactor dst_factor_rgb = BlendFactor_OneMinusSrcAlpha;
     BlendOp op_rgb      = BlendOp_Add;
     BlendFactor src_factor_alpha = BlendFactor_One;
     BlendFactor dst_factor_alpha = BlendFactor_OneMinusSrcAlpha;
     BlendOp op_alpha    = BlendOp_Add;
+};
+
+struct RenderTarget {
+    Texture* texture;
+    BlendState blend;
+};
+
+struct StencilOpParams {
+    GpuCompareFunc compare = GpuCompareFunc_Always;
+    StencilOp fail_op = StencilOp_Keep;
+    StencilOp depth_fail_op;
+    StencilOp pass_op;
+};
+
+struct StencilState {
+    bool enabled = false;
+    StencilOpParams front_face = { .depth_fail_op = StencilOp_Replace, .pass_op = StencilOp_Replace };
+    StencilOpParams back_face  = { .depth_fail_op = StencilOp_Keep,    .pass_op = StencilOp_Keep    };
+    u8 read_mask    = 0;
+    u8 write_mask   = 0;
+    u8 ref_value    = 0;
 };
 
 struct PipelineParams {
@@ -646,13 +646,7 @@ struct PipelineParams {
     //Stencil
     //example of how the stencil draw works:
     // if (ref [COMPARE_FUNCTION] buffer_value) { draw pixel }
-    bool stencil_enabled = false;
-    StencilState stencil_front_face = { .depth_fail_op = StencilOp_Replace, .pass_op = StencilOp_Replace };
-    StencilState stencil_back_face  = { .depth_fail_op = StencilOp_Keep,    .pass_op = StencilOp_Keep    };
-    u8 stencil_read_mask    = 0;
-    u8 stencil_write_mask   = 0;
-    u8 stencil_ref_value    = 0;
-
+    StencilState stencil;
 };
 
 struct Pipeline {
@@ -687,16 +681,29 @@ struct RenderStencilAction
     bool clear_on_load = true;
     u8 clear_value = 0;
 };
+struct ShaderUniformData {
+    i32 slot;
+    ArrayView<u8> struct_data;
+};
+
+struct Bindings {
+    GpuBuffer* vertex_buffer = nullptr;
+    GpuBuffer* index_buffer = nullptr;
+    StaticArray<Texture*, MAX_SHADER_READ_TEXTURES> read_textures = {};
+    StaticArray<Sampler*, MAX_SHADER_SAMPLERS> samplers = {};
+};
 
 DATAID_TYPE(DrawID);
 struct DrawCallParams {
     DrawID data_id;
     Pipeline* pipeline;
-    GpuBinding* binding;
+    Bindings bindings = {};
 
     RenderColorAction color_actions[MAX_SHADER_TEXTURES] = {};
     RenderDepthAction depth_action;
     RenderStencilAction stencil_action;
+
+    ShaderUniformData uniforms[MAX_SHADER_UNIFORMS];
 
     Texture* color_textures[MAX_COLOR_ATTACHMENTS] = {};
     Texture* depth_stencil_texture;
@@ -739,4 +746,39 @@ struct DrawCall {
 //};
 };
 //DrawCall& AllocDrawCall();
-bool CreateDrawCall(DrawCall** draw, const char* name, const DrawCallParams& params);
+bool CreateDrawCall(const char* name, const DrawCallParams& params);
+
+
+
+
+
+
+
+//========================
+//       Renderer
+//========================
+
+struct Renderer
+{
+    SDL_Window* window;
+    SDL_Renderer* context;
+    Vec2I screen_size;
+    Vec2I window_size;
+    CashRenderBackend backend;
+
+    Shader* blit2d_shader = {};
+    BlendState blend_normal = {};
+    BlendState blend_no_color_write = {};
+
+    StencilState common_stencil = {};
+    Texture* hdr_target;
+
+	VertexID vertex_2d_layout = {};
+    VertexID vertex_pntc_layout = {};
+    GpuBuffer* vertex_2d_verts = {};
+
+    Sampler* common_anisotropic_sampler;
+    Sampler* common_sampler;
+};
+extern Renderer gfx;
+

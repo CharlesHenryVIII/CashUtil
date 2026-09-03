@@ -8,6 +8,9 @@ struct StaticArray
     u64 new_index = 0;
     T data[_capacity];
 
+    StaticArray() = default;
+    ~StaticArray() = default;
+
     [[nodiscard]] inline u64 Bytes() const
     {
         return sizeof(T) * count;

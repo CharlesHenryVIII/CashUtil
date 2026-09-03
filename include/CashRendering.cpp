@@ -37,18 +37,19 @@ struct VertexData {
 
 static struct GfxDevice {
     StaticIdArray<VertexData, VertexID, 256> vertex_layouts;
-    GpuBuffer* fullscreen_verts = {};
     sg_pass_action pass_action = {};
+    sg_pipeline final_render_pipeline = {};
+    sg_sampler final_render_sampler = {};
 } s_gfx;
 
 struct GfxTexture;
 struct GfxSampler;
 struct GfxGpuBuffer;
-struct GfxGpuBinding;
+//struct GfxGpuBinding;
 struct GfxShader;
 struct GfxPipeline;
 struct GfxDrawCall;
-
+void RenderDrawCalls();
 
 //========================
 //        Utility
@@ -60,7 +61,7 @@ inline [[nodiscard]] const _Private* AsGfx(const _Public* c) { return reinterpre
 
 _ASGFX_DEFINITION_COMMON(Texture);
 _ASGFX_DEFINITION_COMMON(GpuBuffer);
-_ASGFX_DEFINITION_COMMON(GpuBinding);
+//_ASGFX_DEFINITION_COMMON(GpuBinding);
 _ASGFX_DEFINITION_COMMON(Sampler);
 _ASGFX_DEFINITION_COMMON(Shader);
 _ASGFX_DEFINITION_COMMON(Pipeline);
@@ -230,46 +231,6 @@ bool RenderInitSokol()
     desc.allocator;     // optional memory allocation hooks.  Default is malloc and free
     desc.logger = { SgLogFunc, nullptr };
     sg_setup(&desc);
-
-    {// Vertex_2D
-        VertexParams params[] = {
-            { 0, 0, offsetof(Vertex_2D, position),  VertexFormat_Float2,    VertexSemantic_Position,    0, VertexStep_Vertex, 0 },
-            { 1, 0, offsetof(Vertex_2D, color),     VertexFormat_Float4,    VertexSemantic_Color,       0, VertexStep_Vertex, 0 },
-            { 2, 0, offsetof(Vertex_2D, uv),        VertexFormat_Float2,    VertexSemantic_TexCoord,    0, VertexStep_Vertex, 0 },
-        };
-        g_vertex_2d = CreateVertexLayout(CreateArrayView(params));
-    }
-    {// Vertex_PNTC
-        VertexParams params[] = {
-            { 0, 0, offsetof(Vertex_PNTC, position), VertexFormat_Float,    VertexSemantic_Position,    0, VertexStep_Vertex, 0 },
-            { 1, 0, offsetof(Vertex_PNTC, normal),   VertexFormat_Float3,   VertexSemantic_Normal,      0, VertexStep_Vertex, 0 },
-            { 2, 0, offsetof(Vertex_PNTC, uv),       VertexFormat_Float2,   VertexSemantic_TexCoord,    0, VertexStep_Vertex, 0 },
-            { 3, 0, offsetof(Vertex_PNTC, color),    VertexFormat_Float4,   VertexSemantic_Color,       0, VertexStep_Vertex, 0 },
-        };
-        g_vertex_pntc = CreateVertexLayout(CreateArrayView(params));
-    }
-
-    {
-        Vertex_2D verts[] = {
-            { { -1.0f, +1.0f }, White, { 0.0f, 1.0f }, },  // Top Left
-            { { -1.0f, -3.0f }, White, { 0.0f,-3.0f }, },  // Bot Left
-            { { +3.0f, +1.0f }, White, { 3.0f, 1.0f}, }   // Top Right
-        };
-
-        CreateGpuBuffer(&s_gfx.fullscreen_verts, "Fullscreen Triangle VB", GpuBufferType_Vertex, GpuBufferFlag_Immutable);
-        s_gfx.fullscreen_verts->Upload(verts);
-    }
-
-    s_gfx.pass_action.colors[0].load_action = SG_LOADACTION_CLEAR;
-    s_gfx.pass_action.colors[0].clear_value = ToSokol(background_color);
-
-    {
-        const sg_shader_desc* desc = Blit2D_shader_desc(ToSokol(gfx.backend));
-        CreateShader(&gfx.blit2d_shader, "Blit 2D Shader", desc);
-    }
-
-
-    return true;
 }
 void RenderDestroySokol()
 {
@@ -334,6 +295,144 @@ bool CashRenderInit(ArrayView<const ArrayView<const u8>> app_icons)
     }
     SDL_SetRenderVSync(gfx.context, 1);
 #endif
+
+    {// Vertex_2D
+        VertexParams params[] = {
+            { 0, 0, offsetof(Vertex_2D, position),  VertexFormat_Float2,    VertexSemantic_Position,    0, VertexStep_Vertex, 0 },
+            { 1, 0, offsetof(Vertex_2D, color),     VertexFormat_Float4,    VertexSemantic_Color,       0, VertexStep_Vertex, 0 },
+            { 2, 0, offsetof(Vertex_2D, uv),        VertexFormat_Float2,    VertexSemantic_TexCoord,    0, VertexStep_Vertex, 0 },
+        };
+        gfx.vertex_2d_layout = CreateVertexLayout(CreateArrayView(params));
+    }
+    {// Vertex_PNTC
+        VertexParams params[] = {
+            { 0, 0, offsetof(Vertex_PNTC, position), VertexFormat_Float,    VertexSemantic_Position,    0, VertexStep_Vertex, 0 },
+            { 1, 0, offsetof(Vertex_PNTC, normal),   VertexFormat_Float3,   VertexSemantic_Normal,      0, VertexStep_Vertex, 0 },
+            { 2, 0, offsetof(Vertex_PNTC, uv),       VertexFormat_Float2,   VertexSemantic_TexCoord,    0, VertexStep_Vertex, 0 },
+            { 3, 0, offsetof(Vertex_PNTC, color),    VertexFormat_Float4,   VertexSemantic_Color,       0, VertexStep_Vertex, 0 },
+        };
+        gfx.vertex_pntc_layout = CreateVertexLayout(CreateArrayView(params));
+    }
+
+    {
+        Vertex_2D verts[] = {
+            { { -1.0f, +1.0f }, White, { 0.0f, 1.0f }, },  // Top Left
+            { { -1.0f, -3.0f }, White, { 0.0f,-3.0f }, },  // Bot Left
+            { { +3.0f, +1.0f }, White, { 3.0f, 1.0f}, }   // Top Right
+        };
+
+        CreateGpuBuffer(&gfx.vertex_2d_verts, "Fullscreen Triangle VB", GpuBufferType_Vertex, GpuBufferFlag_Immutable);
+        gfx.vertex_2d_verts->Upload(verts);
+    }
+
+    s_gfx.pass_action.colors[0].load_action = SG_LOADACTION_CLEAR;
+    s_gfx.pass_action.colors[0].clear_value = ToSokol(background_color);
+
+    {
+        const sg_shader_desc* desc = Blit2D_shader_desc(ToSokol(gfx.backend));
+        CreateShader(&gfx.blit2d_shader, "Blit 2D Shader", desc);
+    }
+
+    gfx.blend_normal = {
+        .enabled = true,
+        .src_factor_rgb = BlendFactor_SrcAlpha,
+        .dst_factor_rgb = BlendFactor_OneMinusSrcAlpha,
+        .op_rgb      = BlendOp_Add,
+        .src_factor_alpha = BlendFactor_One,
+        .dst_factor_alpha = BlendFactor_OneMinusSrcAlpha,
+        .op_alpha    = BlendOp_Add,
+    };
+
+    gfx.blend_no_color_write = {
+        .enabled = false,
+        .src_factor_rgb = BlendFactor_SrcAlpha,
+        .dst_factor_rgb = BlendFactor_OneMinusSrcAlpha,
+        .op_rgb      = BlendOp_Add,
+        .src_factor_alpha = BlendFactor_One,
+        .dst_factor_alpha = BlendFactor_One,
+        .op_alpha    = BlendOp_Add,
+    };
+
+    gfx.common_stencil = {
+        .enabled = false,
+        .front_face = {
+            .compare = GpuCompareFunc_Always,
+            .fail_op        = StencilOp_Keep,
+            .depth_fail_op  = StencilOp_Keep,
+            .pass_op        = StencilOp_Replace,
+        },
+        .back_face = {
+            .compare = GpuCompareFunc_Always,
+            .fail_op        = StencilOp_Keep,
+            .depth_fail_op  = StencilOp_DecrClamp,
+            .pass_op        = StencilOp_Keep,
+        },
+        .read_mask    = 0,
+        .write_mask   = 0,
+        .ref_value    = 0,
+    };
+
+    {
+        TextureParams params = {
+            .size = Vec3I(gfx.window_size, 0),
+            .msaa_samples = 1,
+            .mip_count = 1,
+            .flags = TextureFlag_RenderTarget,
+            .dimension = TextureDimension_2D,
+            .format = TextureFormat_RGBA32_FLOAT,
+            .type = TextureType_Texture,
+        };
+        //how does this work with uploading "{}"
+        CreateTextureAndUpload(&gfx.hdr_target, "HDR Render Target", params, {});
+    }
+
+    {
+        sg_swapchain swapchain;
+        SysGetRenderSwapchain(&swapchain);
+        GfxShader* shader = AsGfx(gfx.blit2d_shader);
+        VertexData* vertex_layout = s_gfx.vertex_layouts.TryGet(shader->params.vertex_layout);
+        sg_pipeline_desc desc = {
+            .shader = shader->shader,
+            .layout = vertex_layout->state,
+            .color_count = 1,
+            .primitive_type = SG_PRIMITIVETYPE_TRIANGLES,
+            .index_type = SG_INDEXTYPE_NONE,
+            .cull_mode = SG_CULLMODE_NONE,
+            .face_winding = SG_FACEWINDING_CCW,
+            .sample_count = 1,
+            .label = "Resolve Backbuffer Pipeline",
+        };
+        desc.colors[0].pixel_format = swapchain.color_format;
+        desc.colors[0].write_mask   = SG_COLORMASK_RGBA;
+        desc.colors[0].blend        = ToSokol(gfx.blend_normal);
+        s_gfx.final_render_pipeline = sg_make_pipeline(&desc);
+    }
+    {
+        sg_sampler_desc desc = {
+            .min_filter = SG_FILTER_LINEAR,
+            .mag_filter = SG_FILTER_LINEAR,
+        };
+        s_gfx.final_render_sampler = sg_make_sampler(&desc);
+    }
+
+    {
+        SamplerParams params = {
+        .min_filter = SamplerFilter_Linear,
+        .mag_filter = SamplerFilter_Linear,
+        .mipmap_filter = SamplerFilter_Linear,
+        .wrap_u = SamplerWrap_Repeat,
+        .wrap_v = SamplerWrap_Repeat,
+        .wrap_w = SamplerWrap_Repeat,
+        .min_lod = 0.0f,
+        .max_lod = FLT_MAX,
+        .border_color = SamplerBorderColor_TransparentBlack,
+        .compare_func = GpuCompareFunc_Always,
+        .max_anisotropy = 16,
+        };
+        CreateSampler(&gfx.common_anisotropic_sampler, "Basic Anisotropic Sampler", params);
+        params.max_anisotropy = 1;
+        CreateSampler(&gfx.common_sampler, "Basic Sampler", params);
+    }
 
     SDL_SetWindowPosition(gfx.window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
 
@@ -459,22 +558,56 @@ void CashImguiNewFrame(double delta_time)
     }
 }
 
+//TODO(CSH): Clean this up
+// This needs to all be done under RenderDrawCalls
+// the imgui pass needs to be done in RenderDrawCalls to the gfx.hdr_target
 void CashRender()
 {
     ZoneScoped;
     {
-        Render();
+        RenderDrawCalls();
     }
 
+    sg_swapchain swapchain = {};
+    SysGetRenderSwapchain(&swapchain);
     {
         ZoneScopedN("ImGui Render");
         sg_pass pass = {};
         pass.action = s_gfx.pass_action;
-        SysGetRenderSwapchain(&pass.swapchain);
+        pass.swapchain = swapchain;
         sg_begin_pass(&pass);
         simgui_render();
         //ImGui::Render();
         sg_end_pass();
+    }
+
+    {
+        //Resolve hdr_target to backbuffer
+        sg_pass pass = {};
+
+        pass.action.colors[0].load_action = SG_LOADACTION_CLEAR;
+        pass.action.colors[0].store_action = SG_STOREACTION_STORE;
+        pass.action.colors[0].clear_value = ToSokol(background_color);
+
+        pass.attachments.colors[0] = AsGfx(gfx.hdr_target)->view;
+        pass.swapchain = swapchain;
+        pass.label = "Resolve HDR to Backbuffer";
+
+        sg_begin_pass(&pass);
+
+        sg_apply_pipeline(s_gfx.final_render_pipeline);
+        sg_bindings bindings = {};
+        bindings.vertex_buffers[0] = AsGfx(gfx.vertex_2d_verts)->buffer;
+        bindings.views[0] = AsGfx(gfx.hdr_target)->view;
+        bindings.samplers[0] = s_gfx.final_render_sampler;
+        sg_apply_bindings(&bindings);
+
+        static_assert(sizeof(ShaderConstants_2D) == sizeof(ShaderConstants_2D_t));
+        ShaderConstants_2D uniform = {};
+        uniform.orthographic = gb_mat4_identity();
+        const sg_range range = { &uniform, sizeof(ShaderConstants_2D) };
+        sg_apply_uniforms(UB_ShaderConstants_2D, &range);
+        sg_draw(0, 3, 1);
     }
 
     sg_commit();
@@ -495,9 +628,6 @@ void CashRenderDestroy()
 //========================
 //      Vertex Data
 //========================
-
-VertexID g_vertex_2d;
-VertexID g_vertex_pntc;
 
 constexpr sg_vertex_format ToSokol(VertexFormat d)
 {
@@ -970,69 +1100,69 @@ void GpuBuffer::Upload(const void* data, const size_t in_count, const u32 in_ele
 //       GpuBinding
 //========================
 
-struct GfxGpuBinding : GpuBinding
-{
-    sg_bindings binding;
-};
-
-bool CreateGpuBinding(GpuBinding** binding, const char* name)
-{
-    ZoneScoped;
-    GfxGpuBinding* bind = GfxGenericCreate<GpuBinding, GfxGpuBinding>(binding, name);
-    VALIDATE_V(bind, false);
-    (*binding) = AsGfx(bind);
-    return true;
-}
-
-void DeleteBuffer(GpuBinding** binding)
-{
-    ZoneScoped;
-    VALIDATE(binding);
-    GfxGpuBinding* bin = AsGfx(*binding);
-    DEBUG_LOG("GPU binding deleted '%s'\n", bin->name.c_str());
-    delete bin;
-}
-
-void GpuBinding::BindVertex(const GpuBuffer* buffer, const i32 slot)
-{
-    ZoneScoped;
-    VALIDATE(buffer && buffer->type == GpuBufferType_Vertex);
-    const GfxGpuBuffer* buf = AsGfx(buffer);
-    GfxGpuBinding* bin = AsGfx(this);
-
-    sg_buffer& b = bin->binding.vertex_buffers[slot];
-    if (b.id != 0)
-        DebugPrint("Warning: Overwriting binding(%s) slot(%i) for vertex buffer (%s)", bin->name.c_str(), slot, buf->name.c_str());
-    b = buf->buffer;
-}
-void GpuBinding::BindIndex(const GpuBuffer* buffer)
-{
-    ZoneScoped;
-    VALIDATE(buffer && buffer->type == GpuBufferType_Index);
-    const GfxGpuBuffer* buf = AsGfx(buffer);
-    GfxGpuBinding* bin = AsGfx(this);
-    sg_buffer& b = bin->binding.index_buffer;
-    if (b.id != 0)
-        DebugPrint("Warning: Overwriting binding (%s) for index buffer (%s)", bin->name.c_str(), buf->name.c_str());
-    b = buf->buffer;
-}
-void GpuBinding::BindView(GpuBuffer* view)
-{
-    ZoneScoped;
-    FAIL;
-}
-void GpuBinding::BindSampler(GpuBuffer* sampler)
-{
-    ZoneScoped;
-    FAIL;
-}
-
-void GpuBinding::Apply()
-{
-    ZoneScoped;
-    GfxGpuBinding* bin = AsGfx(this);
-    sg_apply_bindings(bin->binding);
-}
+//struct GfxGpuBinding : GpuBinding
+//{
+//    sg_bindings binding;
+//};
+//
+//bool CreateGpuBinding(GpuBinding** binding, const char* name)
+//{
+//    ZoneScoped;
+//    GfxGpuBinding* bind = GfxGenericCreate<GpuBinding, GfxGpuBinding>(binding, name);
+//    VALIDATE_V(bind, false);
+//    (*binding) = AsGfx(bind);
+//    return true;
+//}
+//
+//void DeleteBuffer(GpuBinding** binding)
+//{
+//    ZoneScoped;
+//    VALIDATE(binding);
+//    GfxGpuBinding* bin = AsGfx(*binding);
+//    DEBUG_LOG("GPU binding deleted '%s'\n", bin->name.c_str());
+//    delete bin;
+//}
+//
+//void GpuBinding::BindVertex(const GpuBuffer* buffer, const i32 slot)
+//{
+//    ZoneScoped;
+//    VALIDATE(buffer && buffer->type == GpuBufferType_Vertex);
+//    const GfxGpuBuffer* buf = AsGfx(buffer);
+//    GfxGpuBinding* bin = AsGfx(this);
+//
+//    sg_buffer& b = bin->binding.vertex_buffers[slot];
+//    if (b.id != 0)
+//        DebugPrint("Warning: Overwriting binding(%s) slot(%i) for vertex buffer (%s)", bin->name.c_str(), slot, buf->name.c_str());
+//    b = buf->buffer;
+//}
+//void GpuBinding::BindIndex(const GpuBuffer* buffer)
+//{
+//    ZoneScoped;
+//    VALIDATE(buffer && buffer->type == GpuBufferType_Index);
+//    const GfxGpuBuffer* buf = AsGfx(buffer);
+//    GfxGpuBinding* bin = AsGfx(this);
+//    sg_buffer& b = bin->binding.index_buffer;
+//    if (b.id != 0)
+//        DebugPrint("Warning: Overwriting binding (%s) for index buffer (%s)", bin->name.c_str(), buf->name.c_str());
+//    b = buf->buffer;
+//}
+//void GpuBinding::BindView(GpuBuffer* view)
+//{
+//    ZoneScoped;
+//    FAIL;
+//}
+//void GpuBinding::BindSampler(GpuBuffer* sampler)
+//{
+//    ZoneScoped;
+//    FAIL;
+//}
+//
+//void GpuBinding::Apply()
+//{
+//    ZoneScoped;
+//    GfxGpuBinding* bin = AsGfx(this);
+//    sg_apply_bindings(bin->binding);
+//}
 
 
 
@@ -1192,125 +1322,125 @@ bool CreateShader(Shader** shader, const char* name, const sg_shader_desc* shade
     return true;
 }
 
-bool CreateShader(Shader** shader, const char* name, const ShaderParams& params)
-{
-    // VALIDATE_V(params.vertex.text || params.pixel.text || params.compute.text, false);
-    VALIDATE_V(params.vertex.text || params.pixel.text, false);
-    VALIDATE_V(params.vertex_layout.e, false);
-
-    ZoneScoped;
-    GfxShader* s = GfxGenericCreate<Shader, GfxShader>(shader, name);
-    VALIDATE_V(s, false);
-    (*shader) = s;
-
-    sg_shader_desc& desc = s->shader_desc;
-
-    //Vertex Pixel Computer files/text
-    if (params.vertex.text)
-        desc.vertex_func = ToSokol(params.vertex, "Vertex_Main", CSH_TOSTRING(D3D11_SHADER_MODEL_VERTEX));
-    if (params.pixel.text)
-        desc.fragment_func = ToSokol(params.pixel, "Pixel_Main", CSH_TOSTRING(D3D11_SHADER_MODEL_PIXEL));
-    //if (params.compute.text)
-    //    desc.compute_func = ToSokol(params.compute, "Main", CSH_TOSTRING(D3D11_SHADER_MODEL_COMPUTE));
-
-    const VertexData* vd = s_gfx.vertex_layouts.TryGet(params.vertex_layout);
-    VALIDATE_V(vd, false);
-    for (i32 i = 0; i < vd->count; i++)
-    {
-        desc.attrs[i] = vd->attr[i];
-    }
-
-    //Shader Constants
-    const ShaderConstantsContainer& cs = params.constants_container;
-    const u8 slot = cs.slot;
-    desc.uniform_blocks[0].size = cs.size;
-    desc.uniform_blocks[0].hlsl_register_b_n =
-        desc.uniform_blocks[0].msl_buffer_n =
-        desc.uniform_blocks[0].wgsl_group0_binding_n =
-        desc.uniform_blocks[0].spirv_set0_binding_n = slot;
-    desc.uniform_blocks[0].layout = SG_UNIFORMLAYOUT_STD140;
-    for (i32 i = 0; i < SG_MAX_UNIFORMBLOCK_MEMBERS; i++)
-    {
-        if (cs.constants[i].type == ShaderConstant_Invalid)
-            break;
-        const ShaderConstant& c = cs.constants[i];
-        desc.uniform_blocks[0].glsl_uniforms[i].type = ToSokol(c.type);
-        desc.uniform_blocks[0].glsl_uniforms[i].array_count = c.array_count;
-        desc.uniform_blocks[0].glsl_uniforms[i].glsl_name = c.name;
-    }
-
-    //NOTE(CSH): We are halving the amount of textures we can bind for ease of programming
-    // So every shader will have the textures bound to BOTH vertex AND pixel shaders
-    //TODO(CSH): seperate these and create an easy api for it OR try Sokol-SHDC
-
-    //Shader Textures
-    for (i32 i = 0; i < MAX_SHADER_TEXTURES; i++)
-    {
-        const ShaderTexture& t = params.textures[i];
-        if (!t.texture)
-            continue;
-        const GfxTexture* gt = AsGfx(t.texture);
-        const GfxSampler* gs = AsGfx(t.sampler);
-        ASSERT(gt);
-        //TEXTURE
-        //  -> Vertex
-        const sg_image_sample_type image_sample_type = GetSokolSampleType(gt->parameters.format);
-        desc.views[i].texture.stage = SG_SHADERSTAGE_VERTEX;
-        desc.views[i].texture.image_type = gt->image_desc.type;
-        desc.views[i].texture.sample_type = image_sample_type;
-        desc.views[i].texture.multisampled = gt->parameters.msaa_samples > 1;
-        desc.views[i].texture.hlsl_register_t_n =
-            desc.views[i].texture.msl_texture_n =
-            desc.views[i].texture.wgsl_group1_binding_n =
-            desc.views[i].texture.spirv_set1_binding_n = slot;
-        desc.views[i].storage_buffer; //only used for compute
-        desc.views[i].storage_image; //only used for compute
-
-        //  -> Pixel
-        const i32 pixel_view_index_offset = SG_MAX_VIEW_BINDSLOTS >> 1;
-        const i32 pvi2 = i + pixel_view_index_offset;
-        desc.views[pvi2] = desc.views[i];
-        desc.views[pvi2].texture.stage = SG_SHADERSTAGE_FRAGMENT;
-
-
-        //SAMPLER
-        //  -> Vertex
-        desc.samplers[i].stage = SG_SHADERSTAGE_VERTEX;
-        const bool is_linear_filter = gs->params.min_filter == SamplerFilter_Linear &&
-            gs->params.mag_filter == SamplerFilter_Linear &&
-            gs->params.mipmap_filter == SamplerFilter_Linear;
-        desc.samplers[i].sampler_type = GetSokolSamplerType(image_sample_type, is_linear_filter, gs->params.compare_func);
-        desc.samplers[i].hlsl_register_s_n =
-            desc.samplers[i].msl_sampler_n =
-            desc.samplers[i].wgsl_group1_binding_n =
-            desc.samplers[i].spirv_set1_binding_n = slot;
-
-        //  -> Pixel
-        const i32 pixel_sampler_index_offset = SG_MAX_SAMPLER_BINDSLOTS >> 1;
-        const i32 psi2 = i + pixel_sampler_index_offset;
-        desc.samplers[psi2] = desc.samplers[i];
-        desc.samplers[psi2].stage = SG_SHADERSTAGE_FRAGMENT;
-
-
-        //TEXTURE + SAMPLER PAIRS
-        //  -> Vertex
-        desc.texture_sampler_pairs[i].stage = SG_SHADERSTAGE_VERTEX;
-        desc.texture_sampler_pairs[i].view_slot = slot; // must be SG_VIEWTYPE_TEXTURE
-        desc.texture_sampler_pairs[i].sampler_slot = slot;
-        desc.texture_sampler_pairs[i].glsl_name = t.name;          // glsl name binding required because of GL 4.1 and WebGL2
-
-        //  -> Pixel
-        const i32 pixel_st_index_offset = SG_MAX_TEXTURE_SAMPLER_PAIRS >> 1;
-        const i32 psti2 = i + pixel_st_index_offset;
-        desc.texture_sampler_pairs[psti2] = desc.texture_sampler_pairs[i];
-        desc.texture_sampler_pairs[psti2].stage = SG_SHADERSTAGE_FRAGMENT;
-    }
-    desc.mtl_threads_per_threadgroup; //Only used for compute shaders
-    desc.label = s->name.c_str();
-
-    s->shader = sg_make_shader(s->shader_desc);
-    return true;
-}
+//bool CreateShader(Shader** shader, const char* name, const ShaderParams& params)
+//{
+//    // VALIDATE_V(params.vertex.text || params.pixel.text || params.compute.text, false);
+//    VALIDATE_V(params.vertex.text || params.pixel.text, false);
+//    VALIDATE_V(params.vertex_layout.e, false);
+//
+//    ZoneScoped;
+//    GfxShader* s = GfxGenericCreate<Shader, GfxShader>(shader, name);
+//    VALIDATE_V(s, false);
+//    (*shader) = s;
+//
+//    sg_shader_desc& desc = s->shader_desc;
+//
+//    //Vertex Pixel Computer files/text
+//    if (params.vertex.text)
+//        desc.vertex_func = ToSokol(params.vertex, "Vertex_Main", CSH_TOSTRING(D3D11_SHADER_MODEL_VERTEX));
+//    if (params.pixel.text)
+//        desc.fragment_func = ToSokol(params.pixel, "Pixel_Main", CSH_TOSTRING(D3D11_SHADER_MODEL_PIXEL));
+//    //if (params.compute.text)
+//    //    desc.compute_func = ToSokol(params.compute, "Main", CSH_TOSTRING(D3D11_SHADER_MODEL_COMPUTE));
+//
+//    const VertexData* vd = s_gfx.vertex_layouts.TryGet(params.vertex_layout);
+//    VALIDATE_V(vd, false);
+//    for (i32 i = 0; i < vd->count; i++)
+//    {
+//        desc.attrs[i] = vd->attr[i];
+//    }
+//
+//    //Shader Constants
+//    const ShaderConstantsContainer& cs = params.constants_container;
+//    const u8 slot = cs.slot;
+//    desc.uniform_blocks[0].size = cs.size;
+//    desc.uniform_blocks[0].hlsl_register_b_n =
+//        desc.uniform_blocks[0].msl_buffer_n =
+//        desc.uniform_blocks[0].wgsl_group0_binding_n =
+//        desc.uniform_blocks[0].spirv_set0_binding_n = slot;
+//    desc.uniform_blocks[0].layout = SG_UNIFORMLAYOUT_STD140;
+//    for (i32 i = 0; i < SG_MAX_UNIFORMBLOCK_MEMBERS; i++)
+//    {
+//        if (cs.constants[i].type == ShaderConstant_Invalid)
+//            break;
+//        const ShaderConstant& c = cs.constants[i];
+//        desc.uniform_blocks[0].glsl_uniforms[i].type = ToSokol(c.type);
+//        desc.uniform_blocks[0].glsl_uniforms[i].array_count = c.array_count;
+//        desc.uniform_blocks[0].glsl_uniforms[i].glsl_name = c.name;
+//    }
+//
+//    //NOTE(CSH): We are halving the amount of textures we can bind for ease of programming
+//    // So every shader will have the textures bound to BOTH vertex AND pixel shaders
+//    //TODO(CSH): seperate these and create an easy api for it OR try Sokol-SHDC
+//
+//    //Shader Textures
+//    for (i32 i = 0; i < MAX_SHADER_TEXTURES; i++)
+//    {
+//        const ShaderTexture& t = params.textures[i];
+//        if (!t.texture)
+//            continue;
+//        const GfxTexture* gt = AsGfx(t.texture);
+//        const GfxSampler* gs = AsGfx(t.sampler);
+//        ASSERT(gt);
+//        //TEXTURE
+//        //  -> Vertex
+//        const sg_image_sample_type image_sample_type = GetSokolSampleType(gt->parameters.format);
+//        desc.views[i].texture.stage = SG_SHADERSTAGE_VERTEX;
+//        desc.views[i].texture.image_type = gt->image_desc.type;
+//        desc.views[i].texture.sample_type = image_sample_type;
+//        desc.views[i].texture.multisampled = gt->parameters.msaa_samples > 1;
+//        desc.views[i].texture.hlsl_register_t_n =
+//            desc.views[i].texture.msl_texture_n =
+//            desc.views[i].texture.wgsl_group1_binding_n =
+//            desc.views[i].texture.spirv_set1_binding_n = slot;
+//        desc.views[i].storage_buffer; //only used for compute
+//        desc.views[i].storage_image; //only used for compute
+//
+//        //  -> Pixel
+//        const i32 pixel_view_index_offset = SG_MAX_VIEW_BINDSLOTS >> 1;
+//        const i32 pvi2 = i + pixel_view_index_offset;
+//        desc.views[pvi2] = desc.views[i];
+//        desc.views[pvi2].texture.stage = SG_SHADERSTAGE_FRAGMENT;
+//
+//
+//        //SAMPLER
+//        //  -> Vertex
+//        desc.samplers[i].stage = SG_SHADERSTAGE_VERTEX;
+//        const bool is_linear_filter = gs->params.min_filter == SamplerFilter_Linear &&
+//            gs->params.mag_filter == SamplerFilter_Linear &&
+//            gs->params.mipmap_filter == SamplerFilter_Linear;
+//        desc.samplers[i].sampler_type = GetSokolSamplerType(image_sample_type, is_linear_filter, gs->params.compare_func);
+//        desc.samplers[i].hlsl_register_s_n =
+//            desc.samplers[i].msl_sampler_n =
+//            desc.samplers[i].wgsl_group1_binding_n =
+//            desc.samplers[i].spirv_set1_binding_n = slot;
+//
+//        //  -> Pixel
+//        const i32 pixel_sampler_index_offset = SG_MAX_SAMPLER_BINDSLOTS >> 1;
+//        const i32 psi2 = i + pixel_sampler_index_offset;
+//        desc.samplers[psi2] = desc.samplers[i];
+//        desc.samplers[psi2].stage = SG_SHADERSTAGE_FRAGMENT;
+//
+//
+//        //TEXTURE + SAMPLER PAIRS
+//        //  -> Vertex
+//        desc.texture_sampler_pairs[i].stage = SG_SHADERSTAGE_VERTEX;
+//        desc.texture_sampler_pairs[i].view_slot = slot; // must be SG_VIEWTYPE_TEXTURE
+//        desc.texture_sampler_pairs[i].sampler_slot = slot;
+//        desc.texture_sampler_pairs[i].glsl_name = t.name;          // glsl name binding required because of GL 4.1 and WebGL2
+//
+//        //  -> Pixel
+//        const i32 pixel_st_index_offset = SG_MAX_TEXTURE_SAMPLER_PAIRS >> 1;
+//        const i32 psti2 = i + pixel_st_index_offset;
+//        desc.texture_sampler_pairs[psti2] = desc.texture_sampler_pairs[i];
+//        desc.texture_sampler_pairs[psti2].stage = SG_SHADERSTAGE_FRAGMENT;
+//    }
+//    desc.mtl_threads_per_threadgroup; //Only used for compute shaders
+//    desc.label = s->name.c_str();
+//
+//    s->shader = sg_make_shader(s->shader_desc);
+//    return true;
+//}
 
 void DeleteShader(Shader** shader)
 {
@@ -1352,13 +1482,27 @@ sg_stencil_op ToSokol(const StencilOp a)
     }
 }
 
-sg_stencil_face_state ToSokol(const StencilState& a)
+sg_stencil_face_state ToSokol(const StencilOpParams& a)
 {
     sg_stencil_face_state r = {
         .compare = ToSokol(a.compare),
         .fail_op = ToSokol(a.fail_op),
         .depth_fail_op = ToSokol(a.depth_fail_op),
         .pass_op = ToSokol(a.pass_op),
+    };
+    return r;
+}
+
+sg_stencil_state ToSokol(const StencilState& a)
+{
+    sg_stencil_state r = {
+        .enabled = a.enabled,
+        .front = ToSokol(a.front_face),
+        .back = ToSokol(a.back_face),
+        .read_mask = a.read_mask,
+        .write_mask = a.write_mask,
+        .ref = a.ref_value,
+
     };
     return r;
 }
@@ -1431,6 +1575,19 @@ sg_cull_mode ToSokol(const RenderCullMode a)
     }
 }
 
+sg_blend_state ToSokol(const BlendState& a)
+{
+    sg_blend_state r = {
+        .enabled = a.enabled,
+        .src_factor_rgb = ToSokol(a.src_factor_rgb),
+        .dst_factor_rgb = ToSokol(a.dst_factor_rgb),
+        .op_rgb = ToSokol(a.op_rgb),
+        .src_factor_alpha = ToSokol(a.src_factor_alpha),
+        .dst_factor_alpha = ToSokol(a.dst_factor_alpha),
+        .op_alpha = ToSokol(a.op_alpha),
+    };
+}
+
 bool CreatePipeline(Pipeline** pipe, const char* name, const PipelineParams& params)
 {
     ZoneScoped;
@@ -1457,12 +1614,8 @@ bool CreatePipeline(Pipeline** pipe, const char* name, const PipelineParams& par
     desc.depth.bias_slope_scale = params.depth_bias_slope_scale;
     desc.depth.bias_clamp = params.depth_bias_clamp;
 
-    desc.stencil.enabled = params.stencil_enabled;
-    desc.stencil.front = ToSokol(params.stencil_front_face);
-    desc.stencil.back = ToSokol(params.stencil_back_face);
-    desc.stencil.read_mask = params.stencil_read_mask;
-    desc.stencil.write_mask = params.stencil_write_mask;
-    desc.stencil.ref = params.stencil_ref_value;
+    //stencil
+    desc.stencil = ToSokol(params.stencil);
 
     for (i32 i = 0; i < MAX_SHADER_TEXTURES; i++)
     {
@@ -1476,21 +1629,7 @@ bool CreatePipeline(Pipeline** pipe, const char* name, const PipelineParams& par
             sg_color_target_state& ts = desc.colors[i];
             ts.pixel_format = t->image_desc.pixel_format;
             ts.write_mask = SG_COLORMASK_RGBA;
-
-            if (target.blend_enabled)
-            {
-                ts.blend.enabled = target.blend_enabled;
-                ts.blend.src_factor_rgb     = ToSokol(target.src_factor_rgb);
-                ts.blend.dst_factor_rgb     = ToSokol(target.dst_factor_rgb);
-                ts.blend.op_rgb     = ToSokol(target.op_rgb);
-                ts.blend.src_factor_alpha   = ToSokol(target.src_factor_alpha);
-                ts.blend.dst_factor_alpha   = ToSokol(target.dst_factor_alpha);
-                ts.blend.op_alpha   = ToSokol(target.op_alpha);
-            }
-            else
-            {
-                ts.blend = {};
-            }
+            ts.blend = ToSokol(target.blend);
 
             desc.color_count = i + 1;
         }
@@ -1528,26 +1667,55 @@ void DeletePipeline(Pipeline** pipeline)
 //       Draw Call
 //========================
 
-IdArray<DrawCall, DrawID> s_draws;
 
 struct GfxDrawCall : DrawCall
 {
 };
 
-bool CreateDrawCall(DrawCall** drawcall, const char* name, const DrawCallParams& params)
+IdArray<GfxDrawCall, DrawID> s_draws;
+
+bool CreateDrawCall(const char* name, const DrawCallParams& params)
 {
     ZoneScoped;
-    GfxDrawCall* draw = GfxGenericCreate<DrawCall, GfxDrawCall>(drawcall, name);
+    GfxDrawCall* draw = s_draws.CreateNew();
     VALIDATE_V(draw, false);
     draw->name = name;
     draw->params = params;
+    bool result = true;
 
+    //TODO(CSH): Remove the constant delete and new allocations and create something more static
+    //Copy uniforms to the draw call
+    for (i32 i = 0; i < SG_MAX_UNIFORMBLOCK_BINDSLOTS; i++)
+    {
+        const ShaderUniformData& src = params.uniforms[i];
+        ShaderUniformData& dest = draw->params.uniforms[i];
 
+        if (src.struct_data.data && src.struct_data.count)
+        {
+            if (src.slot >= 0 && src.slot < MAX_SHADER_UNIFORMS)
+            {
+                dest.slot = src.slot;
+                u8* buffer = new u8[src.struct_data.Bytes()];
+                dest.struct_data.data = buffer;
+                dest.struct_data.count = src.struct_data.count;
+                CopyArrayView(src.struct_data, dest.struct_data);
+                if (src.struct_data.Bytes() != dest.struct_data.Bytes())
+                {
+                    DebugPrint("Failed to copy uniform data in slot %i", src.slot);
+                    result = false;
+                    FAIL;
+                }
+            }
+            else
+            {
+                DebugPrint("Trying to bind at invalid slot: %i", u.slot);
+                result = false;
+                FAIL;
+            }
+        }
+    }
 
-    buf->buffer = sg_make_pipeline();
-    *drawcall = draw;
-    return true;
-    
+    return result;
 }
 
 //DrawCall& AllocDrawCall()
@@ -1581,9 +1749,8 @@ void RenderDrawCalls()
     sg_swapchain swapchain = {};
     SysGetRenderSwapchain(&swapchain);
 
-    foreach(drawcall, s_draws)
+    foreach(draw, s_draws)
     {
-        const GfxDrawCall* draw = AsGfx(drawcall);
         const DrawCallParams& params = draw->params;
         const GfxPipeline* pipe = AsGfx(params.pipeline);
         const GfxGpuBinding* bind = AsGfx(params.binding);
@@ -1629,12 +1796,31 @@ void RenderDrawCalls()
         sg_apply_pipeline(pipe->pipe);
         sg_apply_bindings(bind->binding);
 
-        sg_apply_uniforms(SG_SHADERSTAGE_VERTEX, SLOT_my_matrices, &SG_RANGE(matrix_data));
+        //Constant Buffer / Uniforms
+        static_assert(MAX_SHADER_UNIFORMS == SG_MAX_UNIFORMBLOCK_BINDSLOTS);
+        for (i32 i = 0; i < MAX_SHADER_UNIFORMS; i++)
+        {
+            const ShaderUniformData& u = params.uniforms[i];
+            if (u.struct_data.data && u.struct_data.count)
+            {
+                ASSERT(u.slot >= 0 && u.slot < MAX_SHADER_UNIFORMS);
+                const sg_range range = { u.struct_data.data, u.struct_data.Bytes() };
+                sg_apply_uniforms(u.slot, &range);
+            }
+
+        }
 
         sg_draw(0, index_count, 1);
 
         sg_end_pass();
+
+        //Delete the copied uniforms
+        for (i32 i = 0; i < SG_MAX_UNIFORMBLOCK_BINDSLOTS; i++)
+        {
+            ShaderUniformData& u = draw->params.uniforms[i];
+            if (u.struct_data.data)
+                delete u.struct_data.data;
+        }
+
     }
-    
-    g_swapchain->Present(1, 0);
 }
