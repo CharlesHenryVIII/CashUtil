@@ -265,11 +265,41 @@ struct Rect {
     }
 };
 
-struct SimpleRect {
-    float left;
-    float right;
-    float top;
-    float bot;
+//template<typename T>
+//union gbVec4 {
+//    struct { T x, y, z, w; };
+//    struct { T r, g, b, a; };
+//    struct { gbVec2<T> xy, zw; };
+//    gbVec3<T> xyz;
+//    gbVec3<T> rgb;
+//    T e[4];
+//
+//    gbVec4() = default;
+//    gbVec4(T _a) : x(_a), y(_a), z(_a), w(_a) {};
+//    gbVec4(T _x, T _y, T _z, T _w) : x(_x), y(_y), z(_z), w(_w) {};
+//    gbVec4(gbVec2<T> _xy, T _z, T _w) : x(_xy.x), y(_xy.y), z(_z), w(_w) {};
+//    gbVec4(gbVec2<T> _xy, gbVec2<T> _zw) : x(_xy.x), y(_xy.y), z(_zw.z), w(_zw.w) {};
+//    gbVec4(gbVec3<T> _xyz, T _w) : x(_xyz.x), y(_xyz.y), z(_xyz.z), w(_w) {};
+//};
+
+union SimpleRect {
+    struct {
+        float left;
+        float bot;
+        float right;
+        float top;
+    };
+    struct {
+        Vec2 xy1;
+        Vec2 xy2;
+    };
+    struct {
+        Vec4 xyxy;
+    };
+    struct {
+        float e[4];
+    };
+
 
     float Width() const
     {
@@ -285,6 +315,9 @@ struct SimpleRect {
     Vec2 BotLeft()  const { return { left,  bot }; }
     Vec2 TopRight() const { return { right, top }; }
     Vec2 BotRight() const { return { right, bot }; }
+
+    Vec2& BotLeft()  { return xy1; }
+    Vec2& TopRight() { return xy2; }
 };
 
 struct LineSegment {

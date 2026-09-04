@@ -14,6 +14,13 @@
 #define MAX_SHADER_READ_TEXTURES 32
 #define MAX_SHADER_SAMPLERS 12
 
+#pragma pack(push, 1)
+struct ShaderConstants_Blit2D {
+    Mat4 orthographic;
+};
+#pragma pack(pop)
+
+
 enum EmbededIcon : u32
 {
     EmbededIcon_Invalid,
@@ -175,32 +182,30 @@ ENUMOPS(TextureFormat);
 
 enum TextureType : u32 {
     TextureType_Invalid,
-    TextureType_Texture,
-    TextureType_Depth,
+    TextureType_Texture,        //Texture
+    TextureFlag_ColorTarget,    //Texture can be rendered to
+    TextureFlag_DepthStencil,   //Texture is a depth buffer otherwise its for color
     TextureType_Count,
 };
 ENUMOPS(TextureType);
 
-enum TextureFlag : u32 {
-    TextureFlag_None = 0,
-    TextureFlag_RenderTarget = BIT(0), //Texture can be rendered to
-    TextureFlag_DepthStencil = BIT(1), //Texture is a depth buffer otherwise its for color
-    TextureFlag_Immutable    = BIT(3), //Texture Updated by CPU: Never
-    TextureFlag_Dynamic      = BIT(2), //Texture Updated by CPU: Infrequently
-    TextureFlag_StreamUpdate = BIT(4), //Texture Updated by CPU: Every Frame
-    TextureFlag_All          = BIT(5) - 1,
+enum TextureUpdateType : u32 {
+    TextureUpdateType_Immutable,    //Texture Updated by CPU: Never
+    TextureUpdateType_Dynamic,      //Texture Updated by CPU: Infrequently
+    TextureUpdateType_StreamUpdate, //Texture Updated by CPU: Every Frame
+    TextureUpdateType_Count,
 };
-ENUMOPS(TextureFlag);
+ENUMOPS(TextureUpdateType);
 
 struct TextureParams {
     Vec3I size; // .x = width, .y = height, .z = "Depth" for 3D texture / "Slices" for Array / 6 Slices for cubemap
     i32 msaa_samples = 1; //1 = No MSAA, 2 = 2x MSAA, 4 = 4x MSAA, etc
     i32 mip_count = 1;
 
-    TextureFlag flags = TextureFlag_None;
     TextureDimension dimension = TextureDimension_2D;
     TextureFormat format = TextureFormat_RGBA8_UINT;
     TextureType type = TextureType_Texture;
+    TextureUpdateType update = TextureUpdateType_Dynamic;
 };
 
 struct Texture {
@@ -356,6 +361,11 @@ struct GpuBuffer
     {
         Upload(&a, 1, sizeof(a));
     }
+    template<typename T, u64 size>
+    inline void Upload(const StaticArray<T, size>& a)
+    {
+        Upload(a.begin(), a.used, sizeof(T));
+    }
 };
 
 bool CreateGpuBuffer(GpuBuffer** buffer, const char* name, GpuBufferType type, GpuBufferFlag flags);
@@ -482,7 +492,7 @@ struct ShaderParams
     ShaderFile vertex;
     ShaderFile pixel;
     //ShaderFile compute;
-    VertexID vertex_layout;
+    VertexID vertex_layout = {};
     ShaderConstantsContainer constants_container[MAX_SHADER_UNIFORMS];
     ShaderTexture textures[MAX_SHADER_TEXTURES] = {};
 
@@ -515,7 +525,7 @@ struct Shader
     //bool CompileShader(std::string text, const std::string& file_name, ShaderType shader_type);
 };
 struct sg_shader_desc;
-bool CreateShader(Shader** shader, const char* name, const sg_shader_desc* shader_desc);
+bool CreateShader(Shader** shader, const char* name, const sg_shader_desc* shader_desc, VertexID vertex_layout);
 //bool CreateShader(Shader** shader, const char* name, const ShaderParams& params);
 void DeleteShader(Shader** shader);
 
@@ -695,9 +705,11 @@ struct Bindings {
 
 DATAID_TYPE(DrawID);
 struct DrawCallParams {
-    DrawID data_id;
     Pipeline* pipeline;
     Bindings bindings = {};
+    i32 vertex_index = 0;
+    i32 vertex_length = 0;
+    SimpleRect scissor = {};
 
     RenderColorAction color_actions[MAX_SHADER_TEXTURES] = {};
     RenderDepthAction depth_action;
@@ -705,12 +717,13 @@ struct DrawCallParams {
 
     ShaderUniformData uniforms[MAX_SHADER_UNIFORMS];
 
-    Texture* color_textures[MAX_COLOR_ATTACHMENTS] = {};
-    Texture* depth_stencil_texture;
+    Texture* color_targets[MAX_COLOR_ATTACHMENTS] = {};
+    Texture* depth_stencil_target;
     bool draw_to_backbuffer;
     //sg_view resolves[SG_MAX_COLOR_ATTACHMENTS];
 };
 struct DrawCall {
+    DrawID data_id;
     std::string name;
     DrawCallParams params;
 //struct CashDrawCall
@@ -770,8 +783,9 @@ struct Renderer
     BlendState blend_normal = {};
     BlendState blend_no_color_write = {};
 
-    StencilState common_stencil = {};
+    StencilState stencil_2d = {};
     Texture* hdr_target;
+    Texture* plain_texture; //1px x 1px White
 
 	VertexID vertex_2d_layout = {};
     VertexID vertex_pntc_layout = {};

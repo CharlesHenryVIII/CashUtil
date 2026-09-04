@@ -17,7 +17,7 @@ out vec2 pixel_uv;
 
 void main()
 {
-    gl_Position = orthographic * vec4(pos, 0.0, 1.0);
+    gl_Position = vec4(pos, 0.0, 1.0) * orthographic;
     pixel_col = col;
     pixel_uv = uv;
 }
