@@ -1681,7 +1681,7 @@ bool CashRenderInit(ArrayView<const ArrayView<const u8>> app_icons)
             .msaa_samples = 1,
             .mip_count = 1,
             .dimension = TextureDimension_2D,
-            .format = TextureFormat_RGBA32_FLOAT,
+            .format = TextureFormat_RG11B10_FLOAT,
             .type = TextureFlag_ColorTarget,
             .update = TextureUpdateType_Immutable,
         };
@@ -1746,7 +1746,8 @@ bool CashRenderInit(ArrayView<const ArrayView<const u8>> app_icons)
             .msaa_samples = 1,
             .mip_count = 1,
             .dimension = TextureDimension_2D,
-            .format = TextureFormat_RGBA8_UINT,
+            .format = TextureFormat_RGBA8_UNORM_SRGB,
+
             .type = TextureType_Texture,
             .update = TextureUpdateType_Immutable,
         };
