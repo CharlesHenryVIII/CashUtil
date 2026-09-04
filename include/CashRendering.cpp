@@ -48,7 +48,7 @@ struct GfxGpuBuffer;
 //struct GfxGpuBinding;
 struct GfxShader;
 struct GfxPipeline;
-struct GfxDrawCall;
+//struct GfxDrawCall;
 void RenderDrawCalls();
 
 //========================
@@ -65,7 +65,7 @@ _ASGFX_DEFINITION_COMMON(GpuBuffer);
 _ASGFX_DEFINITION_COMMON(Sampler);
 _ASGFX_DEFINITION_COMMON(Shader);
 _ASGFX_DEFINITION_COMMON(Pipeline);
-_ASGFX_DEFINITION_COMMON(DrawCall);
+//_ASGFX_DEFINITION_COMMON(DrawCall);
 
 template <typename Public, typename Private>
 Private* GfxGenericCreate(Public** object, const char* name)
@@ -144,12 +144,6 @@ void SgLogFunc(
     DebugPrint("%s", log.c_str());
 }
 
-#pragma pack(push, 1)
-struct ShaderConstants_2D {
-    Mat4 orthographic;
-};
-#pragma pack(pop)
-
 
 
 //static const char* vertex_shader_text_2d = R"TERM(
@@ -204,420 +198,6 @@ struct ShaderConstants_2D {
 //}
 //)TERM";
 
-bool RenderInitSokol()
-{
-    SysRenderInitDesc sys_desc = {};
-    sys_desc.size = gfx.window_size;
-    sys_desc.sample_count = 1;
-    sys_desc.no_depth_buffer = true;
-
-#ifdef WIN32
-    gfx.backend = sys_desc.backend = CashRenderBackend_D3D11;
-#elif defined(LINUX)
-    sys_desc.backend = CashRenderBackend_Vulkan;
-#elif defined(MACOS)
-    sys_desc.backend = CashRenderBackend_Metal_Macos;
-#else
-    sys_desc.backend = CashRenderBackend_Glcore;
-#error what is this OS supposed to support?
-#endif
-
-    bool result = SysRenderInit(&sys_desc);
-    sg_desc desc = { };
-    //desc.environment.defaults.color_format = SG_PIXELFORMAT_RGBA8;
-    //desc.environment.defaults.depth_format = SG_PIXELFORMAT_DEPTH_STENCIL;
-    SysGetRenderEnvironment(&desc.environment);
-    //TODO(CSH): override allocator with custom frame temp memory?
-    desc.allocator;     // optional memory allocation hooks.  Default is malloc and free
-    desc.logger = { SgLogFunc, nullptr };
-    sg_setup(&desc);
-}
-void RenderDestroySokol()
-{
-    sg_shutdown();
-    SysRenderDestroy();
-}
-
-
-bool CashRenderInit(ArrayView<const ArrayView<const u8>> app_icons)
-{
-    SDL_Init(SDL_INIT_VIDEO);
-
-    {
-        const float normalRatio = 16.0f / 9.0f;
-        SDL_Rect screen_size = {};
-        SDL_GetDisplayBounds(0, &screen_size);
-        gfx.screen_size = { screen_size.w, screen_size.h };
-#if 1
-        //gfx.window_size = { 1280, 720 };
-        gfx.window_size = { 1024, 600 };
-        gfx.window_size = gfx.window_size * SysMonitorScale();
-#else
-        float screen_scale = 1.5;
-        if (displayRatio < normalRatio)
-        {
-            window_size.x = i32(float(mode->width) / screen_scale);
-            window_size.y = i32(float(mode->width) / normalRatio);
-        }
-        else
-        {
-            window_size.y = i32(mode->height / screen_scale);
-            window_size.x = i32(normalRatio * window_size.y);
-        }
-#endif
-    }
-
-
-    u32 window_flags = SDL_WINDOW_HIDDEN | SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY;
-    gfx.window = SDL_CreateWindow("Quool Tool", gfx.window_size.x, gfx.window_size.y, window_flags);
-    if (!gfx.window)
-    {
-        DebugPrint("Failed to create window");
-        FAIL;
-        return false;
-    }
-
-#if 1
-    RenderInitSokol();
-#else
-#if defined(WIN32)
-    SDL_SetHint(SDL_HINT_RENDER_DRIVER, "direct3d11");
-#elif defined(LINUX)
-    SDL_SetHint(SDL_HINT_RENDER_DRIVER, "vulkan");
-#else
-    #error "Unsupported platform for render driver configuration!"
-#endif
-    gfx.context = SDL_CreateRenderer(gfx.window, nullptr);
-    if (!gfx.context)
-    {
-        DebugPrint("Error: SDL_CreateRenderer(): %s\n", SDL_GetError());
-        return false;
-    }
-    SDL_SetRenderVSync(gfx.context, 1);
-#endif
-
-    {// Vertex_2D
-        VertexParams params[] = {
-            { 0, 0, offsetof(Vertex_2D, position),  VertexFormat_Float2,    VertexSemantic_Position,    0, VertexStep_Vertex, 0 },
-            { 1, 0, offsetof(Vertex_2D, color),     VertexFormat_Float4,    VertexSemantic_Color,       0, VertexStep_Vertex, 0 },
-            { 2, 0, offsetof(Vertex_2D, uv),        VertexFormat_Float2,    VertexSemantic_TexCoord,    0, VertexStep_Vertex, 0 },
-        };
-        gfx.vertex_2d_layout = CreateVertexLayout(CreateArrayView(params));
-    }
-    {// Vertex_PNTC
-        VertexParams params[] = {
-            { 0, 0, offsetof(Vertex_PNTC, position), VertexFormat_Float,    VertexSemantic_Position,    0, VertexStep_Vertex, 0 },
-            { 1, 0, offsetof(Vertex_PNTC, normal),   VertexFormat_Float3,   VertexSemantic_Normal,      0, VertexStep_Vertex, 0 },
-            { 2, 0, offsetof(Vertex_PNTC, uv),       VertexFormat_Float2,   VertexSemantic_TexCoord,    0, VertexStep_Vertex, 0 },
-            { 3, 0, offsetof(Vertex_PNTC, color),    VertexFormat_Float4,   VertexSemantic_Color,       0, VertexStep_Vertex, 0 },
-        };
-        gfx.vertex_pntc_layout = CreateVertexLayout(CreateArrayView(params));
-    }
-
-    {
-        Vertex_2D verts[] = {
-            { { -1.0f, +1.0f }, White, { 0.0f, 1.0f }, },  // Top Left
-            { { -1.0f, -3.0f }, White, { 0.0f,-3.0f }, },  // Bot Left
-            { { +3.0f, +1.0f }, White, { 3.0f, 1.0f}, }   // Top Right
-        };
-
-        CreateGpuBuffer(&gfx.vertex_2d_verts, "Fullscreen Triangle VB", GpuBufferType_Vertex, GpuBufferFlag_Immutable);
-        gfx.vertex_2d_verts->Upload(verts);
-    }
-
-    s_gfx.pass_action.colors[0].load_action = SG_LOADACTION_CLEAR;
-    s_gfx.pass_action.colors[0].clear_value = ToSokol(background_color);
-
-    {
-        const sg_shader_desc* desc = Blit2D_shader_desc(ToSokol(gfx.backend));
-        CreateShader(&gfx.blit2d_shader, "Blit 2D Shader", desc);
-    }
-
-    gfx.blend_normal = {
-        .enabled = true,
-        .src_factor_rgb = BlendFactor_SrcAlpha,
-        .dst_factor_rgb = BlendFactor_OneMinusSrcAlpha,
-        .op_rgb      = BlendOp_Add,
-        .src_factor_alpha = BlendFactor_One,
-        .dst_factor_alpha = BlendFactor_OneMinusSrcAlpha,
-        .op_alpha    = BlendOp_Add,
-    };
-
-    gfx.blend_no_color_write = {
-        .enabled = false,
-        .src_factor_rgb = BlendFactor_SrcAlpha,
-        .dst_factor_rgb = BlendFactor_OneMinusSrcAlpha,
-        .op_rgb      = BlendOp_Add,
-        .src_factor_alpha = BlendFactor_One,
-        .dst_factor_alpha = BlendFactor_One,
-        .op_alpha    = BlendOp_Add,
-    };
-
-    gfx.common_stencil = {
-        .enabled = false,
-        .front_face = {
-            .compare = GpuCompareFunc_Always,
-            .fail_op        = StencilOp_Keep,
-            .depth_fail_op  = StencilOp_Keep,
-            .pass_op        = StencilOp_Replace,
-        },
-        .back_face = {
-            .compare = GpuCompareFunc_Always,
-            .fail_op        = StencilOp_Keep,
-            .depth_fail_op  = StencilOp_DecrClamp,
-            .pass_op        = StencilOp_Keep,
-        },
-        .read_mask    = 0,
-        .write_mask   = 0,
-        .ref_value    = 0,
-    };
-
-    {
-        TextureParams params = {
-            .size = Vec3I(gfx.window_size, 0),
-            .msaa_samples = 1,
-            .mip_count = 1,
-            .flags = TextureFlag_RenderTarget,
-            .dimension = TextureDimension_2D,
-            .format = TextureFormat_RGBA32_FLOAT,
-            .type = TextureType_Texture,
-        };
-        //how does this work with uploading "{}"
-        CreateTextureAndUpload(&gfx.hdr_target, "HDR Render Target", params, {});
-    }
-
-    {
-        sg_swapchain swapchain;
-        SysGetRenderSwapchain(&swapchain);
-        GfxShader* shader = AsGfx(gfx.blit2d_shader);
-        VertexData* vertex_layout = s_gfx.vertex_layouts.TryGet(shader->params.vertex_layout);
-        sg_pipeline_desc desc = {
-            .shader = shader->shader,
-            .layout = vertex_layout->state,
-            .color_count = 1,
-            .primitive_type = SG_PRIMITIVETYPE_TRIANGLES,
-            .index_type = SG_INDEXTYPE_NONE,
-            .cull_mode = SG_CULLMODE_NONE,
-            .face_winding = SG_FACEWINDING_CCW,
-            .sample_count = 1,
-            .label = "Resolve Backbuffer Pipeline",
-        };
-        desc.colors[0].pixel_format = swapchain.color_format;
-        desc.colors[0].write_mask   = SG_COLORMASK_RGBA;
-        desc.colors[0].blend        = ToSokol(gfx.blend_normal);
-        s_gfx.final_render_pipeline = sg_make_pipeline(&desc);
-    }
-    {
-        sg_sampler_desc desc = {
-            .min_filter = SG_FILTER_LINEAR,
-            .mag_filter = SG_FILTER_LINEAR,
-        };
-        s_gfx.final_render_sampler = sg_make_sampler(&desc);
-    }
-
-    {
-        SamplerParams params = {
-        .min_filter = SamplerFilter_Linear,
-        .mag_filter = SamplerFilter_Linear,
-        .mipmap_filter = SamplerFilter_Linear,
-        .wrap_u = SamplerWrap_Repeat,
-        .wrap_v = SamplerWrap_Repeat,
-        .wrap_w = SamplerWrap_Repeat,
-        .min_lod = 0.0f,
-        .max_lod = FLT_MAX,
-        .border_color = SamplerBorderColor_TransparentBlack,
-        .compare_func = GpuCompareFunc_Always,
-        .max_anisotropy = 16,
-        };
-        CreateSampler(&gfx.common_anisotropic_sampler, "Basic Anisotropic Sampler", params);
-        params.max_anisotropy = 1;
-        CreateSampler(&gfx.common_sampler, "Basic Sampler", params);
-    }
-
-    SDL_SetWindowPosition(gfx.window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
-
-    SDL_Surface* icons = nullptr;
-    std::vector<void*> pixels_to_free;
-    std::vector<SDL_Surface*> surfaces_to_free;
-    const i32 min = Min((i32)EmbededIcon_Count, (i32)app_icons.size());
-    for (i32 i = EmbededIcon_Invalid + 1; i < min; i++)
-    {
-        ArrayView<const u8> icon = app_icons[i];
-        if (!icon.data)
-        {
-            DebugPrint("Error: failed to get data from resource: %i", i);
-            FAIL;
-            continue;
-        }
-
-        // ---- Decode PNG from memory ----
-        Vec2I image_size;
-        stbi_uc* pixels = stbi_load_from_memory(
-            (const stbi_uc*)icon.data,
-            (i32)icon.Bytes(),
-            &image_size.x,
-            &image_size.y,
-            nullptr,
-            4
-        );
-        if (!pixels)
-        {
-            DebugPrint("Warning: Failed to get pixels from memory icon_id: %i", i);
-            FAIL;
-            continue;
-        }
-
-
-        //NOTE(CSH): Not sure why the pixels are inverted should be loaded as RGBA8888 but SDL_CreateSurface is seeing them as BGRA8888
-        if (i == EmbededIcon_FullSize)
-        {
-            icons = SDL_CreateSurfaceFrom(image_size.x, image_size.y, SDL_PIXELFORMAT_BGRA8888, pixels, sizeof(u32) * image_size.x);
-        }
-        else
-        {
-            SDL_Surface* temp_icon = SDL_CreateSurfaceFrom(image_size.x, image_size.y, SDL_PIXELFORMAT_BGRA8888, pixels, sizeof(u32) * image_size.x);
-            SDL_AddSurfaceAlternateImage(icons, temp_icon);
-            surfaces_to_free.push_back(temp_icon);
-        }
-        pixels_to_free.push_back(pixels);
-    }
-
-    SDL_SetWindowIcon(gfx.window, icons);
-
-    for (auto& p : surfaces_to_free)
-        SDL_DestroySurface(p);
-    for (auto& p : pixels_to_free)
-        stbi_image_free(p);
-    SDL_DestroySurface(icons);
-
-
-    SDL_ShowWindow(gfx.window);
-    return true;
-}
-
-void CashImguiInit()
-{
-    IMGUI_CHECKVERSION();
-    ImGui::CreateContext();
-    ImGuiIO& io = ImGui::GetIO(); (void)io;
-    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
-    io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
-    io.IniFilename = NULL;
-
-    // Setup Dear ImGui style
-    ImGui::StyleColorsDark();
-
-    // Setup scaling
-    float main_scale = SysMonitorScale();
-    ImGuiStyle& style = ImGui::GetStyle();
-    style.ScaleAllSizes(main_scale);        // Bake a fixed style scale. (until we have a solution for dynamic style scaling, changing this requires resetting Style + calling this again)
-    style.FontScaleDpi = main_scale;        // Set initial font scale. (using io.ConfigDpiScaleFonts=true makes this unnecessary. We leave both here for documentation purpose)
-
-    simgui_desc_t desc = {};
-    desc.max_vertices;// default: 65536
-    desc.color_format;
-    desc.depth_format;
-    desc.sample_count;
-    desc.ini_filename;
-    desc.no_default_font = true;
-    desc.disable_paste_override;
-    desc.disable_set_mouse_cursor;
-    desc.disable_windows_resize_from_edges;
-    desc.write_alpha_channel;
-    desc.allocator;
-    desc.logger = { SgLogFunc, nullptr };
-
-    ImGui_ImplSDL3_InitForOther(gfx.window);
-    simgui_setup(&desc);
-}
-void CashImguiDestroy()
-{
-    ImGui_ImplSDL3_Shutdown();
-    simgui_shutdown();
-}
-
-void CashImguiNewFrame(double delta_time)
-{
-    ZoneScoped;
-    {
-        ZoneScopedN("ImGui SDL Renderer3 New Frame");
-        simgui_frame_desc_t desc = {};
-        desc.width = gfx.window_size.x;
-        desc.height = gfx.window_size.y;
-        desc.delta_time = delta_time;
-        desc.dpi_scale = 1.0f; //unsure
-        simgui_new_frame(&desc);
-    }
-    {
-        ZoneScopedN("ImGui SDL3 New Frame");
-        //ImGui_ImplSDL3_NewFrame();
-    }
-    {
-        ZoneScopedN("ImGui New Frame");
-        //ImGui::NewFrame();
-    }
-}
-
-//TODO(CSH): Clean this up
-// This needs to all be done under RenderDrawCalls
-// the imgui pass needs to be done in RenderDrawCalls to the gfx.hdr_target
-void CashRender()
-{
-    ZoneScoped;
-    {
-        RenderDrawCalls();
-    }
-
-    sg_swapchain swapchain = {};
-    SysGetRenderSwapchain(&swapchain);
-    {
-        ZoneScopedN("ImGui Render");
-        sg_pass pass = {};
-        pass.action = s_gfx.pass_action;
-        pass.swapchain = swapchain;
-        sg_begin_pass(&pass);
-        simgui_render();
-        //ImGui::Render();
-        sg_end_pass();
-    }
-
-    {
-        //Resolve hdr_target to backbuffer
-        sg_pass pass = {};
-
-        pass.action.colors[0].load_action = SG_LOADACTION_CLEAR;
-        pass.action.colors[0].store_action = SG_STOREACTION_STORE;
-        pass.action.colors[0].clear_value = ToSokol(background_color);
-
-        pass.attachments.colors[0] = AsGfx(gfx.hdr_target)->view;
-        pass.swapchain = swapchain;
-        pass.label = "Resolve HDR to Backbuffer";
-
-        sg_begin_pass(&pass);
-
-        sg_apply_pipeline(s_gfx.final_render_pipeline);
-        sg_bindings bindings = {};
-        bindings.vertex_buffers[0] = AsGfx(gfx.vertex_2d_verts)->buffer;
-        bindings.views[0] = AsGfx(gfx.hdr_target)->view;
-        bindings.samplers[0] = s_gfx.final_render_sampler;
-        sg_apply_bindings(&bindings);
-
-        static_assert(sizeof(ShaderConstants_2D) == sizeof(ShaderConstants_2D_t));
-        ShaderConstants_2D uniform = {};
-        uniform.orthographic = gb_mat4_identity();
-        const sg_range range = { &uniform, sizeof(ShaderConstants_2D) };
-        sg_apply_uniforms(UB_ShaderConstants_2D, &range);
-        sg_draw(0, 3, 1);
-    }
-
-    sg_commit();
-    SysRenderPresent();
-}
-
-void CashRenderDestroy()
-{
-    SDL_DestroyRenderer(gfx.context);
-}
 
 
 
@@ -781,8 +361,12 @@ bool DeleteVertexLayout(VertexID id)
 struct GfxTexture : public Texture {
     sg_image image = {};
     sg_image_desc image_desc = {};
-    sg_view view = {};
-    sg_view_desc view_desc = {};
+    //SRV (Shader Resource View) 
+    sg_view read_view = {}; 
+    sg_view_desc read_view_desc = {};
+    //RTV (Render Target View)
+    sg_view write_view = {}; 
+    sg_view_desc write_view_desc = {};
 };
 
 constexpr sg_image_type ToSokol(TextureDimension d)
@@ -836,17 +420,33 @@ bool CreateTextureAndUpload(Texture** texture, const char* name, const TexturePa
     VALIDATE_V(tex, false);
     tex->parameters = tp;
     TextureParams& p = tex->parameters;
+    //const bool color_target = FlagIntersects(p.flags, TextureFlag_ColorTarget);
+    //const bool depth_stencil = FlagIntersects(p.flags, TextureFlag_DepthStencil);
+    //VALIDATE_V(color_target != depth_stencil, false);
 
-    //=====
-    //Image
-    //=====
+    //========
+    //  Image
+    //========
 
     tex->image_desc.type = ToSokol(p.dimension);
-    tex->image_desc.usage.color_attachment         = FlagIntersects(p.flags, TextureFlag_RenderTarget) && !FlagIntersects(p.flags, TextureFlag_DepthStencil);
-    tex->image_desc.usage.depth_stencil_attachment = FlagIntersects(p.flags, TextureFlag_RenderTarget) &&  FlagIntersects(p.flags, TextureFlag_DepthStencil);
-    tex->image_desc.usage.immutable       = FlagIntersects(p.flags, TextureFlag_Immutable);
-    tex->image_desc.usage.dynamic_update  = FlagIntersects(p.flags, TextureFlag_Dynamic);
-    tex->image_desc.usage.stream_update   = FlagIntersects(p.flags, TextureFlag_StreamUpdate);
+    switch (p.update)
+    {
+    case TextureUpdateType_Immutable:   tex->image_desc.usage.immutable             = true; break;
+    case TextureUpdateType_Dynamic:     tex->image_desc.usage.dynamic_update        = true; break;
+    case TextureUpdateType_StreamUpdate:tex->image_desc.usage.stream_update         = true; break;
+    case TextureUpdateType_Count:                                               [[fallthrough]];
+    default: FAIL;                                                                          break;
+    }
+
+    switch (p.type)
+    {
+    case TextureType_Texture:                                                               break;
+    case TextureFlag_ColorTarget:   tex->image_desc.usage.color_attachment          = true; break;
+    case TextureFlag_DepthStencil:  tex->image_desc.usage.depth_stencil_attachment  = true; break;
+    case TextureType_Invalid:                                                   [[fallthrough]];
+    case TextureType_Count:                                                     [[fallthrough]];
+    default: FAIL;                                                                          break;
+    }
     //unused:
     tex->image_desc.usage.storage_image       = false; //only needed for compute shaders?
     tex->image_desc.usage.resolve_attachment  = false; //enabl if this is the target of a render who will be resolving an MSAA texture/buffer
@@ -865,42 +465,66 @@ bool CreateTextureAndUpload(Texture** texture, const char* name, const TexturePa
     tex->image_desc.sample_count = p.msaa_samples;
 
     const i32 max_mips = Min<i32>(SG_MAX_MIPMAPS, p.mip_count);
-    for (i32 i = 0; i < max_mips; i++)
+    if (data)
     {
-        tex->image_desc.data.mip_levels[i].ptr = data[i].data;
-        tex->image_desc.data.mip_levels[i].size = data[i].Bytes();
+        for (i32 i = 0; i < max_mips; i++)
+        {
+            if (data[i].data)
+            {
+                tex->image_desc.data.mip_levels[i].ptr = data[i].data;
+                tex->image_desc.data.mip_levels[i].size = data[i].Bytes();
+            }
+        }
     }
     tex->image_desc.label = tex->name.c_str();
     tex->image = sg_make_image(&tex->image_desc);
 
 
-    //=====
-    // View
-    //=====
+    //========
+    //  View
+    //========
 
-    tex->view_desc.texture.image = tex->image;
-    tex->view_desc.texture.mip_levels = { 0, max_mips }; //Starting mip level are hard coded
-    tex->view_desc.texture.slices = { 0, tex->image_desc.num_slices }; //Starting slice is hard coded
+    tex->read_view_desc.texture.image = tex->image;
+    tex->read_view_desc.label = tex->name.c_str();
+    tex->read_view = sg_make_view(&tex->read_view_desc);
 
-    tex->view_desc.storage_buffer; //Unorderd Access View equivilent for Computer Shaders I think
-    tex->view_desc.storage_image;  //Unorderd Access View equivilent for Computer Shaders I think
-    tex->view_desc.resolve_attachment; //For resolving MSAA
-
-    //NOTE(CSH): The mip level and slice for color_attachment and depth_stencil_attachment are hard coded
-    if (FlagIntersects(p.flags, TextureFlag_RenderTarget) && !FlagIntersects(p.flags, TextureFlag_DepthStencil))
+    switch (p.type)
     {
-        tex->view_desc.color_attachment.image = tex->image;
-        tex->view_desc.color_attachment.mip_level = 0;
-        tex->view_desc.color_attachment.slice = 0;
-    }
-    if (FlagIntersects(p.flags, TextureFlag_RenderTarget) && FlagIntersects(p.flags, TextureFlag_DepthStencil))
+    case TextureType_Texture:
     {
-        tex->view_desc.depth_stencil_attachment.image = tex->image;
-        tex->view_desc.depth_stencil_attachment.mip_level = 0;
-        tex->view_desc.depth_stencil_attachment.slice = 0;
+        //tex->view_desc.texture.image = tex->image;
+        ////do I need these??
+        //tex->view_desc.texture.mip_levels = { 0, max_mips }; //Starting mip level are hard coded
+        //tex->view_desc.texture.slices = { 0, tex->image_desc.num_slices }; //Starting slice is hard coded
+        break;
     }
-    tex->view_desc.label = tex->name.c_str();
-    tex->view = sg_make_view(tex->view_desc);
+    case TextureFlag_ColorTarget:
+    {
+        //color target
+        tex->write_view_desc.color_attachment.image = tex->image;
+        tex->write_view_desc.color_attachment.mip_level = 0;
+        tex->write_view_desc.color_attachment.slice = 0;
+        tex->write_view_desc.label = tex->name.c_str();
+        tex->write_view = sg_make_view(tex->write_view_desc);
+        break;
+    }
+    case TextureFlag_DepthStencil:
+    {
+        //depth target
+        tex->write_view_desc.depth_stencil_attachment.image = tex->image;
+        tex->write_view_desc.depth_stencil_attachment.mip_level = 0;
+        tex->write_view_desc.depth_stencil_attachment.slice = 0;
+        tex->write_view_desc.label = tex->name.c_str();
+        tex->write_view = sg_make_view(tex->write_view_desc);
+        break;
+    }
+    //tex->view_desc.storage_buffer; //Unorderd Access View equivilent for Computer Shaders I think
+    //tex->view_desc.storage_image;  //Unorderd Access View equivilent for Computer Shaders I think
+    //tex->view_desc.resolve_attachment; //For resolving MSAA... Do I even need these??
+    case TextureType_Invalid:       [[fallthrough]];
+    case TextureType_Count:         [[fallthrough]];
+    default: FAIL; break;
+    }
     return true;
 }
 
@@ -1309,7 +933,7 @@ sg_sampler_type  GetSokolSamplerType(const sg_image_sample_type a, const bool is
 
 //const sg_shader_desc* Blit2D_shader_desc(sg_backend backend)
 
-bool CreateShader(Shader** shader, const char* name, const sg_shader_desc* shader_desc)
+bool CreateShader(Shader** shader, const char* name, const sg_shader_desc* shader_desc, VertexID vertex_layout)
 {
     VALIDATE_V(shader_desc, false);
 
@@ -1319,6 +943,8 @@ bool CreateShader(Shader** shader, const char* name, const sg_shader_desc* shade
     (*shader) = s;
     s->shader_desc = *shader_desc;
     s->shader = sg_make_shader(s->shader_desc);
+    s->params.vertex_layout = vertex_layout;
+
     return true;
 }
 
@@ -1586,6 +1212,7 @@ sg_blend_state ToSokol(const BlendState& a)
         .dst_factor_alpha = ToSokol(a.dst_factor_alpha),
         .op_alpha = ToSokol(a.op_alpha),
     };
+    return r;
 }
 
 bool CreatePipeline(Pipeline** pipe, const char* name, const PipelineParams& params)
@@ -1596,7 +1223,7 @@ bool CreatePipeline(Pipeline** pipe, const char* name, const PipelineParams& par
     (*pipe) = p;
     p->name = name;
     const GfxShader* shader = AsGfx(params.shader);
-    GfxTexture* depth = AsGfx(params.depth);
+    const GfxTexture* depth = AsGfx(params.depth);
 
     sg_pipeline_desc& desc = p->pipe_desc;
     desc = {};
@@ -1606,13 +1233,16 @@ bool CreatePipeline(Pipeline** pipe, const char* name, const PipelineParams& par
     desc.layout = vertex_layout->state;
 
     //Depth
-    VALIDATE_V(depth->image_desc.sample_count == params.msaa_sample_count, false);
-    desc.depth.pixel_format = depth->image_desc.pixel_format;
-    desc.depth.compare = ToSokol(params.depth_compare_func);
-    desc.depth.write_enabled = false; //NOTE(CSH): Forced no write for now until needed
-    desc.depth.bias = params.depth_bias;
-    desc.depth.bias_slope_scale = params.depth_bias_slope_scale;
-    desc.depth.bias_clamp = params.depth_bias_clamp;
+    if (depth)
+    {
+        VALIDATE_V(depth->image_desc.sample_count == params.msaa_sample_count, false);
+        desc.depth.pixel_format = depth->image_desc.pixel_format;
+        desc.depth.compare = ToSokol(params.depth_compare_func);
+        desc.depth.write_enabled = false; //NOTE(CSH): Forced no write for now until needed
+        desc.depth.bias = params.depth_bias;
+        desc.depth.bias_slope_scale = params.depth_bias_slope_scale;
+        desc.depth.bias_clamp = params.depth_bias_clamp;
+    }
 
     //stencil
     desc.stencil = ToSokol(params.stencil);
@@ -1668,16 +1298,12 @@ void DeletePipeline(Pipeline** pipeline)
 //========================
 
 
-struct GfxDrawCall : DrawCall
-{
-};
-
-IdArray<GfxDrawCall, DrawID> s_draws;
+IdArray<DrawCall, DrawID> s_draws;
 
 bool CreateDrawCall(const char* name, const DrawCallParams& params)
 {
     ZoneScoped;
-    GfxDrawCall* draw = s_draws.CreateNew();
+    DrawCall* draw = s_draws.CreateNew();
     VALIDATE_V(draw, false);
     draw->name = name;
     draw->params = params;
@@ -1708,7 +1334,7 @@ bool CreateDrawCall(const char* name, const DrawCallParams& params)
             }
             else
             {
-                DebugPrint("Trying to bind at invalid slot: %i", u.slot);
+                DebugPrint("Trying to bind at invalid slot: %i", src.slot);
                 result = false;
                 FAIL;
             }
@@ -1741,9 +1367,10 @@ bool CreateDrawCall(const char* name, const DrawCallParams& params)
 
 
 //========================
-//        Render
+//    General Render
 //========================
 
+//TODO(CSH): How do we do scissor rects!?
 void RenderDrawCalls()
 {
     sg_swapchain swapchain = {};
@@ -1753,7 +1380,15 @@ void RenderDrawCalls()
     {
         const DrawCallParams& params = draw->params;
         const GfxPipeline* pipe = AsGfx(params.pipeline);
-        const GfxGpuBinding* bind = AsGfx(params.binding);
+        const Bindings& bind = params.bindings;
+        GfxGpuBuffer* vert = AsGfx(bind.vertex_buffer);
+        ASSERT(vert);
+        GfxGpuBuffer* ind = AsGfx(bind.index_buffer);
+        if (!vert)
+        {
+            DebugPrint("No Vertex buffer bound to draw, skipping: %s", draw->name.c_str());
+            continue;
+        }
 
         sg_pass pass = {};
         pass.compute = false;
@@ -1776,25 +1411,63 @@ void RenderDrawCalls()
         pass.action.stencil.clear_value = params.stencil_action.clear_value;
 
         //Bind Attachments
-        for (i32 i = 0; i < SG_MAX_COLOR_ATTACHMENTS; i++)
-        {
-            GfxTexture* t = AsGfx(params.color_textures[i]);
-            if (t)
-                pass.attachments.colors[i] = t->view;
-
-            //pass.attachments.resolves; //NOTE(CSH): Unsure what the point of this is
-        }
-        GfxTexture* depth_texture = AsGfx(params.depth_stencil_texture);
-        if (depth_texture)
-            pass.attachments.depth_stencil = depth_texture->view;
-
         if (params.draw_to_backbuffer)
+        {
+            //Backbuffer Render Target
             pass.swapchain = swapchain;
+        }
+        else
+        {
+            //Offscreen Render Target
+            for (i32 i = 0; i < SG_MAX_COLOR_ATTACHMENTS; i++)
+            {
+                GfxTexture* t = AsGfx(params.color_targets[i]);
+                if (t)
+                    pass.attachments.colors[i] = t->write_view;
+
+                //pass.attachments.resolves; //NOTE(CSH): Unsure what the point of this is
+            }
+            GfxTexture* depth_texture = AsGfx(params.depth_stencil_target);
+            if (depth_texture)
+                pass.attachments.depth_stencil = depth_texture->write_view;
+        }
+
         pass.label = draw->name.c_str();
         sg_begin_pass(&pass);
 
         sg_apply_pipeline(pipe->pipe);
-        sg_apply_bindings(bind->binding);
+        sg_bindings sb = {};
+        sb.vertex_buffers[0] = vert->buffer;
+        sb.vertex_buffer_offsets[0] = {};
+        sb.index_buffer = ind ? ind->buffer : sg_buffer();
+        sb.index_buffer_offset = {};
+
+        for (i32 i = 0; i < bind.read_textures.used; i++)
+        {
+            GfxTexture* t = AsGfx(bind.read_textures[i]);
+            if (!t)
+            {
+                DebugPrint("Added element to read_textures but no valid texture: %i '%s'", i, draw->name.c_str());
+                FAIL;
+                continue;
+            }
+            sb.views[i] = t->read_view;
+        }
+        for (i32 i = 0; i < bind.samplers.used; i++)
+        {
+            StaticArray<Sampler*, MAX_SHADER_SAMPLERS> samplers = {};
+            GfxSampler* s = AsGfx(bind.samplers[i]);
+            if (!s)
+            {
+                DebugPrint("Added element to samplers but no valid sampler: %i '%s'", i, draw->name.c_str());
+                FAIL;
+                continue;
+            }
+            sb.samplers[i] = s->sampler;
+        }
+
+        sb.samplers[SG_MAX_SAMPLER_BINDSLOTS] = {};
+        sg_apply_bindings(&sb);
 
         //Constant Buffer / Uniforms
         static_assert(MAX_SHADER_UNIFORMS == SG_MAX_UNIFORMBLOCK_BINDSLOTS);
@@ -1807,10 +1480,18 @@ void RenderDrawCalls()
                 const sg_range range = { u.struct_data.data, u.struct_data.Bytes() };
                 sg_apply_uniforms(u.slot, &range);
             }
-
         }
 
-        sg_draw(0, index_count, 1);
+        if (params.scissor.left  != 0.0f &&
+            params.scissor.bot   != 0.0f &&
+            params.scissor.right != 0.0f &&
+            params.scissor.top   != 0.0f)
+        {
+            const SimpleRect& r = params.scissor;
+            sg_apply_scissor_rectf(r.left, r.bot, r.Width(), r.Height(), false);
+        }
+
+        sg_draw_ex(0, params.vertex_length, 1, params.vertex_index, 0);
 
         sg_end_pass();
 
@@ -1823,4 +1504,465 @@ void RenderDrawCalls()
         }
 
     }
+}
+
+bool RenderInitSokol()
+{
+    SysRenderInitDesc sys_desc = {};
+    sys_desc.size = gfx.window_size;
+    sys_desc.sample_count = 1;
+    sys_desc.no_depth_buffer = true;
+
+#ifdef WIN32
+    gfx.backend = sys_desc.backend = CashRenderBackend_D3D11;
+#elif defined(LINUX)
+    sys_desc.backend = CashRenderBackend_Vulkan;
+#elif defined(MACOS)
+    sys_desc.backend = CashRenderBackend_Metal_Macos;
+#else
+    sys_desc.backend = CashRenderBackend_Glcore;
+#error what is this OS supposed to support?
+#endif
+
+    bool result = SysRenderInit(&sys_desc);
+    sg_desc desc = { };
+    //desc.environment.defaults.color_format = SG_PIXELFORMAT_RGBA8;
+    //desc.environment.defaults.depth_format = SG_PIXELFORMAT_DEPTH_STENCIL;
+    SysGetRenderEnvironment(&desc.environment);
+    //TODO(CSH): override allocator with custom frame temp memory?
+    desc.allocator;     // optional memory allocation hooks.  Default is malloc and free
+    desc.logger = { SgLogFunc, nullptr };
+    sg_setup(&desc);
+    return result;
+}
+void RenderDestroySokol()
+{
+    sg_shutdown();
+    SysRenderDestroy();
+}
+
+
+bool CashRenderInit(ArrayView<const ArrayView<const u8>> app_icons)
+{
+    SDL_Init(SDL_INIT_VIDEO);
+
+    {
+        const float normalRatio = 16.0f / 9.0f;
+        SDL_Rect screen_size = {};
+        SDL_GetDisplayBounds(0, &screen_size);
+        gfx.screen_size = { screen_size.w, screen_size.h };
+#if 1
+        //gfx.window_size = { 1280, 720 };
+        gfx.window_size = { 1024, 600 };
+        gfx.window_size = gfx.window_size * SysMonitorScale();
+#else
+        float screen_scale = 1.5;
+        if (displayRatio < normalRatio)
+        {
+            window_size.x = i32(float(mode->width) / screen_scale);
+            window_size.y = i32(float(mode->width) / normalRatio);
+        }
+        else
+        {
+            window_size.y = i32(mode->height / screen_scale);
+            window_size.x = i32(normalRatio * window_size.y);
+        }
+#endif
+    }
+
+
+    u32 window_flags = SDL_WINDOW_HIDDEN | SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY;
+    gfx.window = SDL_CreateWindow("Quool Tool", gfx.window_size.x, gfx.window_size.y, window_flags);
+    if (!gfx.window)
+    {
+        DebugPrint("Failed to create window");
+        FAIL;
+        return false;
+    }
+
+#if 1
+    RenderInitSokol();
+#else
+#if defined(WIN32)
+    SDL_SetHint(SDL_HINT_RENDER_DRIVER, "direct3d11");
+#elif defined(LINUX)
+    SDL_SetHint(SDL_HINT_RENDER_DRIVER, "vulkan");
+#else
+    #error "Unsupported platform for render driver configuration!"
+#endif
+    gfx.context = SDL_CreateRenderer(gfx.window, nullptr);
+    if (!gfx.context)
+    {
+        DebugPrint("Error: SDL_CreateRenderer(): %s\n", SDL_GetError());
+        return false;
+    }
+    SDL_SetRenderVSync(gfx.context, 1);
+#endif
+
+    {// Vertex_2D
+        VertexParams params[] = {
+            { 0, 0, offsetof(Vertex_2D, position),  VertexFormat_Float2,    VertexSemantic_Position,    0, VertexStep_Vertex, 0 },
+            { 1, 0, offsetof(Vertex_2D, color),     VertexFormat_Float4,    VertexSemantic_Color,       0, VertexStep_Vertex, 0 },
+            { 2, 0, offsetof(Vertex_2D, uv),        VertexFormat_Float2,    VertexSemantic_TexCoord,    0, VertexStep_Vertex, 0 },
+        };
+        gfx.vertex_2d_layout = CreateVertexLayout(CreateArrayView(params));
+    }
+    {// Vertex_PNTC
+        VertexParams params[] = {
+            { 0, 0, offsetof(Vertex_PNTC, position), VertexFormat_Float,    VertexSemantic_Position,    0, VertexStep_Vertex, 0 },
+            { 1, 0, offsetof(Vertex_PNTC, normal),   VertexFormat_Float3,   VertexSemantic_Normal,      0, VertexStep_Vertex, 0 },
+            { 2, 0, offsetof(Vertex_PNTC, uv),       VertexFormat_Float2,   VertexSemantic_TexCoord,    0, VertexStep_Vertex, 0 },
+            { 3, 0, offsetof(Vertex_PNTC, color),    VertexFormat_Float4,   VertexSemantic_Color,       0, VertexStep_Vertex, 0 },
+        };
+        gfx.vertex_pntc_layout = CreateVertexLayout(CreateArrayView(params));
+    }
+
+    {
+        Vertex_2D verts[] = {
+            { { -1.0f, +1.0f }, White, { 0.0f, 0.0f }, },  // Top Left
+            { { -1.0f, -3.0f }, White, { 0.0f, 2.0f }, },  // Bot Left
+            { { +3.0f, +1.0f }, White, { 2.0f, 0.0f }, }   // Top Right
+        };
+
+        CreateGpuBuffer(&gfx.vertex_2d_verts, "Fullscreen Triangle VB", GpuBufferType_Vertex, GpuBufferFlag_Immutable);
+        gfx.vertex_2d_verts->Upload(verts);
+    }
+
+    s_gfx.pass_action.colors[0].load_action = SG_LOADACTION_CLEAR;
+    s_gfx.pass_action.colors[0].clear_value = ToSokol(background_color);
+
+    {
+        const sg_shader_desc* desc = Blit2D_shader_desc(ToSokol(gfx.backend));
+        CreateShader(&gfx.blit2d_shader, "Blit 2D Shader", desc, gfx.vertex_2d_layout);
+    }
+
+    gfx.blend_normal = {
+        .enabled = true,
+        .src_factor_rgb = BlendFactor_SrcAlpha,
+        .dst_factor_rgb = BlendFactor_OneMinusSrcAlpha,
+        .op_rgb      = BlendOp_Add,
+        .src_factor_alpha = BlendFactor_One,
+        .dst_factor_alpha = BlendFactor_OneMinusSrcAlpha,
+        .op_alpha    = BlendOp_Add,
+    };
+
+    gfx.blend_no_color_write = {
+        .enabled = false,
+        .src_factor_rgb = BlendFactor_SrcAlpha,
+        .dst_factor_rgb = BlendFactor_OneMinusSrcAlpha,
+        .op_rgb      = BlendOp_Add,
+        .src_factor_alpha = BlendFactor_One,
+        .dst_factor_alpha = BlendFactor_One,
+        .op_alpha    = BlendOp_Add,
+    };
+
+    gfx.stencil_2d = {
+        .enabled = false,
+        .front_face = {
+            .compare = GpuCompareFunc_Always,
+            .fail_op        = StencilOp_Keep,
+            .depth_fail_op  = StencilOp_Keep,
+            .pass_op        = StencilOp_Replace,
+        },
+        .back_face = {
+            .compare = GpuCompareFunc_Always,
+            .fail_op        = StencilOp_Keep,
+            .depth_fail_op  = StencilOp_DecrClamp,
+            .pass_op        = StencilOp_Keep,
+        },
+        .read_mask    = 0,
+        .write_mask   = 0,
+        .ref_value    = 0,
+    };
+
+    {
+        TextureParams params = {
+            .size = Vec3I(gfx.window_size, 0),
+            .msaa_samples = 1,
+            .mip_count = 1,
+            .dimension = TextureDimension_2D,
+            .format = TextureFormat_RGBA32_FLOAT,
+            .type = TextureFlag_ColorTarget,
+            .update = TextureUpdateType_Immutable,
+        };
+        //how does this work with uploading "{}"
+        CreateTextureAndUpload(&gfx.hdr_target, "HDR Render Target", params, {});
+    }
+
+    {
+        sg_swapchain swapchain;
+        SysGetRenderSwapchain(&swapchain);
+        GfxShader* shader = AsGfx(gfx.blit2d_shader);
+
+        VertexData* vertex_layout = s_gfx.vertex_layouts.TryGet(shader->params.vertex_layout);
+        sg_pipeline_desc desc = {
+            .shader = shader->shader,
+            .layout = vertex_layout->state,
+            .color_count = 1,
+            .primitive_type = SG_PRIMITIVETYPE_TRIANGLES,
+            .index_type = SG_INDEXTYPE_NONE,
+            .cull_mode = SG_CULLMODE_NONE,
+            .face_winding = SG_FACEWINDING_CCW,
+            .sample_count = 1,
+            .label = "Resolve Backbuffer Pipeline",
+        };
+        desc.depth.compare = SG_COMPAREFUNC_ALWAYS,//ignore depth
+        desc.colors[0].pixel_format = swapchain.color_format;
+        desc.colors[0].write_mask   = SG_COLORMASK_RGBA;
+        desc.colors[0].blend        = ToSokol(gfx.blend_normal);
+        desc.colors[0].blend.enabled = false;
+        s_gfx.final_render_pipeline = sg_make_pipeline(&desc);
+    }
+    {
+        sg_sampler_desc desc = {
+            .min_filter = SG_FILTER_LINEAR,
+            .mag_filter = SG_FILTER_LINEAR,
+        };
+        s_gfx.final_render_sampler = sg_make_sampler(&desc);
+    }
+
+    {
+        SamplerParams params = {
+        .min_filter = SamplerFilter_Linear,
+        .mag_filter = SamplerFilter_Linear,
+        .mipmap_filter = SamplerFilter_Linear,
+        .wrap_u = SamplerWrap_Repeat,
+        .wrap_v = SamplerWrap_Repeat,
+        .wrap_w = SamplerWrap_Repeat,
+        .min_lod = 0.0f,
+        .max_lod = FLT_MAX,
+        .border_color = SamplerBorderColor_TransparentBlack,
+        .compare_func = GpuCompareFunc_Always,
+        .max_anisotropy = 16,
+        };
+        CreateSampler(&gfx.common_anisotropic_sampler, "Basic Anisotropic Sampler", params);
+        params.max_anisotropy = 1;
+        CreateSampler(&gfx.common_sampler, "Basic Sampler", params);
+    }
+    {
+        u8 pixel_texture_data[] = { 255, 255, 255, 255 };
+        TextureParams params = {
+            .size = { 1, 1, 0 },
+            .msaa_samples = 1,
+            .mip_count = 1,
+            .dimension = TextureDimension_2D,
+            .format = TextureFormat_RGBA8_UINT,
+            .type = TextureType_Texture,
+            .update = TextureUpdateType_Immutable,
+        };
+        CreateTextureAndUpload(&gfx.plain_texture, "Plain Texture", params, CreateArrayView(pixel_texture_data));
+    }
+
+    SDL_SetWindowPosition(gfx.window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
+
+    SDL_Surface* icons = nullptr;
+    std::vector<void*> pixels_to_free;
+    std::vector<SDL_Surface*> surfaces_to_free;
+    const i32 min = Min((i32)EmbededIcon_Count, (i32)app_icons.size());
+    for (i32 i = EmbededIcon_Invalid + 1; i < min; i++)
+    {
+        ArrayView<const u8> icon = app_icons[i];
+        if (!icon.data)
+        {
+            DebugPrint("Error: failed to get data from resource: %i", i);
+            FAIL;
+            continue;
+        }
+
+        // ---- Decode PNG from memory ----
+        Vec2I image_size;
+        stbi_uc* pixels = stbi_load_from_memory(
+            (const stbi_uc*)icon.data,
+            (i32)icon.Bytes(),
+            &image_size.x,
+            &image_size.y,
+            nullptr,
+            4
+        );
+        if (!pixels)
+        {
+            DebugPrint("Warning: Failed to get pixels from memory icon_id: %i", i);
+            FAIL;
+            continue;
+        }
+
+
+        //NOTE(CSH): Not sure why the pixels are inverted should be loaded as RGBA8888 but SDL_CreateSurface is seeing them as BGRA8888
+        if (i == EmbededIcon_FullSize)
+        {
+            icons = SDL_CreateSurfaceFrom(image_size.x, image_size.y, SDL_PIXELFORMAT_BGRA8888, pixels, sizeof(u32) * image_size.x);
+        }
+        else
+        {
+            SDL_Surface* temp_icon = SDL_CreateSurfaceFrom(image_size.x, image_size.y, SDL_PIXELFORMAT_BGRA8888, pixels, sizeof(u32) * image_size.x);
+            SDL_AddSurfaceAlternateImage(icons, temp_icon);
+            surfaces_to_free.push_back(temp_icon);
+        }
+        pixels_to_free.push_back(pixels);
+    }
+
+    SDL_SetWindowIcon(gfx.window, icons);
+
+    for (auto& p : surfaces_to_free)
+        SDL_DestroySurface(p);
+    for (auto& p : pixels_to_free)
+        stbi_image_free(p);
+    SDL_DestroySurface(icons);
+
+
+    SDL_ShowWindow(gfx.window);
+    return true;
+}
+
+void CashImguiInit()
+{
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO(); (void)io;
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+    io.IniFilename = NULL;
+
+    // Setup Dear ImGui style
+    ImGui::StyleColorsDark();
+
+    // Setup scaling
+    float main_scale = SysMonitorScale();
+    ImGuiStyle& style = ImGui::GetStyle();
+    style.ScaleAllSizes(main_scale);        // Bake a fixed style scale. (until we have a solution for dynamic style scaling, changing this requires resetting Style + calling this again)
+    style.FontScaleDpi = main_scale;        // Set initial font scale. (using io.ConfigDpiScaleFonts=true makes this unnecessary. We leave both here for documentation purpose)
+
+    simgui_desc_t desc = {};
+    desc.max_vertices;// default: 65536
+    desc.color_format = AsGfx(gfx.hdr_target)->image_desc.pixel_format;
+    desc.depth_format;
+    desc.sample_count;
+    desc.ini_filename;
+    desc.no_default_font = true;
+    desc.disable_paste_override;
+    desc.disable_set_mouse_cursor;
+    desc.disable_windows_resize_from_edges;
+    desc.write_alpha_channel;
+    desc.allocator;
+    desc.logger = { SgLogFunc, nullptr };
+
+    ImGui_ImplSDL3_InitForOther(gfx.window);
+    simgui_setup(&desc);
+}
+void CashImguiDestroy()
+{
+    ImGui_ImplSDL3_Shutdown();
+    simgui_shutdown();
+}
+
+void CashImguiNewFrame(double delta_time)
+{
+    ZoneScoped;
+    {
+        ZoneScopedN("ImGui SDL Renderer3 New Frame");
+        simgui_frame_desc_t desc = {};
+        desc.width = gfx.window_size.x;
+        desc.height = gfx.window_size.y;
+        desc.delta_time = delta_time;
+        desc.dpi_scale = 1.0f; //unsure
+        simgui_new_frame(&desc);
+    }
+    {
+        ZoneScopedN("ImGui SDL3 New Frame");
+        //ImGui_ImplSDL3_NewFrame();
+    }
+    {
+        ZoneScopedN("ImGui New Frame");
+        //ImGui::NewFrame();
+    }
+}
+
+//TODO(CSH): Clean this up
+// This needs to all be done under RenderDrawCalls
+// the imgui pass needs to be done in RenderDrawCalls to the gfx.hdr_target
+void CashRender()
+{
+    ZoneScoped;
+    {
+        RenderDrawCalls();
+    }
+
+    sg_swapchain swapchain = {};
+    SysGetRenderSwapchain(&swapchain);
+    {
+        ZoneScopedN("ImGui Render");
+        sg_pass pass = {};
+#if 1
+        pass.compute = false;
+
+        pass.action.colors[0].load_action = SG_LOADACTION_LOAD;
+        pass.action.colors[0].store_action = SG_STOREACTION_STORE;
+        pass.action.colors[0].clear_value = { 0.0f, 0.0f, 0.0f, 1.0f };
+        pass.attachments.colors[0] = AsGfx(gfx.hdr_target)->write_view;
+        pass.swapchain;
+        pass.label = "ImGui Render Pass";
+#else
+
+        pass.action = s_gfx.pass_action;
+        pass.swapchain = swapchain;
+#endif
+        sg_begin_pass(&pass);
+
+        simgui_render();
+        //ImGui::Render();
+        sg_end_pass();
+    }
+
+    {
+        //Resolve hdr_target to backbuffer
+        sg_pass pass = {};
+
+        pass.action.colors[0].load_action = SG_LOADACTION_CLEAR;
+        pass.action.colors[0].store_action = SG_STOREACTION_STORE;
+        pass.action.colors[0].clear_value = ToSokol(background_color);
+
+        //pass.attachments.colors[0] = AsGfx(gfx.hdr_target)->view;
+        pass.swapchain = swapchain;
+        pass.label = "Resolve HDR to Backbuffer";
+
+        sg_begin_pass(&pass);
+
+        sg_apply_pipeline(s_gfx.final_render_pipeline);
+        sg_bindings bindings = {};
+        bindings.vertex_buffers[0] = AsGfx(gfx.vertex_2d_verts)->buffer;
+        bindings.views[0] = AsGfx(gfx.hdr_target)->read_view;
+        bindings.samplers[0] = s_gfx.final_render_sampler;
+        sg_apply_bindings(&bindings);
+
+        static_assert(sizeof(ShaderConstants_Blit2D) == sizeof(ShaderConstants_2D_t));
+        ShaderConstants_Blit2D uniform = {};
+#if 1
+        uniform.orthographic = gb_mat4_identity();
+#else
+        const Vec2 pos = {};
+        const Vec2 size = ToVec2(gfx.window_size);
+        float L = pos.x;
+        float R = pos.x + size.x;
+        float T = pos.y;
+        float B = pos.y + size.y;
+        uniform.orthographic = {
+            2.0f/(R-L),   0.0f,           0.0f,       0.0f ,
+            0.0f,         2.0f/(T-B),     0.0f,       0.0f ,
+            0.0f,         0.0f,           0.5f,       0.0f ,
+            (R+L)/(L-R),  (T+B)/(B-T),    0.5f,       1.0f ,};
+#endif
+
+        const sg_range range = { &uniform, sizeof(ShaderConstants_Blit2D) };
+        sg_apply_uniforms(UB_ShaderConstants_2D, &range);
+        sg_draw(0, 3, 1);
+        sg_end_pass();
+    }
+    sg_commit();
+
+    SysRenderPresent();
+}
+
+void CashRenderDestroy()
+{
+    SDL_DestroyRenderer(gfx.context);
 }
