@@ -13,6 +13,8 @@
 #define MAX_COLOR_ATTACHMENTS 8
 #define MAX_SHADER_READ_TEXTURES 32
 #define MAX_SHADER_SAMPLERS 12
+//Mat4 is the largest possible uniform member
+#define MAX_UNIFORM_BYTES (MAX_SHADER_UNIFORM_MEMBERS * sizeof(Mat4))
 
 #pragma pack(push, 1)
 struct ShaderConstants_Blit2D {
@@ -174,6 +176,7 @@ enum TextureFormat : u32 {
     TextureFormat_RG8_UINT,
     TextureFormat_R8_UNORM,
     TextureFormat_R8_UINT,
+    TextureFormat_R8_SNORM,
     TextureFormat_Depth,
     TextureFormat_DepthStencil,
     TextureFormat_Count,
@@ -336,9 +339,10 @@ struct GpuBuffer
     GpuBufferType type = GpuBufferType_Invalid;
     size_t count = 0;
     size_t element_size = 0;
+    size_t max_size = 0;
     bool has_uploaded = false;
 
-    void Upload(const void* data, const size_t count, const u32 element_size, const bool is_byte_format = false);
+    void Upload(const void* data, const size_t count, const u32 element_size);
     template<typename T>
     inline void Upload(const std::vector<T>& a)
     {
@@ -346,7 +350,7 @@ struct GpuBuffer
         Upload(a.data(), a.size(), sizeof(T), false);
     }
     template<typename T>
-    inline void Upload(const ArrayView<T> a, const bool is_byte_format = false)
+    inline void Upload(const ArrayView<T> a)
     {
         ASSERT(a.size());
         Upload(a.data, a.size(), (u32)a.ElementBytes());
@@ -368,7 +372,8 @@ struct GpuBuffer
     }
 };
 
-bool CreateGpuBuffer(GpuBuffer** buffer, const char* name, GpuBufferType type, GpuBufferFlag flags);
+//max_size must be non-zero for any buffer that doesn't have GpuBufferFlag_Immutable
+bool CreateGpuBuffer(GpuBuffer** buffer, const char* name, GpuBufferType type, GpuBufferFlag flags, size_t max_size = 0);
 void DeleteBuffer(GpuBuffer** buffer);
 
 
@@ -677,8 +682,27 @@ void DeletePipeline(Pipeline** pipeline);
 //       Draw Call
 //========================
 
+DATAID_TYPE(UniformID);
+
+//Max size is MAX_UNIFORM_BYTES
+UniformID CreateUniform();
+UniformID CreateUniform(ArrayView<u8> data_array, const u32 slot);
+void DeleteUniform(UniformID);
+bool UpdateUniform(UniformID id, ArrayView<u8> data_array, const u32 slot);
+
+
+
+
+
+
+
+
+//========================
+//       Draw Call
+//========================
+
 struct RenderColorAction {
-    bool clear_on_load = true;
+    bool clear_on_load = false;
     Color clear_color = { };
 };
 struct RenderDepthAction
@@ -693,7 +717,7 @@ struct RenderStencilAction
 };
 struct ShaderUniformData {
     i32 slot;
-    ArrayView<u8> struct_data;
+    StaticArray<u8, MAX_UNIFORM_BYTES> uniform_data = {};
 };
 
 struct Bindings {
@@ -712,14 +736,14 @@ struct DrawCallParams {
     SimpleRect scissor = {};
 
     RenderColorAction color_actions[MAX_SHADER_TEXTURES] = {};
-    RenderDepthAction depth_action;
-    RenderStencilAction stencil_action;
+    RenderDepthAction depth_action = {};
+    RenderStencilAction stencil_action = {};
 
-    ShaderUniformData uniforms[MAX_SHADER_UNIFORMS];
+    StaticArray<UniformID, MAX_SHADER_UNIFORMS> uniforms = {};
 
     Texture* color_targets[MAX_COLOR_ATTACHMENTS] = {};
-    Texture* depth_stencil_target;
-    bool draw_to_backbuffer;
+    Texture* depth_stencil_target = {};
+    bool draw_to_backbuffer = {};
     //sg_view resolves[SG_MAX_COLOR_ATTACHMENTS];
 };
 struct DrawCall {
