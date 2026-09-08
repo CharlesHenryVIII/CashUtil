@@ -22,12 +22,14 @@ enum RunProcessFlags : u32 {
     RunProcess_Show = BIT(1),
 };
 
-struct Key {
-    bool down;
-    bool downPrevFrame;
-    bool downThisFrame;
-    bool upThisFrame;
-};
+
+
+
+
+//========================
+//        INPUT
+//========================
+
 
 struct Mouse {
     Vec2 p = {}; //origin is the bottom left of the window
@@ -38,12 +40,40 @@ struct Mouse {
     //SDL_Cursor* cursors[ImGuiMouseCursor_COUNT] = {};
 };
 
+struct Key {
+    bool down;
+    bool down_prev_frame;
+    bool down_this_frame;
+    bool up_this_frame;
+};
+
+enum InputPriority {
+    InputPriority_None,
+    InputPriority_Console,
+    InputPriority_Imgui,
+    InputPriority_Count,
+};
+
+struct InputStates {
+    std::unordered_map<u32, Key> keys;
+    SDL_Keymod key_mods;
+    Mouse mouse = {};
+
+    void InputUpdate();
+};
+//returns true if state was captured
+void SysProcessEvents(SDL_Event* event, InputStates* inputs);
+InputPriority SysInputUpdate(float dt, InputStates* inputs);
+
+
+
+
+
 struct SysInfo {
     std::wstring name;
     i32 cores;
     i32 threads;
-    std::unordered_map<u32, Key> keys;
-    Mouse mouse = {};
+    InputStates inputs;
     bool has_attention;
     bool drop_active = false;
     std::vector<Path> drop_file;
@@ -274,8 +304,6 @@ Vec2 SysGetScreenSize();
 
 void ParseCSV(PowershellResponse& out, const std::string& in, bool using_quotes);
 
-void SysProcessEvents();
-
 struct SysRenderInitDesc {
     Vec2I size;
     i32 sample_count;
@@ -343,9 +371,27 @@ ImFont* SysCreateImguiFont(const ArrayView<const u8> font_data, float font_size)
 ImFont* SysLoadFontForImgui(i32 resource_id, float fontSize);
 void* SysGetDataFromResource(i32* out_size, const i32 resource_id);
 
+
+
+
+
+//========================
+//        MEMORY
+//========================
+
+
 void* SysReserveMemory(u64 bytes);
 void SysCommitMemory(void* p, u64 bytes);
 bool SysFreeMemory(void* p, u64 bytes);
+
+
+
+
+
+//========================
+//         GUID
+//========================
+
 
 union Guid {
     uint64_t e[2];
@@ -386,7 +432,15 @@ union name {                                                                    
 };                                                                                                                \
 inline constexpr [[nodiscard]] bool operator==(const name& a, const name& b) { return *(Guid*)&a == *(Guid*)&b; };\
 inline constexpr [[nodiscard]] bool operator< (const name& a, const name& b) { return *(Guid*)&a <  *(Guid*)&b; };\
-enum {}
+REQUIRE_SEMICOLON
+
+
+
+
+
+//========================
+//     Run Process Job
+//========================
 
 struct RunProcessJob : Job
 {

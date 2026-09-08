@@ -43,6 +43,26 @@ struct StaticArray
         used++;
         return element;
     }
+    inline T* Add(const ArrayView<T>& items)
+    {
+        ASSERT(used < count);
+        ASSERT(used + items.count < count);
+        const u64 start_count = used;
+        for (u64 i = 0; i < items.count && i + start_count < count; i++)
+        {
+            data[used] = items[i];
+            used++;
+        }
+        return &data[start_count + 1];
+    }
+    inline u8* AddRaw(const u8* data, const u64 size)
+    {
+        VALIDATE_V(size + used < count, nullptr);
+        memmove((void*)&data[used], data, size);
+        u8* element = (u8*)&(data[used]);
+        used = used + size;
+        return element;
+    }
 
     inline void Clear()
     {

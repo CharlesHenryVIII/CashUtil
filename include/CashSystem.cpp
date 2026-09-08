@@ -634,6 +634,85 @@ ImFont* SysLoadFontForImgui(i32 resource_id, float font_size)
     return SysCreateImguiFont(CreateArrayView((const u8*)data, size), font_size);
 }
 
+
+
+
+
+//========================
+//        INPUT
+//========================
+
+
+void InputStates::InputUpdate()
+{
+    key_mods = 0;
+    for (auto& key : keys)
+    {
+        if (key.second.down)
+        {
+            key.second.up_this_frame= false;
+            if (key.second.down_prev_frame)
+            {
+                key.second.down_this_frame = false;
+            }
+            else
+            {
+                key.second.down_this_frame = true;
+            }
+
+            switch (key.first)
+            {
+                case SDLK_LSHIFT:       key_mods |= SDL_KMOD_LSHIFT;    break;
+                case SDLK_RSHIFT:       key_mods |= SDL_KMOD_RSHIFT;    break;
+                case SDLK_LEVEL5_SHIFT: key_mods |= SDL_KMOD_LEVEL5;    break;
+                case SDLK_LCTRL:        key_mods |= SDL_KMOD_LCTRL;     break;
+                case SDLK_RCTRL:        key_mods |= SDL_KMOD_RCTRL;     break;
+                case SDLK_LALT:         key_mods |= SDL_KMOD_LALT;      break;
+                case SDLK_RALT:         key_mods |= SDL_KMOD_RALT;      break;
+                case SDLK_LGUI:         key_mods |= SDL_KMOD_LGUI;      break;
+                case SDLK_RGUI:         key_mods |= SDL_KMOD_RGUI;      break;
+                case SDLK_NUMLOCKCLEAR: key_mods |= SDL_KMOD_NUM;       break;  //NOT SURE ABOUT THIS
+                case SDLK_CAPSLOCK:     key_mods |= SDL_KMOD_CAPS;      break;
+                case SDLK_MODE:         key_mods |= SDL_KMOD_MODE;      break;
+                case SDLK_SCROLLLOCK:   key_mods |= SDL_KMOD_SCROLL;    break;
+            }
+        }
+        else
+        {
+            key.second.down_this_frame = false;
+            if (key.second.down_prev_frame)
+            {
+                key.second.up_this_frame = true;
+            }
+            else
+            {
+                key.second.up_this_frame = false;
+            }
+        }
+        key.second.down_prev_frame = key.second.down;
+    }
+
+    if (mouse.wheel_modified_last_frame)
+    {
+        mouse.wheel_instant.y = 0;
+        mouse.wheel_modified_last_frame = false;
+    }
+    else if (mouse.wheel_instant.y)
+    {
+        mouse.wheel_modified_last_frame = true;
+    }
+}
+
+
+
+
+
+
+//========================
+//         GUID
+//========================
+
+
 std::string Guid::ToString() const
 {
     return ::ToString("%08X-%04X-%04X-%04X-%04X%08X", a, b >> 16, b & 0XFFFF, c >> 16, c & 0XFFFF, d);
@@ -668,139 +747,110 @@ Guid SysNewGuid()
     return OSNewGuid();
 }
 
-
-void SysProcessEvents()
+InputPriority SysInputUpdate(float dt, InputStates* inputs)
 {
+    VALIDATE_V(inputs, InputPriority_None);
+    inputs->InputUpdate();
+
+    if (Console_OnKeyboard(inputs))
+        return InputPriority_Console;
+
+    if (ImGui::GetIO().WantCaptureKeyboard || ImGui::GetIO().WantCaptureMouse)
+        return InputPriority_Imgui;
+
+    return InputPriority_None;
+}
+
+void SysProcessEvents(SDL_Event* event, InputStates* inputs)
+{
+    VALIDATE(inputs);
     // Poll and handle events (inputs, window resize, etc.)
     // You can read the io.WantCaptureMouse, io.WantCaptureKeyboard flags to tell if dear imgui wants to use your inputs.
     // - When io.WantCaptureMouse is true, do not dispatch mouse input data to your main application, or clear/overwrite your copy of the mouse data.
     // - When io.WantCaptureKeyboard is true, do not dispatch keyboard input data to your main application, or clear/overwrite your copy of the keyboard data.
     // Generally you may always pass all inputs to dear imgui, and hide them from your application based on those two flags.
     ZoneScopedN("Poll Events");
-    SDL_Event event;
-    while (SDL_PollEvent(&event))
+    ImGui_ImplSDL3_ProcessEvent(event);
+    //DebugPrint("Event: %i", event.type);
+    if (event->type == SDL_EVENT_WINDOW_CLOSE_REQUESTED && event->window.windowID == SDL_GetWindowID(gfx.window))
+        g_running = true;
+
+    switch (event->type)
     {
-        ImGui_ImplSDL3_ProcessEvent(&event);
-        //DebugPrint("Event: %i", event.type);
-        if (event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED && event.window.windowID == SDL_GetWindowID(gfx.window))
-            g_running = true;
+    case SDL_EVENT_QUIT:
+        g_running = false;
+        break;
+    case SDL_EVENT_WINDOW_CLOSE_REQUESTED:
+        g_running = !(event->window.windowID == SDL_GetWindowID(gfx.window));
+        break;
+    case SDL_EVENT_KEY_DOWN:
+    case SDL_EVENT_KEY_UP:
+        inputs->keys[event->key.key].down = (event->type == SDL_EVENT_KEY_DOWN);
+        break;
+    case SDL_EVENT_MOUSE_BUTTON_DOWN:
+    case SDL_EVENT_MOUSE_BUTTON_UP:
+        inputs->keys[event->button.button].down = event->button.down;
+        break;
+    case SDL_EVENT_MOUSE_MOTION:
+    {
+        ZoneScopedN("SDL_MOUSEMOTION");
+        Vec2 delta;
+        delta.x = ((event->motion.x) - inputs->mouse.p.x);
+        delta.y = ((event->motion.y) - inputs->mouse.p.y);
 
-        switch (event.type)
+        inputs->mouse.delta_p += delta;
+        inputs->mouse.p.x = event->motion.x;
+        inputs->mouse.p.y = event->motion.y;
+        break;
+    }
+    case SDL_EVENT_MOUSE_WHEEL:
+    {
+        inputs->mouse.wheel_instant.x = inputs->mouse.wheel.x = event->wheel.x;
+        inputs->mouse.wheel_instant.y = inputs->mouse.wheel.y = event->wheel.y;
+        break;
+    }
+    case SDL_EVENT_WINDOW_RESIZED:
+    {
+        gfx.window_size.x = event->window.data1;
+        gfx.window_size.y = event->window.data2;
+        break;
+    }
+    case SDL_EVENT_WINDOW_FOCUS_GAINED:
+    {
+        g_sysinfo.has_attention = true;
+        //g_sysinfo.inputs.mouse.delta_p = {};
+        //SDL_GetMouseState(&g_sysinfo.inputs.mouse.p.x, &g_sysinfo.inputs.mouse.p.y);
+        //g_sysinfo.inputs.mouse.p.y = g_settings.graphics.resolution.y - g_sysinfo.inputs.mouse.p.y;
+        //SetFocus(g_renderer.SDL_Context);
+        break;
+    }
+    case SDL_EVENT_WINDOW_FOCUS_LOST:
+    {
+        g_sysinfo.has_attention = false;
+        break;
+    }
+    case SDL_EVENT_DROP_BEGIN:
+        g_sysinfo.drop_active = true;
+        break;
+    case SDL_EVENT_DROP_COMPLETE:
+        g_sysinfo.drop_active = false;
+        break;
+    case SDL_EVENT_DROP_FILE:
+        if (event->drop.data)
         {
-        case SDL_EVENT_QUIT:
-            g_running = false;
-            break;
-        case SDL_EVENT_WINDOW_CLOSE_REQUESTED:
-            g_running = !(event.window.windowID == SDL_GetWindowID(gfx.window));
-            break;
-        case SDL_EVENT_KEY_DOWN:
-        case SDL_EVENT_KEY_UP:
-            g_sysinfo.keys[event.key.key].down = (event.type == SDL_EVENT_KEY_DOWN);
-            break;
-        case SDL_EVENT_MOUSE_BUTTON_DOWN:
-        case SDL_EVENT_MOUSE_BUTTON_UP:
-            g_sysinfo.keys[event.button.button].down = event.button.down;
-            break;
-        case SDL_EVENT_MOUSE_MOTION:
-        {
-            ZoneScopedN("SDL_MOUSEMOTION");
-            Vec2 delta;
-            delta.x = ((event.motion.x) - g_sysinfo.mouse.p.x);
-            delta.y = ((event.motion.y) - g_sysinfo.mouse.p.y);
-
-            g_sysinfo.mouse.delta_p += delta;
-            g_sysinfo.mouse.p.x = event.motion.x;
-            g_sysinfo.mouse.p.y = event.motion.y;
-            break;
+            g_sysinfo.drop_file.push_back(event->drop.data);
         }
-        case SDL_EVENT_MOUSE_WHEEL:
-        {
-            g_sysinfo.mouse.wheel_instant.x = g_sysinfo.mouse.wheel.x = event.wheel.x;
-            g_sysinfo.mouse.wheel_instant.y = g_sysinfo.mouse.wheel.y = event.wheel.y;
-            break;
-        }
-        case SDL_EVENT_WINDOW_RESIZED:
-        {
-            gfx.window_size.x = event.window.data1;
-            gfx.window_size.y = event.window.data2;
-            break;
-        }
-        case SDL_EVENT_WINDOW_FOCUS_GAINED:
-        {
-            g_sysinfo.has_attention = true;
-            //g_sysinfo.mouse.delta_p = {};
-            //SDL_GetMouseState(&g_sysinfo.mouse.p.x, &g_sysinfo.mouse.p.y);
-            //g_sysinfo.mouse.p.y = g_settings.graphics.resolution.y - g_sysinfo.mouse.p.y;
-            //SetFocus(g_renderer.SDL_Context);
-            break;
-        }
-        case SDL_EVENT_WINDOW_FOCUS_LOST:
-        {
-            g_sysinfo.has_attention = false;
-            break;
-        }
-        case SDL_EVENT_DROP_BEGIN:
-            g_sysinfo.drop_active = true;
-            break;
-        case SDL_EVENT_DROP_COMPLETE:
-            g_sysinfo.drop_active = false;
-            break;
-        case SDL_EVENT_DROP_FILE:
-            if (event.drop.data)
-            {
-                g_sysinfo.drop_file.push_back(event.drop.data);
-            }
-            break;
+        break;
         //case SDL_EVENT_DROP_TEXT:
         //case SDL_EVENT_DROP_BEGIN:
         //case SDL_EVENT_DROP_COMPLETE:
         //case SDL_EVENT_DROP_POSITION:
         //{
-        //    if (event.drop.file)
+        //    if (event->drop.file)
         //    {
         //    }
         //    break;
         //}
-        }
-    }
-
-    for (auto& key : g_sysinfo.keys)
-    {
-        if (key.second.down)
-        {
-            key.second.upThisFrame = false;
-            if (key.second.downPrevFrame)
-            {
-                key.second.downThisFrame = false;
-            }
-            else
-            {
-                key.second.downThisFrame = true;
-            }
-        }
-        else
-        {
-            key.second.downThisFrame = false;
-            if (key.second.downPrevFrame)
-            {
-                key.second.upThisFrame = true;
-            }
-            else
-            {
-                key.second.upThisFrame = false;
-            }
-        }
-        key.second.downPrevFrame = key.second.down;
-    }
-
-    if (g_sysinfo.mouse.wheel_modified_last_frame)
-    {
-        g_sysinfo.mouse.wheel_instant.y = 0;
-        g_sysinfo.mouse.wheel_modified_last_frame = false;
-    }
-    else if (g_sysinfo.mouse.wheel_instant.y)
-    {
-        g_sysinfo.mouse.wheel_modified_last_frame = true;
     }
 }
 
@@ -825,6 +875,15 @@ void SysGetRenderSwapchain(sg_swapchain* env)
 {
     OSGetRenderSwapchain(env);
 }
+
+
+
+
+
+//========================
+//     Run Process Job
+//========================
+
 
 void RunProcessJob::RunJob()
 {

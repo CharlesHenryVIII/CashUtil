@@ -17,6 +17,13 @@ typedef uint32_t Pos;
 #define STB_TEXTEDIT_UNDOSTATECOUNT 32
 #define STB_TEXTEDIT_UNDOCHARCOUNT 1024
 
+
+//characters per row * rows * verts per character
+#define VERTS_PER_CHARACTER 6
+#define CHAR_PER_ROW 256
+#define MAX_ROWS 128
+#define MAX_VERTS CHAR_PER_ROW * MAX_ROWS * VERTS_PER_CHARACTER
+
 // Include in header mode to get struct definitions
 #include "stb/stb_textedit.h"
 
@@ -163,8 +170,11 @@ struct Console
 
     // Rendering
     Pipeline*                   pipeline = nullptr;
+    StaticArray<Vertex_2D, MAX_VERTS> vertices = {};
     GpuBuffer*                  vertex_buffer = nullptr;
     i32                         vertex_length = 0;
+    UniformID                   uniform = 0;
+    Texture*                    font_texture = nullptr;
 };
 static Console s_console;
 
@@ -537,11 +547,11 @@ void ConsoleCheckForInit()
     logStrings.clear();
 }
 
-#define FONT_BITMAP_SIZE  512
+#define FONT_BITMAP_SIZE_X  512
+#define FONT_BITMAP_SIZE_Y  512
 #define FONT_CHAR_START 0
 #define FONT_CHAR_COUNT 1586
 static stbtt_bakedchar s_char_data[FONT_CHAR_COUNT] = {};
-Texture* font_texture = nullptr;
 
 void ConsoleInit(const std::string& logo, ArrayView<const u8> console_font_data)
 {
@@ -554,13 +564,13 @@ void ConsoleInit(const std::string& logo, ArrayView<const u8> console_font_data)
     const Vec2 window_size = SysGetWindowSize();
     const Vec2 screen_size = SysGetScreenSize();
     s_font_size = Vec2(9, 16);
-    u8 temp_font_bitmap[FONT_BITMAP_SIZE][FONT_BITMAP_SIZE] = {};
+    u8 temp_font_bitmap[FONT_BITMAP_SIZE_X][FONT_BITMAP_SIZE_Y] = {};
 
     i32 r = stbtt_BakeFontBitmap(console_font_data.data, 0,         // font location (use offset=0 for plain .ttf)
-                                s_font_size.y,                      // height of font in pixels
-                                (unsigned char*)temp_font_bitmap, FONT_BITMAP_SIZE, FONT_BITMAP_SIZE,  // bitmap to be filled in
-                                FONT_CHAR_START, FONT_CHAR_COUNT,   // characters to bake
-                                s_char_data);                       // you allocate this, it's num_chars long
+        s_font_size.y,                      // height of font in pixels
+        (unsigned char*)temp_font_bitmap, FONT_BITMAP_SIZE_X, FONT_BITMAP_SIZE_Y,  // bitmap to be filled in
+        FONT_CHAR_START, FONT_CHAR_COUNT,   // characters to bake
+        s_char_data);                       // you allocate this, it's num_chars long
     if (r == 0)
     {
         DebugPrint("Error: BakeFontBitmap(): no characters fit and no rows were used");
@@ -573,17 +583,17 @@ void ConsoleInit(const std::string& logo, ArrayView<const u8> console_font_data)
     }
 
     TextureParams tp = {
-        .size = { FONT_BITMAP_SIZE, FONT_BITMAP_SIZE, 0 },
+        .size = { FONT_BITMAP_SIZE_X, FONT_BITMAP_SIZE_Y, 0 },
         .msaa_samples = 1,
         .mip_count = 1,
 
         .dimension = TextureDimension_2D,
-        .format = TextureFormat_R8_UINT,
+        .format = TextureFormat_R8_SNORM,
         .type = TextureType_Texture,
         .update = TextureUpdateType_Immutable,
     };
-    ArrayView<u8> font_bitmap_view = CreateArrayView((u8*)temp_font_bitmap, FONT_BITMAP_SIZE * FONT_BITMAP_SIZE);
-    CreateTextureAndUpload(&font_texture, "Console Font", tp, font_bitmap_view);
+    ArrayView<u8> font_bitmap_view = CreateArrayView((u8*)temp_font_bitmap, FONT_BITMAP_SIZE_X * FONT_BITMAP_SIZE_Y);
+    CreateTextureAndUpload(&s_console.font_texture, "Console Font", tp, font_bitmap_view);
 
 
     {
@@ -611,6 +621,12 @@ void ConsoleInit(const std::string& logo, ArrayView<const u8> console_font_data)
         },
         CreatePipeline(&s_console.pipeline, "Console Pipeline", params);
     }
+    CreateGpuBuffer(&s_console.vertex_buffer, "Console Vertex Buffer", GpuBufferType_Vertex, GpuBufferFlag_StreamUpdate, MAX_VERTS * sizeof(Vertex_2D));
+
+    ShaderConstants_Blit2D uniform = {
+        .orthographic = gb_mat4_identity(),
+    };
+    s_console.uniform = CreateUniform(CreateArrayView((u8*)&uniform, sizeof(uniform)), 0);
 
     ConsoleCheckForInit();
 }
@@ -640,7 +656,7 @@ void DrawRect(SimpleRect rect, Color color, const SimpleRect& scissor)
         bot_left,
         bot_right,
     };
-    s_console.vertex_buffer->Upload(verts);
+    s_console.vertices.Add(CreateArrayView(verts));
 
     const i32 start_index = s_console.vertex_length;
     const i32 end_index =
@@ -662,11 +678,12 @@ void DrawRect(SimpleRect rect, Color color, const SimpleRect& scissor)
     draw.depth_action = { };
     draw.stencil_action = { };
 
-    ShaderConstants_Blit2D uniform = {
-        .orthographic = gb_mat4_identity(),
-    };
+    //ShaderConstants_Blit2D uniform = {
+    //    .orthographic = gb_mat4_identity(),
+    //};
+    //UpdateUniform(s_console.uniform, CreateArrayView((u8*)&uniform, sizeof(uniform)), 0);
+    draw.uniforms.Add(s_console.uniform);
 
-    draw.uniforms[0] = { 0, CreateArrayView((u8*)&uniform, sizeof(uniform))};
     draw.color_targets[0] = { gfx.hdr_target };
     draw.depth_stencil_target = {};
     draw.draw_to_backbuffer = false;
@@ -676,15 +693,12 @@ void DrawRect(SimpleRect rect, Color color, const SimpleRect& scissor)
 
 void DrawText(const char* string, Vec2 bot_left_p, Color color, float scale, const SimpleRect& scissor)
 {
-    size_t len = SYS_STRNLEN(string, Megabytes(1));
-    //characters per row * rows * verts per character
-    const static i32 verts_per_character = 6;
-    StaticArray<Vertex_2D, 256 * 128 * verts_per_character> verts = {};
+    size_t len = strlen(string);
     for (size_t i = 0; i < len; i++)
     {
         const char& c = string[i];
         stbtt_aligned_quad q;
-        stbtt_GetBakedQuad(s_char_data, FONT_BITMAP_SIZE, FONT_BITMAP_SIZE, c - 32, &bot_left_p.x, &bot_left_p.y, &q, 1);
+        stbtt_GetBakedQuad(s_char_data, FONT_BITMAP_SIZE_X, FONT_BITMAP_SIZE_Y, c - 32, &bot_left_p.x, &bot_left_p.y, &q, 1);
         SimpleRect uv;
         uv.left = q.s0;
         uv.right = q.s1;
@@ -701,29 +715,30 @@ void DrawText(const char* string, Vec2 bot_left_p, Color color, float scale, con
         const Vertex_2D top_right = { vert.TopRight(), White, uv.TopRight() }; //2 Top Right
         const Vertex_2D bot_right = { vert.BotRight(), White, uv.BotRight() }; //3 Bot Right
 
-        // First part of Quad
-        verts.Add(top_left);
-        verts.Add(bot_left);
-        verts.Add(top_right);
+        Vertex_2D verts[] = {
+            // First part of Quad
+            top_left,
+            bot_left,
+            top_right,
 
-        //Second part of quad
-        verts.Add(top_right);
-        verts.Add(bot_left);
-        verts.Add(bot_right);
+            //Second part of quad
+            top_right,
+            bot_left,
+            bot_right,
+        };
+        s_console.vertices.Add(CreateArrayView(verts));
     }
-    ASSERT(verts.used % 6 == 0);
-    s_console.vertex_buffer->Upload(verts);
 
     const i32 start_index = s_console.vertex_length;
     const i32 end_index =
         s_console.vertex_length =
-        s_console.vertex_length + (i32)verts.used;
+        s_console.vertex_length + (i32)s_console.vertices.used;
 
     DrawCallParams draw = {};
     draw.pipeline = s_console.pipeline;
     draw.bindings = {};
     draw.bindings.vertex_buffer = s_console.vertex_buffer;
-    draw.bindings.read_textures.Add(font_texture);
+    draw.bindings.read_textures.Add(s_console.font_texture);
     draw.bindings.samplers.Add(gfx.common_sampler);
 
     draw.vertex_index = start_index;
@@ -734,11 +749,13 @@ void DrawText(const char* string, Vec2 bot_left_p, Color color, float scale, con
     draw.depth_action = { };
     draw.stencil_action = { };
 
-    ShaderConstants_Blit2D uniform = {
-        .orthographic = gb_mat4_identity(),
-    };
+    //ShaderConstants_Blit2D uniform = {
+    //    .orthographic = gb_mat4_identity(),
+    //};
+    //UpdateUniform(s_console.uniform, CreateArrayView((u8*)&uniform, sizeof(uniform)), 0);
+    draw.uniforms.Add(s_console.uniform);
 
-    draw.uniforms[0] = { 0, CreateArrayView((u8*)&uniform, sizeof(uniform))};
+
     draw.color_targets[0] = { gfx.hdr_target };
     draw.depth_stencil_target = {};
     draw.draw_to_backbuffer = false;
@@ -880,10 +897,10 @@ void ConsoleRun()
 
     // Scissor coordinates need to be framebuffer relative: 0, 0 is the bottom left;
     SimpleRect scissor_rect;
-    scissor_rect.left   = Min(log_rect.left, log_rect.right);
-    scissor_rect.bot    = s_console.window_size.y - Max(log_rect.bot, log_rect.top);
-    scissor_rect.right  = Max(log_rect.left, log_rect.right);
-    scissor_rect.top    = s_console.window_size.y - Min(log_rect.bot, log_rect.top);
+    scissor_rect.left = Min(log_rect.left, log_rect.right);
+    scissor_rect.bot = s_console.window_size.y - Max(log_rect.bot, log_rect.top);
+    scissor_rect.right = Max(log_rect.left, log_rect.right);
+    scissor_rect.top = s_console.window_size.y - Min(log_rect.bot, log_rect.top);
 
     for (size_t i = 0; i < s_console.items.size(); i++)
     {
@@ -911,6 +928,14 @@ void ConsoleRun()
         // The current scissor rect will still clip the y-coord here:
         //AddRectToRender(RenderType::DebugFill, bar, color, RenderPrio::Console, CoordinateSpace::UI);
         DrawRect(bar, color, scissor_rect);
+    }
+
+    //Upload data to gpu
+    s_console.vertex_buffer->Upload(s_console.vertices);
+    {
+        ZoneScopedN("Clearing console vertices");
+        s_console.vertices.Clear();
+        s_console.vertex_length = 0;
     }
 }
 
@@ -1145,107 +1170,116 @@ bool Console_OnCharacter(i32 c)
     return true;
 }
 
-bool Console_OnKeyboard(i32 c, i32 mods, bool pressed, bool repeat)
+bool Console_OnKeyboard(InputStates* inputs)// i32 c, i32 mods, bool pressed, bool repeat)
 {
-    if (c == SDLK_GRAVE)
+    VALIDATE_V(inputs, false);
+    
+    const bool control  = FlagIntersects(inputs->key_mods, SDL_KMOD_CTRL);
+    const bool shift    = FlagIntersects(inputs->key_mods, SDL_KMOD_SHIFT);
+    const bool alt      = FlagIntersects(inputs->key_mods, SDL_KMOD_ALT);
+    if (inputs->keys[SDLK_GRAVE].down_this_frame)
     {
-        if (pressed)
-        {
-            ConsoleToggle(mods & SDL_KMOD_SHIFT);
-            return true;
-        }
-        return false;
+        ConsoleToggle(shift);
+        return true;
     }
 
-    STB_TEXTEDIT_KEYTYPE key = c | (mods << 16);
+    //STB_TEXTEDIT_KEYTYPE key = c | (mods << 16);
     if (!ConsoleWantsInput()) return false;
-    if (stbKeyToText(key) >= 0) return true;
-    if (!pressed && !repeat) return true;
+    //if (stbKeyToText(key) >= 0) return true;
+    //if (!pressed && !repeat) return true;
 
     STB_TexteditState* state = &s_console.te_state;
-    bool control = !!(mods & SDL_KMOD_CTRL);
-    bool shift = !!(mods & SDL_KMOD_SHIFT);
     bool clear_autocomplete = false;
 
-    if (c == SDLK_RETURN || c == SDLK_KP_ENTER)
-    {
-        ExecCommand(s_console.input_buf.c_str());
-        clear_autocomplete = true;
-        ConsoleClearInput();
-    }
-    else if (control && c == SDLK_A)
-    {
-        state->select_start = 0;
-        state->select_end = STB_TEXTEDIT_STRINGLEN(&s_console.input_buf);
-        clear_autocomplete = true;
-    }
-    else if (control && (c == SDLK_BACKSPACE || c == SDLK_W))
-    {
-        stb_textedit_key(&s_console.input_buf, state, SDLK_LEFT | (SDL_KMOD_SHIFT << 16) | (SDL_KMOD_CTRL << 16));
-        stb_textedit_key(&s_console.input_buf, state, SDLK_BACKSPACE);
-        clear_autocomplete = true;
-    }
-    else if (s_console.ac_active && c == SDLK_BACKSPACE)
-    {
-        s_console.input_buf = s_console.ac_pre_string;
-        s_console.te_state.cursor = static_cast<int>(s_console.input_buf.length());
-        clear_autocomplete = true;
-    }
-    else if (control && c == SDLK_DELETE)
-    {
-        stb_textedit_key(&s_console.input_buf, state, SDLK_RIGHT | (SDL_KMOD_SHIFT << 16) | (SDL_KMOD_CTRL << 16));
-        stb_textedit_key(&s_console.input_buf, state, SDLK_DELETE);
-        clear_autocomplete = true;
-    }
-    else if (control && (c == SDLK_C || c == SDLK_X))
-    {
-        CopySelection();
-        if (c == SDLK_X)
-            stb_textedit_cut(&s_console.input_buf, state);
-    }
-    else if (control && c == SDLK_V)
-    {
-        if (const char* clip_text = SDL_GetClipboardText())
-        {
-            stb_textedit_paste(&s_console.input_buf, state, clip_text, static_cast<int>(strlen(clip_text)));
-        }
+    //STB_TEXTEDIT_KEYTYPE mods = 0;
+    //STB_TEXTEDIT_KEYTYPE stb_mods = (mods << 16);
 
-        clear_autocomplete = true;
-    }
-    else if (control && (c == SDLK_HOME || c == SDLK_END))
+    for (const auto& ikey : inputs->keys)
     {
-        if (c == SDLK_HOME)
-            s_console.scroll_target = MaxScroll();
+        const Key& k = ikey.second;
+        const u32  c = ikey.first;
+        STB_TEXTEDIT_KEYTYPE key = c | (inputs->key_mods << 16);
+
+        if (c == SDLK_RETURN || c == SDLK_KP_ENTER)
+        {
+            ExecCommand(s_console.input_buf.c_str());
+            clear_autocomplete = true;
+            ConsoleClearInput();
+        }
+        else if (control && c == SDLK_A)
+        {
+            state->select_start = 0;
+            state->select_end = STB_TEXTEDIT_STRINGLEN(&s_console.input_buf);
+            clear_autocomplete = true;
+        }
+        else if (control && (c == SDLK_BACKSPACE || c == SDLK_W))
+        {
+            stb_textedit_key(&s_console.input_buf, state, SDLK_LEFT | (SDL_KMOD_SHIFT << 16) | (SDL_KMOD_CTRL << 16));
+            stb_textedit_key(&s_console.input_buf, state, SDLK_BACKSPACE);
+            clear_autocomplete = true;
+        }
+        else if (s_console.ac_active && c == SDLK_BACKSPACE)
+        {
+            s_console.input_buf = s_console.ac_pre_string;
+            s_console.te_state.cursor = static_cast<int>(s_console.input_buf.length());
+            clear_autocomplete = true;
+        }
+        else if (control && c == SDLK_DELETE)
+        {
+            stb_textedit_key(&s_console.input_buf, state, SDLK_RIGHT | (SDL_KMOD_SHIFT << 16) | (SDL_KMOD_CTRL << 16));
+            stb_textedit_key(&s_console.input_buf, state, SDLK_DELETE);
+            clear_autocomplete = true;
+        }
+        else if (control && (c == SDLK_C || c == SDLK_X))
+        {
+            CopySelection();
+            if (c == SDLK_X)
+                stb_textedit_cut(&s_console.input_buf, state);
+        }
+        else if (control && c == SDLK_V)
+        {
+            if (const char* clip_text = SDL_GetClipboardText())
+            {
+                stb_textedit_paste(&s_console.input_buf, state, clip_text, static_cast<int>(strlen(clip_text)));
+            }
+
+            clear_autocomplete = true;
+        }
+        else if (control && (c == SDLK_HOME || c == SDLK_END))
+        {
+            if (c == SDLK_HOME)
+                s_console.scroll_target = MaxScroll();
+            else
+                s_console.scroll_target = 0.0f;
+            clear_autocomplete = true;
+        }
+        else if (c == SDLK_UP || c == SDLK_DOWN)
+        {
+            CycleHistory(c == SDLK_DOWN);
+        }
+        else if (c == SDLK_PAGEDOWN || c == SDLK_PAGEUP)
+        {
+            float offset = NumVisibleItems();
+            s_console.scroll_target += offset * ((c == SDLK_PAGEDOWN) ? -1.0f : 1.0f);
+            s_console.scroll_target = Clamp(s_console.scroll_target, 0.0f, MaxScroll());
+        }
+        else if (c == SDLK_TAB)
+        {
+            if (s_console.ac_active)
+                ConsoleMoveAutoCompleteIndex(!shift);
+            else
+                ConsoleBeginAutocomplete();
+        }
         else
-            s_console.scroll_target = 0.0f;
-        clear_autocomplete = true;
-    }
-    else if (c == SDLK_UP || c == SDLK_DOWN)
-    {
-        CycleHistory(c == SDLK_DOWN);
-    }
-    else if (c == SDLK_PAGEDOWN || c == SDLK_PAGEUP)
-    {
-        float offset = NumVisibleItems();
-        s_console.scroll_target += offset * ((c == SDLK_PAGEDOWN) ? -1.0f : 1.0f);
-        s_console.scroll_target = Clamp(s_console.scroll_target, 0.0f, MaxScroll());
-    }
-    else if (c == SDLK_TAB)
-    {
-        if (s_console.ac_active)
-            ConsoleMoveAutoCompleteIndex(!shift);
-        else
-            ConsoleBeginAutocomplete();
-    }
-    else
-    {
-        stb_textedit_key(&s_console.input_buf, state, key);
+        {
+            stb_textedit_key(&s_console.input_buf, state, key);
+        }
     }
 
     if (clear_autocomplete)
         ConsoleClearAutoComplete();
 
-    return true;
+    return false;
 }
 
 

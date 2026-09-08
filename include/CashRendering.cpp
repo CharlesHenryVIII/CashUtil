@@ -3,6 +3,7 @@
 #include "CashSystem.h"
 #include "resource.h"
 #include "CashIdArray.h"
+#include "CashConsole.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb/stb_image.h"
@@ -357,7 +358,6 @@ bool DeleteVertexLayout(VertexID id)
 //        Texture
 //========================
 
-
 struct GfxTexture : public Texture {
     sg_image image = {};
     sg_image_desc image_desc = {};
@@ -400,6 +400,7 @@ constexpr sg_pixel_format ToSokol(const TextureFormat f)
         case TextureFormat_RG8_UINT:            return SG_PIXELFORMAT_RG8UI;
         case TextureFormat_R8_UNORM:            return SG_PIXELFORMAT_R8;
         case TextureFormat_R8_UINT:             return SG_PIXELFORMAT_R8UI;
+        case TextureFormat_R8_SNORM:             return SG_PIXELFORMAT_R8SN;
         case TextureFormat_Depth:               return SG_PIXELFORMAT_DEPTH;
         case TextureFormat_DepthStencil:        return SG_PIXELFORMAT_DEPTH_STENCIL;
         case TextureFormat_Count: [[fallthrough]];
@@ -653,14 +654,16 @@ struct GfxGpuBuffer : public GpuBuffer
     sg_buffer buffer;
 };
 
-bool CreateGpuBuffer(GpuBuffer** buffer, const char* name, GpuBufferType type, GpuBufferFlag flags)
+bool CreateGpuBuffer(GpuBuffer** buffer, const char* name, GpuBufferType type, GpuBufferFlag flags, size_t max_size)
 {
     ZoneScoped;
     GfxGpuBuffer* buf = GfxGenericCreate<GpuBuffer, GfxGpuBuffer>(buffer, name);
     VALIDATE_V(buf, false);
     buf->type = type;
     buf->flags = flags;
+    buf->max_size = max_size;
     buf->buffer = sg_alloc_buffer();
+
     return true;
 }
 
@@ -674,7 +677,7 @@ void DeleteBuffer(GpuBuffer** buffer)
     delete buf;
 }
 
-void GpuBuffer::Upload(const void* data, const size_t in_count, const u32 in_element_size, const bool is_byte_format)
+void GpuBuffer::Upload(const void* data, const size_t in_count, const u32 in_element_size)
 {
     ZoneScoped;
     GfxGpuBuffer* buf = AsGfx(this);
@@ -688,8 +691,16 @@ void GpuBuffer::Upload(const void* data, const size_t in_count, const u32 in_ele
     {
         sg_buffer_desc desc = {};
         //desc.size = bytes; //Not sure about this
-        desc.data.ptr = data;
-        desc.data.size = bytes;
+        if (FlagIntersects(buf->flags, GpuBufferFlag_Immutable))
+        {
+            desc.data.ptr = data;
+            desc.data.size = bytes;
+        }
+        else
+        {
+            ASSERT(max_size);
+            desc.size = max_size;
+        }
         desc.usage.vertex_buffer = buf->type == GpuBufferType_Vertex;
         desc.usage.index_buffer = buf->type == GpuBufferType_Index;
         desc.usage.storage_buffer = buf->type == GpuBufferType_Structure;
@@ -698,9 +709,19 @@ void GpuBuffer::Upload(const void* data, const size_t in_count, const u32 in_ele
         desc.usage.stream_update = FlagIntersects(buf->flags, GpuBufferFlag_StreamUpdate);
         desc.usage.write_unsealed = false;//FlagIntersects(buf->flags, GpuBufferFlag_WriteUnsealed);
         desc.label = buf->name.c_str();
-
         sg_init_buffer(buf->buffer, desc);
         buf->has_uploaded = true;
+
+        if (FlagIntersects(buf->flags, GpuBufferFlag_Immutable))
+        {
+            return;
+        }
+
+        desc.data.ptr = data;
+        desc.data.size = bytes;
+        
+        const sg_range range = { .ptr = data, .size = bytes };
+        sg_update_buffer(buf->buffer, range);
     }
     else
     {
@@ -710,6 +731,7 @@ void GpuBuffer::Upload(const void* data, const size_t in_count, const u32 in_ele
         update_data.ptr = data;
         update_data.size = bytes;
 
+        //sg_append_buffer();
         //Appends data to a stream buffer
         //sg_append_buffer(buf->buffer, &update_data);
         sg_update_buffer(buf->buffer, &update_data);
@@ -1294,6 +1316,72 @@ void DeletePipeline(Pipeline** pipeline)
 
 
 //========================
+//       UNIFORMS
+//========================
+
+
+struct UniformData {
+    UniformID data_id;
+    u32 slot = 0;
+    u32 size = 0;
+    u8 data[MAX_UNIFORM_BYTES] = {};
+};
+IdArray<UniformData, UniformID> s_uniforms;
+
+bool _UpdateUniform(UniformData* u, ArrayView<u8> data_array, const u32 slot)
+{
+    ASSERT(u);
+    if (data_array.Bytes() >= MAX_UNIFORM_BYTES)
+    {
+        DebugPrint("Failed to create uniform, uniform too large: %i", data_array.Bytes());
+        FAIL;
+        s_uniforms.Erase(u->data_id);
+        return false;
+    }
+
+    memmove(u->data, data_array.data, data_array.Bytes());
+    u->size = (u32)data_array.Bytes();
+    u->slot = slot;
+    return true;
+}
+
+UniformID CreateUniform()
+{
+    UniformData* u = s_uniforms.CreateNew();
+    VALIDATE_V(u, {});
+    return u->data_id;
+}
+UniformID CreateUniform(ArrayView<u8> data_array, const u32 slot)
+{
+    UniformData* u = s_uniforms.CreateNew();
+    VALIDATE_V(u, {});
+
+    if (!_UpdateUniform(u, data_array, slot))
+    {
+        return {};
+    }
+    return u->data_id;
+}
+void DeleteUniform(UniformID id)
+{
+    s_uniforms.Erase(id);
+}
+bool UpdateUniform(UniformID id, ArrayView<u8> data_array, const u32 slot)
+{
+    UniformData* u = s_uniforms.TryGet(id);
+    if (u)
+    {
+        return _UpdateUniform(u, data_array, slot);
+    }
+    return false;
+}
+
+
+
+
+
+
+//========================
 //       Draw Call
 //========================
 
@@ -1307,41 +1395,27 @@ bool CreateDrawCall(const char* name, const DrawCallParams& params)
     VALIDATE_V(draw, false);
     draw->name = name;
     draw->params = params;
-    bool result = true;
 
     //TODO(CSH): Remove the constant delete and new allocations and create something more static
     //Copy uniforms to the draw call
-    for (i32 i = 0; i < SG_MAX_UNIFORMBLOCK_BINDSLOTS; i++)
+    static_assert(SG_MAX_UNIFORMBLOCK_BINDSLOTS >= MAX_SHADER_UNIFORMS);
+    draw->params.uniforms.used = 0;
+    for (i32 i = 0; i < params.uniforms.used; i++)
     {
-        const ShaderUniformData& src = params.uniforms[i];
-        ShaderUniformData& dest = draw->params.uniforms[i];
-
-        if (src.struct_data.data && src.struct_data.count)
+        const UniformID id = params.uniforms[i];
+        if (!id.IsValid())
         {
-            if (src.slot >= 0 && src.slot < MAX_SHADER_UNIFORMS)
-            {
-                dest.slot = src.slot;
-                u8* buffer = new u8[src.struct_data.Bytes()];
-                dest.struct_data.data = buffer;
-                dest.struct_data.count = src.struct_data.count;
-                CopyArrayView(src.struct_data, dest.struct_data);
-                if (src.struct_data.Bytes() != dest.struct_data.Bytes())
-                {
-                    DebugPrint("Failed to copy uniform data in slot %i", src.slot);
-                    result = false;
-                    FAIL;
-                }
-            }
-            else
-            {
-                DebugPrint("Trying to bind at invalid slot: %i", src.slot);
-                result = false;
-                FAIL;
-            }
+            DebugPrint("Error: Trying to add invalid uniform");
+            FAIL;
+            continue;
         }
-    }
 
-    return result;
+        draw->params.uniforms.Add(id);
+    }
+    ASSERT(params.uniforms.used == 1);
+    ASSERT(draw->params.uniforms.used == 1);
+
+    return true;
 }
 
 //DrawCall& AllocDrawCall()
@@ -1373,6 +1447,7 @@ bool CreateDrawCall(const char* name, const DrawCallParams& params)
 //TODO(CSH): How do we do scissor rects!?
 void RenderDrawCalls()
 {
+    ZoneScoped;
     sg_swapchain swapchain = {};
     SysGetRenderSwapchain(&swapchain);
 
@@ -1470,16 +1545,26 @@ void RenderDrawCalls()
         sg_apply_bindings(&sb);
 
         //Constant Buffer / Uniforms
-        static_assert(MAX_SHADER_UNIFORMS == SG_MAX_UNIFORMBLOCK_BINDSLOTS);
-        for (i32 i = 0; i < MAX_SHADER_UNIFORMS; i++)
+        static_assert(SG_MAX_UNIFORMBLOCK_BINDSLOTS >= MAX_SHADER_UNIFORMS);
+        for (i32 i = 0; i < params.uniforms.used; i++)
         {
-            const ShaderUniformData& u = params.uniforms[i];
-            if (u.struct_data.data && u.struct_data.count)
+            const UniformID id = params.uniforms[i];
+            UniformData* u = s_uniforms.TryGet(id);
+            if (!u)
             {
-                ASSERT(u.slot >= 0 && u.slot < MAX_SHADER_UNIFORMS);
-                const sg_range range = { u.struct_data.data, u.struct_data.Bytes() };
-                sg_apply_uniforms(u.slot, &range);
+                DebugPrint("Error: Failed to get uniform index: %i gen: %i", id.index, id.generation);
+                FAIL;
+                continue;
             }
+            if (u->slot < 0 && u->slot >= MAX_SHADER_UNIFORMS)
+            {
+                DebugPrint("Error: Invalid slot: %i", u->slot);
+                FAIL;
+                continue;
+            }
+            //ASSERT(u->slot >= 0 && u->slot < MAX_SHADER_UNIFORMS);
+            const sg_range range = { .ptr = u->data, .size = u->size };
+            sg_apply_uniforms(u->slot, &range);
         }
 
         if (params.scissor.left  != 0.0f &&
@@ -1491,18 +1576,13 @@ void RenderDrawCalls()
             sg_apply_scissor_rectf(r.left, r.bot, r.Width(), r.Height(), false);
         }
 
-        sg_draw_ex(0, params.vertex_length, 1, params.vertex_index, 0);
+        ASSERT(params.bindings.index_buffer == nullptr);//not implemented yet
+        //sg_draw_ex(0, params.vertex_length, 1, params.vertex_index, 0);
+        sg_draw(params.vertex_index, params.vertex_length, 1);
 
         sg_end_pass();
 
-        //Delete the copied uniforms
-        for (i32 i = 0; i < SG_MAX_UNIFORMBLOCK_BINDSLOTS; i++)
-        {
-            ShaderUniformData& u = draw->params.uniforms[i];
-            if (u.struct_data.data)
-                delete u.struct_data.data;
-        }
-
+        s_draws.Erase(draw->data_id);
     }
 }
 
@@ -1732,7 +1812,7 @@ bool CashRenderInit(ArrayView<const ArrayView<const u8>> app_icons)
         .min_lod = 0.0f,
         .max_lod = FLT_MAX,
         .border_color = SamplerBorderColor_TransparentBlack,
-        .compare_func = GpuCompareFunc_Always,
+        .compare_func = GpuCompareFunc_Never,
         .max_anisotropy = 16,
         };
         CreateSampler(&gfx.common_anisotropic_sampler, "Basic Anisotropic Sampler", params);
@@ -1884,9 +1964,8 @@ void CashImguiNewFrame(double delta_time)
 void CashRender()
 {
     ZoneScoped;
-    {
-        RenderDrawCalls();
-    }
+
+    ConsoleRun();
 
     sg_swapchain swapchain = {};
     SysGetRenderSwapchain(&swapchain);
@@ -1913,6 +1992,8 @@ void CashRender()
         //ImGui::Render();
         sg_end_pass();
     }
+
+    RenderDrawCalls();
 
     {
         //Resolve hdr_target to backbuffer
