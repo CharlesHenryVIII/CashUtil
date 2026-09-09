@@ -400,7 +400,7 @@ constexpr sg_pixel_format ToSokol(const TextureFormat f)
         case TextureFormat_RG8_UINT:            return SG_PIXELFORMAT_RG8UI;
         case TextureFormat_R8_UNORM:            return SG_PIXELFORMAT_R8;
         case TextureFormat_R8_UINT:             return SG_PIXELFORMAT_R8UI;
-        case TextureFormat_R8_SNORM:             return SG_PIXELFORMAT_R8SN;
+        case TextureFormat_R8_SNORM:            return SG_PIXELFORMAT_R8SN;
         case TextureFormat_Depth:               return SG_PIXELFORMAT_DEPTH;
         case TextureFormat_DepthStencil:        return SG_PIXELFORMAT_DEPTH_STENCIL;
         case TextureFormat_Count: [[fallthrough]];
@@ -1584,6 +1584,7 @@ void RenderDrawCalls()
 
         s_draws.Erase(draw->data_id);
     }
+    ASSERT(s_draws.IsEmpty());
 }
 
 bool RenderInitSokol()
