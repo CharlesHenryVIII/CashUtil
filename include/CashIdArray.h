@@ -32,6 +32,8 @@ void* _IdArrayReserve(u64 bytes);
 void _IdArrayCommit(void* p, u64 bytes);
 bool _IdArrayFree(void* p, u64 bytes);
 
+constexpr u16 _idarray_invalid_index = -1;
+
 #define PAGESIZE 4096
 template <typename T, typename TID>
 struct IdArray
@@ -46,7 +48,7 @@ struct IdArray
         for (u16 i = 0; i < initial_elements; i++)
         {
             if (i + 1 == initial_elements)
-                data[i].data_id.index = -1;
+                data[i].data_id.index = _idarray_invalid_index;
             else
                 data[i].data_id.index = i + 1;
 
@@ -61,6 +63,8 @@ struct IdArray
         }
         _IdArrayFree(data, 0);
     }
+
+    bool IsEmpty() const { return highest_active == _idarray_invalid_index; };
 
     [[nodiscard]] T* TryGet(const TID id)
     {
@@ -89,11 +93,11 @@ struct IdArray
     [[nodiscard]] T* CreateNew()
     {
         TID id;
-        if (first_inactive == (u16)-1)
+        if (first_inactive == _idarray_invalid_index)
         {
             highest_active++;
             id.index = highest_active;
-            id.generation = 1;
+            id.generation = data[id.index].data_id.generation;// = 1;
         }
         else
         {
@@ -132,7 +136,8 @@ struct IdArray
                     //NOTE(CSH): You get here by deleting every element in the id array.
                     //Usually done when the IdArray destructor is called
                     //FAIL; //is it valid to be here?
-                    highest_active = 0;
+                    highest_active = _idarray_invalid_index;
+                    first_inactive = _idarray_invalid_index;
                 }
             }
 
@@ -140,13 +145,14 @@ struct IdArray
             this_id.generation++;
             if (this_id.generation == 0)
                 this_id.generation = 1;
+            //ERROR(CSH): Not setting INDEX!!??
 
 #ifdef _DEBUG
             memset(element, 0xFF, sizeof(T));
 #endif
 
             element->data_id = TID(first_inactive, this_id.generation);
-            first_inactive = id.index;
+            first_inactive = (highest_active == _idarray_invalid_index) ? highest_active : id.index;
             return true;
         }
         return false;
@@ -155,7 +161,7 @@ struct IdArray
     T* Iterate() const
     {
         return nullptr;
-        if (highest_active == (u16)(-1))
+        if (IsEmpty())
             return nullptr;
         for (u16 i = 0; i <= highest_active; i++)
         {
@@ -195,7 +201,7 @@ struct IdArray
     {
         if (element && *element)
         {
-            for (u16 i = (*element)->data_id.index - 1; i != (u16)-1; i--)
+            for (u16 i = (*element)->data_id.index - 1; i != _idarray_invalid_index; i--)
             {
                 if (IsValid(i))
                 {
@@ -217,9 +223,9 @@ struct IdArray
 public:
 
     T* data;
-    u16 first_inactive = -1;
-    u16 highest_active = -1;
-    u16 committed_memory_until_index = -1;
+    u16 first_inactive = _idarray_invalid_index;
+    u16 highest_active = _idarray_invalid_index;
+    u16 committed_memory_until_index = _idarray_invalid_index;
     const static u16 max_elements = -2;
 };
 

@@ -26,6 +26,8 @@ typedef uint32_t Pos;
 
 // Include in header mode to get struct definitions
 #include "stb/stb_textedit.h"
+#define STB_RECT_PACK_IMPLEMENTATION
+#include "stb/stb_rect_pack.h"
 
 typedef std::string TextEditString;
 
@@ -146,7 +148,8 @@ struct Console
     Tween                       tween = {};
     Tween                       caret_tween;
 
-    float                       font_scale = DEFAULT_FONT_SCALE;
+    float                       font_height = 16;// = font_scale = DEFAULT_FONT_SCALE;
+    float                       font_mono_width = -1;
     Vec2                        window_size;
 
     // Scrollbar
@@ -172,14 +175,14 @@ struct Console
     Pipeline*                   pipeline = nullptr;
     StaticArray<Vertex_2D, MAX_VERTS> vertices = {};
     GpuBuffer*                  vertex_buffer = nullptr;
-    i32                         vertex_length = 0;
+    //i32                         vertex_length = 0;
     UniformID                   uniform = 0;
     Texture*                    font_texture = nullptr;
 };
 static Console s_console;
 
 static std::string s_logo_string;
-static Vec2 s_font_size;
+//static Vec2 s_font_size;
 
 
 
@@ -201,45 +204,40 @@ static void ConsoleClearInput()
 
 static SimpleRect ConsoleRect()
 {
-    Vec2 window_size = s_console.window_size;// GetWindowSize();
+    const Vec2 window_size = s_console.window_size;// GetWindowSize();
 
     SimpleRect console_rect;
     console_rect.left = 0.0f;
     console_rect.right = window_size.x;
-    console_rect.top = 0.0f;
-    console_rect.bot = s_console.visible_height;
+    console_rect.top = window_size.y;
+    console_rect.bot = window_size.y - s_console.visible_height;
     return console_rect;
 }
 
 static float ItemHeight()
 {
-    return s_font_size.y * s_console.font_scale;
+    return s_console.font_height;// s_font_size.y* s_console.font_scale;
     //return AppDefaultFont()->AdvanceY();
 }
 
 // The input rect is the bottom portion of the console rect
 static SimpleRect InputRect()
 {
-    SimpleRect console_rect = ConsoleRect();
-    Vec2 max = console_rect.TopRight();
-    float line_height = ItemHeight();
-    SimpleRect input_rect;
-    input_rect.BotLeft() = console_rect.BotLeft();
-    input_rect.right = console_rect.right;
-    input_rect.top   = console_rect.bot - line_height;
+    const SimpleRect console_rect = ConsoleRect();
+    const float line_height = ItemHeight();
+    SimpleRect input_rect = console_rect;
+    input_rect.top = console_rect.bot + line_height;
     return input_rect;
 }
 
 static SimpleRect LogRect()
 {
-    SimpleRect console_rect = ConsoleRect();
-    Vec2 min = console_rect.BotLeft();
-    Vec2 max = console_rect.TopRight();
+    const SimpleRect console_rect = ConsoleRect();
+    //Vec2 min = console_rect.BotLeft();
+    //Vec2 max = console_rect.TopRight();
     float line_height = ItemHeight();
-    SimpleRect log_rect;
-    log_rect.BotLeft() = console_rect.BotLeft();
-    log_rect.bot -= line_height;
-    log_rect.TopRight() = console_rect.TopRight();
+    SimpleRect log_rect = console_rect;
+    log_rect.bot += line_height;
     return log_rect;
 }
 
@@ -298,9 +296,9 @@ static SimpleRect ScrollbarRect()
 
     // Positioning
     // We have the position calculated for the end, do a lerp from the start
-    float top = max.y + height;
+    float top = max.y - height;
     min.y = Lerp(min.y, top, s_console.scroll_target / MaxScroll());
-    max.y = min.y - height;
+    max.y = min.y + height;
 
     result.BotLeft() = min;
     result.TopRight() = max;
@@ -491,15 +489,15 @@ CONSOLE_FUNCTION(ConsoleClear)
     s_console.items.clear();
 }
 
-CONSOLE_FUNCTIONA(ConsoleFontScale)
-{
-    float scale = DEFAULT_FONT_SCALE;
-    if (args.size() >= 1)
-        scale = static_cast<float>(atof(args[0].c_str()));
-
-    s_console.font_scale = std::clamp(scale, 0.25f, 1.0f);
-    ConsoleLog(LogLevel_Info, "Setting console font scale to %0.3f", s_console.font_scale);
-}
+//CONSOLE_FUNCTIONA(ConsoleFontScale)
+//{
+//    float scale = DEFAULT_FONT_SCALE;
+//    if (args.size() >= 1)
+//        scale = static_cast<float>(atof(args[0].c_str()));
+//
+//    s_console.font_scale = std::clamp(scale, 0.25f, 1.0f);
+//    ConsoleLog(LogLevel_Info, "Setting console font scale to %0.3f", s_console.font_scale);
+//}
 
 CONSOLE_FUNCTION(Logo)
 {
@@ -521,7 +519,8 @@ void ConsoleCheckForInit()
     s_console.items.reserve(1000);
     ConsoleAddCommand("help", ShowHelp);
     ConsoleAddCommand("clear", ConsoleClear);
-    ConsoleAddCommand("font_scale", ConsoleFontScale);
+    //TODO(CSH):
+    //ConsoleAddCommand("font_scale", ConsoleFontScale);
     ConsoleAddCommand("logo", Logo);
 
     stb_textedit_initialize_state(&s_console.te_state, true);
@@ -550,24 +549,56 @@ void ConsoleCheckForInit()
 #define FONT_BITMAP_SIZE_X  512
 #define FONT_BITMAP_SIZE_Y  512
 #define FONT_CHAR_START 0
-#define FONT_CHAR_COUNT 1586
+#define FONT_CHAR_COUNT (1586 - FONT_CHAR_START)
+#if 1
+static stbtt_packedchar s_char_data[FONT_CHAR_COUNT] = {};
+#else
 static stbtt_bakedchar s_char_data[FONT_CHAR_COUNT] = {};
+#endif
 
 void ConsoleInit(const std::string& logo, ArrayView<const u8> console_font_data)
 {
     s_logo_string = logo;
-    //stbtt_BakeFontBitmap();
-    //s_ConsoleDrawRect     = DrawRect;
-    //s_ConsoleDrawText     = DrawText;
-    //s_ConsolePushScissor  = PushScissor;
-    //s_ConsolePopScissor   = PopScissor;
     const Vec2 window_size = SysGetWindowSize();
     const Vec2 screen_size = SysGetScreenSize();
-    s_font_size = Vec2(9, 16);
     u8 temp_font_bitmap[FONT_BITMAP_SIZE_X][FONT_BITMAP_SIZE_Y] = {};
 
+#if 1
+    //STBTT_DEF int stbtt_PackBegin(stbtt_pack_context *spc, unsigned char *pixels, int pw, int ph, int stride_in_bytes, int padding, void *alloc_context)
+//    stbtt_PackBegin();
+//stbtt_PackSetOversampling()          -- for improved quality on small fonts
+//stbtt_PackFontRanges()               -- pack and renders
+//stbtt_PackEnd()
+//stbtt_GetPackedQuad()
+
+    stbtt_pack_context pc;
+    if (!stbtt_PackBegin(&pc, (u8*)temp_font_bitmap, FONT_BITMAP_SIZE_X, FONT_BITMAP_SIZE_Y, 0, 1, nullptr))
+    {
+        DebugPrint("Font packing failed");
+        FAIL;
+        return;
+    }
+
+    stbtt_PackSetOversampling(&pc, 2, 2);
+    if (!stbtt_PackFontRange(&pc,
+        console_font_data.data,
+        0,
+        s_console.font_height,
+        FONT_CHAR_START,
+        FONT_CHAR_COUNT,
+        s_char_data))
+    {
+        DebugPrint("Failed to build font");
+        FAIL;
+        return;
+    }
+    stbtt_PackEnd(&pc);
+    const i32 char_index = 'M' - FONT_CHAR_START;
+    const float monospace_width = s_char_data[char_index].xadvance;
+    s_console.font_mono_width = monospace_width;
+#else
     i32 r = stbtt_BakeFontBitmap(console_font_data.data, 0,         // font location (use offset=0 for plain .ttf)
-        s_font_size.y,                      // height of font in pixels
+        s_console.font_height,                      // height of font in pixels
         (unsigned char*)temp_font_bitmap, FONT_BITMAP_SIZE_X, FONT_BITMAP_SIZE_Y,  // bitmap to be filled in
         FONT_CHAR_START, FONT_CHAR_COUNT,   // characters to bake
         s_char_data);                       // you allocate this, it's num_chars long
@@ -581,7 +612,33 @@ void ConsoleInit(const std::string& logo, ArrayView<const u8> console_font_data)
         DebugPrint("Error: BakeFontBitmap(): %i number of characters fit", r);
         FAIL;
     }
+#endif
 
+#if 1
+    TextureParams tp = {
+        .size = { FONT_BITMAP_SIZE_X, FONT_BITMAP_SIZE_Y, 0 },
+        .msaa_samples = 1,
+        .mip_count = 1,
+
+        .dimension = TextureDimension_2D,
+        .format = TextureFormat_RGBA8_UNORM_SRGB,
+        .type = TextureType_Texture,
+        .update = TextureUpdateType_Immutable,
+    };
+    ArrayView<u8> font_bitmap_byte_view = CreateArrayView((u8*)temp_font_bitmap, FONT_BITMAP_SIZE_X * FONT_BITMAP_SIZE_Y);
+    const u64 size = font_bitmap_byte_view.Bytes() * 4;
+    ColorI* font_rgba8_data = (ColorI*)malloc(size);
+    for (i32 i = 0; i < font_bitmap_byte_view.Bytes(); i++)
+    {
+        font_rgba8_data[i].r =
+            font_rgba8_data[i].g =
+            font_rgba8_data[i].b =
+            font_rgba8_data[i].a =
+            font_bitmap_byte_view[i];
+    }
+    ArrayView<u8> font_array_view = CreateArrayView((u8*)font_rgba8_data, size);
+    CreateTextureAndUpload(&s_console.font_texture, "Console Font", tp, font_array_view);
+#else
     TextureParams tp = {
         .size = { FONT_BITMAP_SIZE_X, FONT_BITMAP_SIZE_Y, 0 },
         .msaa_samples = 1,
@@ -594,6 +651,7 @@ void ConsoleInit(const std::string& logo, ArrayView<const u8> console_font_data)
     };
     ArrayView<u8> font_bitmap_view = CreateArrayView((u8*)temp_font_bitmap, FONT_BITMAP_SIZE_X * FONT_BITMAP_SIZE_Y);
     CreateTextureAndUpload(&s_console.font_texture, "Console Font", tp, font_bitmap_view);
+#endif
 
 
     {
@@ -623,9 +681,32 @@ void ConsoleInit(const std::string& logo, ArrayView<const u8> console_font_data)
     }
     CreateGpuBuffer(&s_console.vertex_buffer, "Console Vertex Buffer", GpuBufferType_Vertex, GpuBufferFlag_StreamUpdate, MAX_VERTS * sizeof(Vertex_2D));
 
+    const float display_pos_x = 0;
+    const float display_pos_y = 0;
+    const float L = display_pos_x;
+    const float R = display_pos_x + gfx.window_size.x;
+    const float B = display_pos_y;
+    const float T = display_pos_y + gfx.window_size.y;
+
+    const Vec4 full = { 1024, 600, 0, 1 };
+    const Vec4 half = {  512, 300, 0, 1 };
+    const Vec4 zero = {    0,   0, 0, 1 };
+
     ShaderConstants_Blit2D uniform = {
-        .orthographic = gb_mat4_identity(),
+        .orthographic = {
+             2.0f/(R-L),   0.0f,           0.0f,       0.0f,
+             0.0f,         2.0f/(T-B),     0.0f,       0.0f,
+             0.0f,         0.0f,           0.5f,       0.0f,
+             (R+L)/(L-R),  (T+B)/(B-T),    0.5f,       1.0f,
+    },
     };
+    gb_mat4_transpose(uniform.orthographic);
+
+
+    const Vec4 full_r = uniform.orthographic * full;
+    const Vec4 half_r = uniform.orthographic * half;
+    const Vec4 zero_r = uniform.orthographic * zero;
+
     s_console.uniform = CreateUniform(CreateArrayView((u8*)&uniform, sizeof(uniform)), 0);
 
     ConsoleCheckForInit();
@@ -640,10 +721,10 @@ void DrawRect(SimpleRect rect, Color color, const SimpleRect& scissor)
         .top = 1,
     };
     // 6 verts in a quad
-    const Vertex_2D top_left  = { rect.TopLeft(),  White, uv.TopLeft()  }; //0 Top Left
-    const Vertex_2D bot_left  = { rect.BotLeft(),  White, uv.BotLeft()  }; //1 Bot Left
-    const Vertex_2D top_right = { rect.TopRight(), White, uv.TopRight() }; //2 Top Right
-    const Vertex_2D bot_right = { rect.BotRight(), White, uv.BotRight() }; //3 Bot Right
+    const Vertex_2D top_left  = { rect.TopLeft(),  color, uv.TopLeft()  }; //0 Top Left
+    const Vertex_2D bot_left  = { rect.BotLeft(),  color, uv.BotLeft()  }; //1 Bot Left
+    const Vertex_2D top_right = { rect.TopRight(), color, uv.TopRight() }; //2 Top Right
+    const Vertex_2D bot_right = { rect.BotRight(), color, uv.BotRight() }; //3 Bot Right
 
     Vertex_2D verts[6] = {
         // First part of Quad
@@ -656,12 +737,9 @@ void DrawRect(SimpleRect rect, Color color, const SimpleRect& scissor)
         bot_left,
         bot_right,
     };
+    const i32 start_index = (i32)s_console.vertices.used;
     s_console.vertices.Add(CreateArrayView(verts));
-
-    const i32 start_index = s_console.vertex_length;
-    const i32 end_index =
-        s_console.vertex_length =
-        s_console.vertex_length + arrsize(verts);
+    const i32 end_index = (i32)s_console.vertices.used;
 
     DrawCallParams draw = {};
     draw.pipeline = s_console.pipeline;
@@ -671,7 +749,7 @@ void DrawRect(SimpleRect rect, Color color, const SimpleRect& scissor)
     draw.bindings.samplers.Add(gfx.common_sampler);
 
     draw.vertex_index = start_index;
-    draw.vertex_length = end_index - start_index;
+    draw.vertex_length = end_index - start_index + 1;
     draw.scissor = scissor;
 
     draw.color_actions[0] = { };
@@ -691,14 +769,21 @@ void DrawRect(SimpleRect rect, Color color, const SimpleRect& scissor)
     CreateDrawCall("Console Draw Text", draw);
 }
 
-void DrawText(const char* string, Vec2 bot_left_p, Color color, float scale, const SimpleRect& scissor)
+void DrawText(const char* string, Vec2 bot_left_p, Color color, const SimpleRect& scissor)
 {
+    const i32 start_index = (i32)s_console.vertices.used;
+    Vec2 bot_left_inv = { bot_left_p.x, s_console.window_size.y - bot_left_p.y };
     size_t len = strlen(string);
     for (size_t i = 0; i < len; i++)
     {
         const char& c = string[i];
         stbtt_aligned_quad q;
+#if 1
+        stbtt_GetPackedQuad(s_char_data, FONT_BITMAP_SIZE_X, FONT_BITMAP_SIZE_Y, c - FONT_CHAR_START, &bot_left_inv.x, &bot_left_inv.y, &q, 0);
+#else
         stbtt_GetBakedQuad(s_char_data, FONT_BITMAP_SIZE_X, FONT_BITMAP_SIZE_Y, c - 32, &bot_left_p.x, &bot_left_p.y, &q, 1);
+#endif
+
         SimpleRect uv;
         uv.left = q.s0;
         uv.right = q.s1;
@@ -707,13 +792,17 @@ void DrawText(const char* string, Vec2 bot_left_p, Color color, float scale, con
         SimpleRect vert;
         vert.left = q.x0;
         vert.right = q.x1;
-        vert.top = q.y0;
-        vert.bot = q.y1;
+        vert.bot = s_console.window_size.y - q.y1;
+        vert.top = s_console.window_size.y - q.y0;
+        //inverting hight so we match y+ is up
+        //vert.top = s_console.window_size.y - q.y0;
+        //vert.bot = q.y1;
+        //vert.top = q.y1 + (q.y1 - q.y0);
 
-        const Vertex_2D top_left  = { vert.TopLeft(),  White, uv.TopLeft() }; //0 Top Left
-        const Vertex_2D bot_left  = { vert.BotLeft(),  White, uv.BotLeft() }; //1 Bot Left
-        const Vertex_2D top_right = { vert.TopRight(), White, uv.TopRight() }; //2 Top Right
-        const Vertex_2D bot_right = { vert.BotRight(), White, uv.BotRight() }; //3 Bot Right
+        const Vertex_2D top_left  = { vert.TopLeft(),  color, uv.TopLeft() }; //0 Top Left
+        const Vertex_2D bot_left  = { vert.BotLeft(),  color, uv.BotLeft() }; //1 Bot Left
+        const Vertex_2D top_right = { vert.TopRight(), color, uv.TopRight() }; //2 Top Right
+        const Vertex_2D bot_right = { vert.BotRight(), color, uv.BotRight() }; //3 Bot Right
 
         Vertex_2D verts[] = {
             // First part of Quad
@@ -728,11 +817,7 @@ void DrawText(const char* string, Vec2 bot_left_p, Color color, float scale, con
         };
         s_console.vertices.Add(CreateArrayView(verts));
     }
-
-    const i32 start_index = s_console.vertex_length;
-    const i32 end_index =
-        s_console.vertex_length =
-        s_console.vertex_length + (i32)s_console.vertices.used;
+    const i32 end_index = (i32)s_console.vertices.used;
 
     DrawCallParams draw = {};
     draw.pipeline = s_console.pipeline;
@@ -742,7 +827,7 @@ void DrawText(const char* string, Vec2 bot_left_p, Color color, float scale, con
     draw.bindings.samplers.Add(gfx.common_sampler);
 
     draw.vertex_index = start_index;
-    draw.vertex_length = end_index - start_index;
+    draw.vertex_length = end_index - start_index + 1;
     draw.scissor = scissor;
 
     draw.color_actions[0] = { };
@@ -777,8 +862,7 @@ void DrawString(Vec2 location, Color color, const SimpleRect& scissor, const cha
         buffer.resize(count);
         vsnprintf(&buffer[0], buffer.size() + 1, text, write_args);
         assert(*(buffer.data() + buffer.size()) == 0);
-        //DrawText(ConsoleFont(), color, s_console.font_scale, { i32(location.x), i32(location.y) }, UIX::left, UIY::bot, RenderPrio::Console, buffer.c_str());
-        DrawText(buffer.c_str(), location, color, s_console.font_scale, scissor);
+        DrawText(buffer.c_str(), location, color, scissor);
     }
 }
 
@@ -821,17 +905,17 @@ void ConsoleRun()
     //FontSprite* font = ConsoleFont();
     SimpleRect empty_scissor = {};
 
-    SimpleRect log_rect = LogRect();
+    const SimpleRect log_rect = LogRect();
     //AddRectToRender(RenderType::DebugFill, log_rect, console_color, RenderPrio::Console, CoordinateSpace::UI);
     DrawRect(log_rect, console_color, empty_scissor);
 
     // Input rect
-    SimpleRect input_rect = InputRect();
+    const SimpleRect input_rect = InputRect();
     //AddRectToRender(RenderType::DebugFill, input_rect, input_color, RenderPrio::Console, CoordinateSpace::UI);
     DrawRect(input_rect, input_color, empty_scissor);
 
     const char* terminal_prompt = "> ";
-    float charWidth = s_font_size.x * s_console.font_scale;
+    float charWidth = s_console.font_mono_width;// s_font_size.x * s_console.font_scale;
     float prompt_width = static_cast<float>(charWidth * strlen(terminal_prompt)); // font->StringWidth(terminal_prompt); // TODO:
     DrawString(input_rect.BotLeft(), font_color, empty_scissor, "%s%s", terminal_prompt, s_console.input_buf.c_str());
 
@@ -856,15 +940,14 @@ void ConsoleRun()
         float caret_x = static_cast<float>(state.cursor * charWidth);// TODO: font->StringWidth(s_console.input_buf.c_str(), state.cursor);
         caret_x += prompt_width;
         SimpleRect caret;
-        caret.BotLeft().x = caret_x - 1.0f;
-        caret.TopRight().x = caret_x + 1.0f;
+        caret.left  = caret_x - 1.0f;
+        caret.right = caret_x + 1.0f;
 
         float center_y = (input_rect.bot + input_rect.top) / 2.0f;
-        caret.BotLeft().y = center_y + ItemHeight() * 0.5f;
-        caret.TopRight().y = center_y - ItemHeight() * 0.5f;
+        caret.bot = center_y - ItemHeight() * 0.5f;
+        caret.top = center_y + ItemHeight() * 0.5f;
         Color c = caret_color;
         c.a = alpha;
-        //AddRectToRender(RenderType::DebugFill, caret, c, RenderPrio::Console, CoordinateSpace::UI);
         DrawRect(caret, input_color, empty_scissor);
     }
     else
@@ -883,10 +966,9 @@ void ConsoleRun()
         selection.right = select_end;
 
         float center_y = (input_rect.bot + input_rect.top) / 2.0f;
-        selection.bot = center_y + ItemHeight() * 0.5f;
-        selection.top = center_y - ItemHeight() * 0.5f;
+        selection.bot = center_y - ItemHeight() * 0.5f;
+        selection.top = center_y + ItemHeight() * 0.5f;
 
-        //AddRectToRender(RenderType::DebugFill, selection, selection_color, RenderPrio::Console, CoordinateSpace::UI);
         DrawRect(selection, selection_color, empty_scissor);
     }
 
@@ -904,13 +986,13 @@ void ConsoleRun()
 
     for (size_t i = 0; i < s_console.items.size(); i++)
     {
-        float offset = float((NumItems() - 1) - i) * ItemHeight() - s_console.scroll_position * ItemHeight();
-        min.y = log_rect.bot - offset;
+        float y_offset = float((NumItems() - 1) - i) * ItemHeight() - s_console.scroll_position * ItemHeight();
+        min.y = log_rect.bot + y_offset;
         auto& item = s_console.items[i];
 
         if (min.y < 0.0f)
             continue;
-        else if (min.y > log_rect.bot + ItemHeight())
+        else if (min.y > log_rect.top)//log_rect.bot + ItemHeight())
             continue;
 
         DrawString(min, item.color, scissor_rect, "%s%s", item.preamble, item.text.c_str());
@@ -935,7 +1017,6 @@ void ConsoleRun()
     {
         ZoneScopedN("Clearing console vertices");
         s_console.vertices.Clear();
-        s_console.vertex_length = 0;
     }
 }
 
@@ -1198,6 +1279,8 @@ bool Console_OnKeyboard(InputStates* inputs)// i32 c, i32 mods, bool pressed, bo
     {
         const Key& k = ikey.second;
         const u32  c = ikey.first;
+        if (!k.down_this_frame)
+            continue;
         STB_TEXTEDIT_KEYTYPE key = c | (inputs->key_mods << 16);
 
         if (c == SDLK_RETURN || c == SDLK_KP_ENTER)

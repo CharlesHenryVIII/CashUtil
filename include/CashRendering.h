@@ -17,6 +17,7 @@
 #define MAX_UNIFORM_BYTES (MAX_SHADER_UNIFORM_MEMBERS * sizeof(Mat4))
 
 #pragma pack(push, 1)
+//NOTE(CSH): ROW MAJOR IN GPU
 struct ShaderConstants_Blit2D {
     Mat4 orthographic;
 };

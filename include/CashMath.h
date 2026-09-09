@@ -311,6 +311,8 @@ union SimpleRect {
         return top - bot;
     }
 
+    Vec2 Center() const { return Vec2(right + left, bot + top) / 2.0f; }
+
     Vec2 TopLeft()  const { return { left,  top }; }
     Vec2 BotLeft()  const { return { left,  bot }; }
     Vec2 TopRight() const { return { right, top }; }
