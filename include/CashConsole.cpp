@@ -111,6 +111,14 @@ static const Color log_colors[] = {
     Color{0.5f, 0.5f, 0.8f, 1.0f}, // LogLevel_Internal
 };
 static_assert(arrsize(log_colors) == LogLevel_Count);
+static_assert(LogLevel_Count == 4);
+const char* log_level_str[LogLevel_Count] = {
+    "Info____",
+    "Warning_",
+    "Error___",
+    "Internal",
+};
+
 std::vector<char*> logStrings;
 std::vector<LogLevel> logLevels;
 // :CONFIG
@@ -556,162 +564,6 @@ static stbtt_packedchar s_char_data[FONT_CHAR_COUNT] = {};
 static stbtt_bakedchar s_char_data[FONT_CHAR_COUNT] = {};
 #endif
 
-void ConsoleInit(const std::string& logo, ArrayView<const u8> console_font_data)
-{
-    s_logo_string = logo;
-    const Vec2 window_size = SysGetWindowSize();
-    const Vec2 screen_size = SysGetScreenSize();
-    u8 temp_font_bitmap[FONT_BITMAP_SIZE_X][FONT_BITMAP_SIZE_Y] = {};
-
-#if 1
-    //STBTT_DEF int stbtt_PackBegin(stbtt_pack_context *spc, unsigned char *pixels, int pw, int ph, int stride_in_bytes, int padding, void *alloc_context)
-//    stbtt_PackBegin();
-//stbtt_PackSetOversampling()          -- for improved quality on small fonts
-//stbtt_PackFontRanges()               -- pack and renders
-//stbtt_PackEnd()
-//stbtt_GetPackedQuad()
-
-    stbtt_pack_context pc;
-    if (!stbtt_PackBegin(&pc, (u8*)temp_font_bitmap, FONT_BITMAP_SIZE_X, FONT_BITMAP_SIZE_Y, 0, 1, nullptr))
-    {
-        DebugPrint("Font packing failed");
-        FAIL;
-        return;
-    }
-
-    stbtt_PackSetOversampling(&pc, 2, 2);
-    if (!stbtt_PackFontRange(&pc,
-        console_font_data.data,
-        0,
-        s_console.font_height,
-        FONT_CHAR_START,
-        FONT_CHAR_COUNT,
-        s_char_data))
-    {
-        DebugPrint("Failed to build font");
-        FAIL;
-        return;
-    }
-    stbtt_PackEnd(&pc);
-    const i32 char_index = 'M' - FONT_CHAR_START;
-    const float monospace_width = s_char_data[char_index].xadvance;
-    s_console.font_mono_width = monospace_width;
-#else
-    i32 r = stbtt_BakeFontBitmap(console_font_data.data, 0,         // font location (use offset=0 for plain .ttf)
-        s_console.font_height,                      // height of font in pixels
-        (unsigned char*)temp_font_bitmap, FONT_BITMAP_SIZE_X, FONT_BITMAP_SIZE_Y,  // bitmap to be filled in
-        FONT_CHAR_START, FONT_CHAR_COUNT,   // characters to bake
-        s_char_data);                       // you allocate this, it's num_chars long
-    if (r == 0)
-    {
-        DebugPrint("Error: BakeFontBitmap(): no characters fit and no rows were used");
-        FAIL;
-    }
-    else if (r < 0)
-    {
-        DebugPrint("Error: BakeFontBitmap(): %i number of characters fit", r);
-        FAIL;
-    }
-#endif
-
-#if 1
-    TextureParams tp = {
-        .size = { FONT_BITMAP_SIZE_X, FONT_BITMAP_SIZE_Y, 0 },
-        .msaa_samples = 1,
-        .mip_count = 1,
-
-        .dimension = TextureDimension_2D,
-        .format = TextureFormat_RGBA8_UNORM_SRGB,
-        .type = TextureType_Texture,
-        .update = TextureUpdateType_Immutable,
-    };
-    ArrayView<u8> font_bitmap_byte_view = CreateArrayView((u8*)temp_font_bitmap, FONT_BITMAP_SIZE_X * FONT_BITMAP_SIZE_Y);
-    const u64 size = font_bitmap_byte_view.Bytes() * 4;
-    ColorI* font_rgba8_data = (ColorI*)malloc(size);
-    for (i32 i = 0; i < font_bitmap_byte_view.Bytes(); i++)
-    {
-        font_rgba8_data[i].r =
-            font_rgba8_data[i].g =
-            font_rgba8_data[i].b =
-            font_rgba8_data[i].a =
-            font_bitmap_byte_view[i];
-    }
-    ArrayView<u8> font_array_view = CreateArrayView((u8*)font_rgba8_data, size);
-    CreateTextureAndUpload(&s_console.font_texture, "Console Font", tp, font_array_view);
-#else
-    TextureParams tp = {
-        .size = { FONT_BITMAP_SIZE_X, FONT_BITMAP_SIZE_Y, 0 },
-        .msaa_samples = 1,
-        .mip_count = 1,
-
-        .dimension = TextureDimension_2D,
-        .format = TextureFormat_R8_SNORM,
-        .type = TextureType_Texture,
-        .update = TextureUpdateType_Immutable,
-    };
-    ArrayView<u8> font_bitmap_view = CreateArrayView((u8*)temp_font_bitmap, FONT_BITMAP_SIZE_X * FONT_BITMAP_SIZE_Y);
-    CreateTextureAndUpload(&s_console.font_texture, "Console Font", tp, font_bitmap_view);
-#endif
-
-
-    {
-        PipelineParams params = {
-            .shader = gfx.blit2d_shader,
-            .primitive_type = PrimitiveType_Triangles,
-            .cull_mode = RenderCullMode_None,
-            .msaa_sample_count = 1,
-            .has_index_buffer = false,
-            .front_ccw_winding_order = true,
-            .alpha_to_coverage_enabled = false,
-
-            //.depth,
-            //.depth_compare_func,
-            //.depth_bias = 0.0f,
-            //.depth_bias_slope_scale = 0.0f,
-            //.depth_bias_clamp = 0.0f,
-
-            .stencil = gfx.stencil_2d,
-        };
-
-        params.targets[0] = {
-            .texture = gfx.hdr_target,
-            .blend = gfx.blend_normal,
-        },
-        CreatePipeline(&s_console.pipeline, "Console Pipeline", params);
-    }
-    CreateGpuBuffer(&s_console.vertex_buffer, "Console Vertex Buffer", GpuBufferType_Vertex, GpuBufferFlag_StreamUpdate, MAX_VERTS * sizeof(Vertex_2D));
-
-    const float display_pos_x = 0;
-    const float display_pos_y = 0;
-    const float L = display_pos_x;
-    const float R = display_pos_x + gfx.window_size.x;
-    const float B = display_pos_y;
-    const float T = display_pos_y + gfx.window_size.y;
-
-    const Vec4 full = { 1024, 600, 0, 1 };
-    const Vec4 half = {  512, 300, 0, 1 };
-    const Vec4 zero = {    0,   0, 0, 1 };
-
-    ShaderConstants_Blit2D uniform = {
-        .orthographic = {
-             2.0f/(R-L),   0.0f,           0.0f,       0.0f,
-             0.0f,         2.0f/(T-B),     0.0f,       0.0f,
-             0.0f,         0.0f,           0.5f,       0.0f,
-             (R+L)/(L-R),  (T+B)/(B-T),    0.5f,       1.0f,
-    },
-    };
-    gb_mat4_transpose(uniform.orthographic);
-
-
-    const Vec4 full_r = uniform.orthographic * full;
-    const Vec4 half_r = uniform.orthographic * half;
-    const Vec4 zero_r = uniform.orthographic * zero;
-
-    s_console.uniform = CreateUniform(CreateArrayView((u8*)&uniform, sizeof(uniform)), 0);
-
-    ConsoleCheckForInit();
-}
-
 void DrawRect(SimpleRect rect, Color color, const SimpleRect& scissor)
 {
     const SimpleRect uv = {
@@ -779,7 +631,7 @@ void DrawText(const char* string, Vec2 bot_left_p, Color color, const SimpleRect
         const char& c = string[i];
         stbtt_aligned_quad q;
 #if 1
-        stbtt_GetPackedQuad(s_char_data, FONT_BITMAP_SIZE_X, FONT_BITMAP_SIZE_Y, c - FONT_CHAR_START, &bot_left_inv.x, &bot_left_inv.y, &q, 0);
+        stbtt_GetPackedQuad(s_char_data, FONT_BITMAP_SIZE_X, FONT_BITMAP_SIZE_Y, c, &bot_left_inv.x, &bot_left_inv.y, &q, 0);
 #else
         stbtt_GetBakedQuad(s_char_data, FONT_BITMAP_SIZE_X, FONT_BITMAP_SIZE_Y, c - 32, &bot_left_p.x, &bot_left_p.y, &q, 1);
 #endif
@@ -1164,7 +1016,7 @@ static float stbCharWidth(TextEditString* string, int start, int i)
 
 static int stbKeyToText(int c)
 {
-    if (c >= 32 && c <= 126)
+    if (c >= SDLK_SPACE && c <= SDLK_TILDE)
         return c;
     return -1;
 }
@@ -1251,120 +1103,6 @@ bool Console_OnCharacter(i32 c)
     return true;
 }
 
-bool Console_OnKeyboard(InputStates* inputs)// i32 c, i32 mods, bool pressed, bool repeat)
-{
-    VALIDATE_V(inputs, false);
-    
-    const bool control  = FlagIntersects(inputs->key_mods, SDL_KMOD_CTRL);
-    const bool shift    = FlagIntersects(inputs->key_mods, SDL_KMOD_SHIFT);
-    const bool alt      = FlagIntersects(inputs->key_mods, SDL_KMOD_ALT);
-    if (inputs->keys[SDLK_GRAVE].down_this_frame)
-    {
-        ConsoleToggle(shift);
-        return true;
-    }
-
-    //STB_TEXTEDIT_KEYTYPE key = c | (mods << 16);
-    if (!ConsoleWantsInput()) return false;
-    //if (stbKeyToText(key) >= 0) return true;
-    //if (!pressed && !repeat) return true;
-
-    STB_TexteditState* state = &s_console.te_state;
-    bool clear_autocomplete = false;
-
-    //STB_TEXTEDIT_KEYTYPE mods = 0;
-    //STB_TEXTEDIT_KEYTYPE stb_mods = (mods << 16);
-
-    for (const auto& ikey : inputs->keys)
-    {
-        const Key& k = ikey.second;
-        const u32  c = ikey.first;
-        if (!k.down_this_frame)
-            continue;
-        STB_TEXTEDIT_KEYTYPE key = c | (inputs->key_mods << 16);
-
-        if (c == SDLK_RETURN || c == SDLK_KP_ENTER)
-        {
-            ExecCommand(s_console.input_buf.c_str());
-            clear_autocomplete = true;
-            ConsoleClearInput();
-        }
-        else if (control && c == SDLK_A)
-        {
-            state->select_start = 0;
-            state->select_end = STB_TEXTEDIT_STRINGLEN(&s_console.input_buf);
-            clear_autocomplete = true;
-        }
-        else if (control && (c == SDLK_BACKSPACE || c == SDLK_W))
-        {
-            stb_textedit_key(&s_console.input_buf, state, SDLK_LEFT | (SDL_KMOD_SHIFT << 16) | (SDL_KMOD_CTRL << 16));
-            stb_textedit_key(&s_console.input_buf, state, SDLK_BACKSPACE);
-            clear_autocomplete = true;
-        }
-        else if (s_console.ac_active && c == SDLK_BACKSPACE)
-        {
-            s_console.input_buf = s_console.ac_pre_string;
-            s_console.te_state.cursor = static_cast<int>(s_console.input_buf.length());
-            clear_autocomplete = true;
-        }
-        else if (control && c == SDLK_DELETE)
-        {
-            stb_textedit_key(&s_console.input_buf, state, SDLK_RIGHT | (SDL_KMOD_SHIFT << 16) | (SDL_KMOD_CTRL << 16));
-            stb_textedit_key(&s_console.input_buf, state, SDLK_DELETE);
-            clear_autocomplete = true;
-        }
-        else if (control && (c == SDLK_C || c == SDLK_X))
-        {
-            CopySelection();
-            if (c == SDLK_X)
-                stb_textedit_cut(&s_console.input_buf, state);
-        }
-        else if (control && c == SDLK_V)
-        {
-            if (const char* clip_text = SDL_GetClipboardText())
-            {
-                stb_textedit_paste(&s_console.input_buf, state, clip_text, static_cast<int>(strlen(clip_text)));
-            }
-
-            clear_autocomplete = true;
-        }
-        else if (control && (c == SDLK_HOME || c == SDLK_END))
-        {
-            if (c == SDLK_HOME)
-                s_console.scroll_target = MaxScroll();
-            else
-                s_console.scroll_target = 0.0f;
-            clear_autocomplete = true;
-        }
-        else if (c == SDLK_UP || c == SDLK_DOWN)
-        {
-            CycleHistory(c == SDLK_DOWN);
-        }
-        else if (c == SDLK_PAGEDOWN || c == SDLK_PAGEUP)
-        {
-            float offset = NumVisibleItems();
-            s_console.scroll_target += offset * ((c == SDLK_PAGEDOWN) ? -1.0f : 1.0f);
-            s_console.scroll_target = Clamp(s_console.scroll_target, 0.0f, MaxScroll());
-        }
-        else if (c == SDLK_TAB)
-        {
-            if (s_console.ac_active)
-                ConsoleMoveAutoCompleteIndex(!shift);
-            else
-                ConsoleBeginAutocomplete();
-        }
-        else
-        {
-            stb_textedit_key(&s_console.input_buf, state, key);
-        }
-    }
-
-    if (clear_autocomplete)
-        ConsoleClearAutoComplete();
-
-    return false;
-}
-
 
 void Console_OnWindowSize(i32 width, i32 height)
 {
@@ -1428,5 +1166,386 @@ bool Console_OnMouseWheel(float scroll)
 
     s_console.scroll_target += scroll * SCROLL_SPEED;
     return true;
+}
+
+
+
+
+//========================
+//       LOGGING
+//========================
+
+void LogInternal(const std::string& category, const LogLevel level, const std::string& message)
+{
+    SDL_Time ticks;
+    SDL_GetCurrentTime(&ticks);
+    SDL_DateTime dt;
+    SDL_TimeToDateTime(ticks, &dt, true);
+
+    char time_str[32] = {};
+#if 1
+    snprintf(time_str, sizeof(time_str), "%02d:%02d:%02d", 
+             dt.hour, dt.minute, dt.second);
+#else
+    snprintf(time_str, sizeof(time_str), "%04d-%02d-%02d %02d:%02d:%02d", 
+             dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second);
+#endif
+
+    //                                  time|frame|verb|cat|message
+    const std::string str = std::format("[{}][{:3}][{}]{}: {}",
+        time_str, g_frame_index, log_level_str[level], category, message);
+
+    DebugPrint("%s", str.c_str());
+    ConsoleLog(level, "%s", str.c_str());
+}
+void Log(const char* category, const LogLevel level, const char* fmt, ...)
+{
+    va_list list;
+    va_start(list, fmt);
+    char format_string[4096] = {};
+    SYS_VSNPRINTF(format_string, arrsize(format_string), fmt, list);
+    va_end(list);
+
+    LogInternal(category, level, format_string);
+}
+void Log(const wchar_t* category, const LogLevel level, const wchar_t* fmt, ...)
+{
+    va_list list;
+    va_start(list, fmt);
+    wchar_t buffer[4096] = {};
+    SYS_VSNWPRINTF(buffer, arrsize(buffer), fmt, list);
+    va_end(list);
+
+    std::string cat;
+    std::string message;
+    SysConvertWideCharToMultiByte(cat, category);
+    SysConvertWideCharToMultiByte(message, buffer);
+    LogInternal(cat, level, message);
+}
+
+static struct ConsoleInputHandler : InputHandler
+{
+    virtual InputPriority Priority() override { return InputPriority_Console; }
+
+    virtual bool OnKeyDown(const SDL_KeyboardEvent& event) override
+    {
+        
+        const SDL_Keymod    mods    = event.mod;
+        const SDL_Keycode   key     = event.key;
+        const bool          control = FlagIntersects(mods, SDL_KMOD_CTRL);
+        const bool          shift   = FlagIntersects(mods, SDL_KMOD_SHIFT);
+        const bool          alt     = FlagIntersects(mods, SDL_KMOD_ALT);
+        if (key == SDLK_GRAVE)
+        {
+            ConsoleToggle(shift);
+            return true;
+        }
+        if (!ConsoleWantsInput()) return false;
+        if (event.repeat) return true;
+        //We do not want to process text keys here but we need to consume them
+        if (stbKeyToText(key) >= 0) return true;
+
+        const STB_TEXTEDIT_KEYTYPE key_mod = key | (mods << 16);
+
+        STB_TexteditState* state = &s_console.te_state;
+        bool clear_autocomplete = false;
+
+        //STB_TEXTEDIT_KEYTYPE mods = 0;
+        //STB_TEXTEDIT_KEYTYPE stb_mods = (mods << 16);
+
+        if (key == SDLK_RETURN || key == SDLK_KP_ENTER)
+        {
+            ExecCommand(s_console.input_buf.c_str());
+            clear_autocomplete = true;
+            ConsoleClearInput();
+        }
+        else if (control && key == SDLK_A)
+        {
+            state->select_start = 0;
+            state->select_end = STB_TEXTEDIT_STRINGLEN(&s_console.input_buf);
+            clear_autocomplete = true;
+        }
+        else if (control && (key == SDLK_BACKSPACE || key == SDLK_W))
+        {
+            stb_textedit_key(&s_console.input_buf, state, SDLK_LEFT | (SDL_KMOD_SHIFT << 16) | (SDL_KMOD_CTRL << 16));
+            stb_textedit_key(&s_console.input_buf, state, SDLK_BACKSPACE);
+            clear_autocomplete = true;
+        }
+        else if (s_console.ac_active && key == SDLK_BACKSPACE)
+        {
+            s_console.input_buf = s_console.ac_pre_string;
+            s_console.te_state.cursor = static_cast<int>(s_console.input_buf.length());
+            clear_autocomplete = true;
+        }
+        else if (control && key == SDLK_DELETE)
+        {
+            stb_textedit_key(&s_console.input_buf, state, SDLK_RIGHT | (SDL_KMOD_SHIFT << 16) | (SDL_KMOD_CTRL << 16));
+            stb_textedit_key(&s_console.input_buf, state, SDLK_DELETE);
+            clear_autocomplete = true;
+        }
+        else if (control && (key == SDLK_C || key == SDLK_X))
+        {
+            CopySelection();
+            if (key == SDLK_X)
+                stb_textedit_cut(&s_console.input_buf, state);
+        }
+        else if (control && key == SDLK_V)
+        {
+            if (const char* clip_text = SDL_GetClipboardText())
+            {
+                stb_textedit_paste(&s_console.input_buf, state, clip_text, static_cast<int>(strlen(clip_text)));
+            }
+
+            clear_autocomplete = true;
+        }
+        else if (control && (key == SDLK_HOME || key == SDLK_END))
+        {
+            if (key == SDLK_HOME)
+                s_console.scroll_target = MaxScroll();
+            else
+                s_console.scroll_target = 0.0f;
+            clear_autocomplete = true;
+        }
+        else if (key == SDLK_UP || key == SDLK_DOWN)
+        {
+            CycleHistory(key == SDLK_DOWN);
+        }
+        else if (key == SDLK_PAGEDOWN || key == SDLK_PAGEUP)
+        {
+            float offset = NumVisibleItems();
+            s_console.scroll_target += offset * ((key == SDLK_PAGEDOWN) ? -1.0f : 1.0f);
+            s_console.scroll_target = Clamp(s_console.scroll_target, 0.0f, MaxScroll());
+        }
+        else if (key == SDLK_TAB)
+        {
+            if (s_console.ac_active)
+                ConsoleMoveAutoCompleteIndex(!shift);
+            else
+                ConsoleBeginAutocomplete();
+        }
+        else
+        {
+            stb_textedit_key(&s_console.input_buf, state, key);
+        }
+
+        if (clear_autocomplete)
+            ConsoleClearAutoComplete();
+
+        return false;
+    }
+    virtual void OnKeyUp(const SDL_KeyboardEvent& event) override { }
+    virtual bool OnTextInput(const SDL_TextInputEvent& event) override
+    {
+        if (!event.text)            return false;
+        if (!ConsoleWantsInput())   return false;
+
+        const u64 len = strlen(event.text);
+        for (i32 i = 0; i < len; i++)
+        {
+            const char c = event.text[i];
+            if (c == '`' || c == '~') return false;
+            STB_TEXTEDIT_KEYTYPE key = c;
+            stb_textedit_key(&s_console.input_buf, &s_console.te_state, key);
+        }
+        ConsoleClearAutoComplete();
+        return true;
+    }
+
+    virtual bool OnMouseMotion(const SDL_MouseMotionEvent& event) override { return false; }
+    virtual bool OnMouseDown(const SDL_MouseButtonEvent& event) override
+    {
+        const bool pressed = event.down;
+        const u8 button = event.button;
+        if (button == SDL_BUTTON_LEFT && !pressed)
+            s_console.mouse_scrolling = false;
+
+        if (!ConsoleWantsInput())
+            return false;
+        if (!MouseIsOverConsole())
+            return false;
+
+        if (button == SDL_BUTTON_LEFT && pressed)
+        {
+            const Vec2 pos = { event.x, event.y };//GetMousePosition();
+            const SimpleRect rect = ScrollbarRect();
+            if (Contains(rect, pos))
+            {
+                s_console.mouse_scrolling = true;
+                s_console.mouse_scroll_handle_t = (pos.y - rect.bot) / rect.Height();
+            }
+        }
+
+        return true;
+    }
+    virtual void OnMouseUp(const SDL_MouseButtonEvent& event) override { }
+    virtual bool OnMouseWheel(const SDL_MouseWheelEvent& event) override
+    {
+        if (!ConsoleWantsInput())
+            return false;
+        if (!MouseIsOverConsole())
+            return false;
+
+        s_console.scroll_target += event.y * SCROLL_SPEED;
+        return true;
+    }
+} s_console_input;
+
+
+void ConsoleInit(const std::string& logo, ArrayView<const u8> console_font_data)
+{
+    AddInputHandler(&s_console_input);
+
+    s_logo_string = logo;
+    const Vec2 window_size = SysGetWindowSize();
+    const Vec2 screen_size = SysGetScreenSize();
+    u8 temp_font_bitmap[FONT_BITMAP_SIZE_X][FONT_BITMAP_SIZE_Y] = {};
+
+#if 1
+    //STBTT_DEF int stbtt_PackBegin(stbtt_pack_context *spc, unsigned char *pixels, int pw, int ph, int stride_in_bytes, int padding, void *alloc_context)
+//    stbtt_PackBegin();
+//stbtt_PackSetOversampling()          -- for improved quality on small fonts
+//stbtt_PackFontRanges()               -- pack and renders
+//stbtt_PackEnd()
+//stbtt_GetPackedQuad()
+
+    stbtt_pack_context pc;
+    if (!stbtt_PackBegin(&pc, (u8*)temp_font_bitmap, FONT_BITMAP_SIZE_X, FONT_BITMAP_SIZE_Y, 0, 1, nullptr))
+    {
+        DebugPrint("Font packing failed");
+        FAIL;
+        return;
+    }
+
+    stbtt_PackSetOversampling(&pc, 2, 2);
+    if (!stbtt_PackFontRange(&pc,
+        console_font_data.data,
+        0,
+        s_console.font_height,
+        FONT_CHAR_START,
+        FONT_CHAR_COUNT,
+        s_char_data))
+    {
+        DebugPrint("Failed to build font");
+        FAIL;
+        return;
+    }
+    stbtt_PackEnd(&pc);
+    const i32 char_index = 'M' - FONT_CHAR_START;
+    const float monospace_width = s_char_data[char_index].xadvance;
+    s_console.font_mono_width = monospace_width;
+#else
+    i32 r = stbtt_BakeFontBitmap(console_font_data.data, 0,         // font location (use offset=0 for plain .ttf)
+        s_console.font_height,                      // height of font in pixels
+        (unsigned char*)temp_font_bitmap, FONT_BITMAP_SIZE_X, FONT_BITMAP_SIZE_Y,  // bitmap to be filled in
+        FONT_CHAR_START, FONT_CHAR_COUNT,   // characters to bake
+        s_char_data);                       // you allocate this, it's num_chars long
+    if (r == 0)
+    {
+        DebugPrint("Error: BakeFontBitmap(): no characters fit and no rows were used");
+        FAIL;
+    }
+    else if (r < 0)
+    {
+        DebugPrint("Error: BakeFontBitmap(): %i number of characters fit", r);
+        FAIL;
+    }
+#endif
+
+#if 1
+    TextureParams tp = {
+        .size = { FONT_BITMAP_SIZE_X, FONT_BITMAP_SIZE_Y, 0 },
+        .msaa_samples = 1,
+        .mip_count = 1,
+
+        .dimension = TextureDimension_2D,
+        .format = TextureFormat_RGBA8_UNORM_SRGB,
+        .type = TextureType_Texture,
+        .update = TextureUpdateType_Immutable,
+    };
+    ArrayView<u8> font_bitmap_byte_view = CreateArrayView((u8*)temp_font_bitmap, FONT_BITMAP_SIZE_X * FONT_BITMAP_SIZE_Y);
+    const u64 size = font_bitmap_byte_view.Bytes() * 4;
+    ColorI* font_rgba8_data = (ColorI*)malloc(size);
+    for (i32 i = 0; i < font_bitmap_byte_view.Bytes(); i++)
+    {
+        font_rgba8_data[i].r =
+            font_rgba8_data[i].g =
+            font_rgba8_data[i].b =
+            font_rgba8_data[i].a =
+            font_bitmap_byte_view[i];
+    }
+    ArrayView<u8> font_array_view = CreateArrayView((u8*)font_rgba8_data, size);
+    CreateTextureAndUpload(&s_console.font_texture, "Console Font", tp, font_array_view);
+#else
+    TextureParams tp = {
+        .size = { FONT_BITMAP_SIZE_X, FONT_BITMAP_SIZE_Y, 0 },
+        .msaa_samples = 1,
+        .mip_count = 1,
+
+        .dimension = TextureDimension_2D,
+        .format = TextureFormat_R8_SNORM,
+        .type = TextureType_Texture,
+        .update = TextureUpdateType_Immutable,
+    };
+    ArrayView<u8> font_bitmap_view = CreateArrayView((u8*)temp_font_bitmap, FONT_BITMAP_SIZE_X * FONT_BITMAP_SIZE_Y);
+    CreateTextureAndUpload(&s_console.font_texture, "Console Font", tp, font_bitmap_view);
+#endif
+
+
+    {
+        PipelineParams params = {
+            .shader = gfx.blit2d_shader,
+            .primitive_type = PrimitiveType_Triangles,
+            .cull_mode = RenderCullMode_None,
+            .msaa_sample_count = 1,
+            .has_index_buffer = false,
+            .front_ccw_winding_order = true,
+            .alpha_to_coverage_enabled = false,
+
+            //.depth,
+            //.depth_compare_func,
+            //.depth_bias = 0.0f,
+            //.depth_bias_slope_scale = 0.0f,
+            //.depth_bias_clamp = 0.0f,
+
+            .stencil = gfx.stencil_2d,
+        };
+
+        params.targets[0] = {
+            .texture = gfx.hdr_target,
+            .blend = gfx.blend_normal,
+        },
+        CreatePipeline(&s_console.pipeline, "Console Pipeline", params);
+    }
+    CreateGpuBuffer(&s_console.vertex_buffer, "Console Vertex Buffer", GpuBufferType_Vertex, GpuBufferFlag_StreamUpdate, MAX_VERTS * sizeof(Vertex_2D));
+
+    const float display_pos_x = 0;
+    const float display_pos_y = 0;
+    const float L = display_pos_x;
+    const float R = display_pos_x + gfx.window_size.x;
+    const float B = display_pos_y;
+    const float T = display_pos_y + gfx.window_size.y;
+
+    const Vec4 full = { 1024, 600, 0, 1 };
+    const Vec4 half = {  512, 300, 0, 1 };
+    const Vec4 zero = {    0,   0, 0, 1 };
+
+    ShaderConstants_Blit2D uniform = {
+        .orthographic = {
+             2.0f/(R-L),   0.0f,           0.0f,       0.0f,
+             0.0f,         2.0f/(T-B),     0.0f,       0.0f,
+             0.0f,         0.0f,           0.5f,       0.0f,
+             (R+L)/(L-R),  (T+B)/(B-T),    0.5f,       1.0f,
+    },
+    };
+    gb_mat4_transpose(uniform.orthographic);
+
+
+    const Vec4 full_r = uniform.orthographic * full;
+    const Vec4 half_r = uniform.orthographic * half;
+    const Vec4 zero_r = uniform.orthographic * zero;
+
+    s_console.uniform = CreateUniform(CreateArrayView((u8*)&uniform, sizeof(uniform)), 0);
+
+    ConsoleCheckForInit();
 }
 

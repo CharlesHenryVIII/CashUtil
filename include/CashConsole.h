@@ -13,15 +13,6 @@ typedef CONSOLE_FUNCTION((*CommandFunc));
 typedef CONSOLE_FUNCTIONA((*CommandFuncArgs));
 
 
-//AddRectToRender(RenderType::DebugFill, log_rect, console_color, RenderPrio::Console, CoordinateSpace::UI);
-//using Console_FuncDrawRect = std::function<void(Rect, Color)>;
-//DrawText(ConsoleFont(), color, s_console.font_scale, { i32(location.x), i32(location.y) }, UIX::left, UIY::bot, RenderPrio::Console, buffer.c_str());
-                             //string, bot_left position, color, font scale
-//using Console_FuncDrawText = std::function<void(const char*, Vec2, Color, float)>;
-//PushScissor(scissor_rect)
-//using Console_FuncPushScissor = std::function<void(Rect)>;
-//using Console_FuncPopScissor  = std::function<void(void)>;
-
 enum LogLevel : i32
 {
     LogLevel_Info,
@@ -43,9 +34,9 @@ void ConsoleAddCommand(const char* name, CommandFuncArgs func);
 
 bool Console_OnCharacter(i32 c);
 struct InputStates;
-bool Console_OnKeyboard(InputStates* inputs);
 bool Console_OnMouseButton(i32 button, bool pressed);
 bool Console_OnMouseWheel(float scroll);
 void Console_OnWindowSize(i32 width, i32 height);
 
-
+void Log(const char*    category, const LogLevel level, const char*     fmt, ...);
+void Log(const wchar_t* category, const LogLevel level, const wchar_t*  fmt, ...);

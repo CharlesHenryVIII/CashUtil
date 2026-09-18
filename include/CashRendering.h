@@ -3,6 +3,7 @@
 #include "CashArrayView.h"
 #include "CashString.h"
 #include "CashIdArray.h"
+#include "CashStaticArray.h"
 
 #include "SDL3/SDL.h"
 

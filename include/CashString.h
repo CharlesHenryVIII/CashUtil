@@ -112,4 +112,3 @@ u64 FileReadAll(std::string& out, const Path& filepath);
 u64 FileReadAll(std::wstring& out, const Path& filepath);
 
 void TuiProgressBar(u64 count, u64 max);
-
