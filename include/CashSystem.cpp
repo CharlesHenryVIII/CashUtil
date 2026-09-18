@@ -19,6 +19,8 @@ bool CashInit(ArrayView<const ArrayView<const u8>> app_icons, const std::string&
         return false;
     CashImguiInit();
     ConsoleInit(logo, console_font_data);
+    SDL_StartTextInput(gfx.window);
+
 
     return true;
 }
@@ -68,9 +70,10 @@ void DebugPrint(const wchar_t* fmt, ...)
     wchar_t buffer[4096] = {};
     SYS_VSNWPRINTF(buffer, arrsize(buffer), fmt, list);
     OSDebugOutput(buffer);
+    OSDebugOutput(L"\n");
     va_end(list);
 
-    OSWriteToAttachedConsole(buffer, true);
+    //OSWriteToAttachedConsole(buffer, true);
 }
 
 bool SysIsConsoleAttached()
@@ -639,76 +642,6 @@ ImFont* SysLoadFontForImgui(i32 resource_id, float font_size)
 
 
 //========================
-//        INPUT
-//========================
-
-
-void InputStates::InputUpdate()
-{
-    key_mods = 0;
-    for (auto& key : keys)
-    {
-        if (key.second.down)
-        {
-            key.second.up_this_frame= false;
-            if (key.second.down_prev_frame)
-            {
-                key.second.down_this_frame = false;
-            }
-            else
-            {
-                key.second.down_this_frame = true;
-            }
-
-            switch (key.first)
-            {
-                case SDLK_LSHIFT:       key_mods |= SDL_KMOD_LSHIFT;    break;
-                case SDLK_RSHIFT:       key_mods |= SDL_KMOD_RSHIFT;    break;
-                case SDLK_LEVEL5_SHIFT: key_mods |= SDL_KMOD_LEVEL5;    break;
-                case SDLK_LCTRL:        key_mods |= SDL_KMOD_LCTRL;     break;
-                case SDLK_RCTRL:        key_mods |= SDL_KMOD_RCTRL;     break;
-                case SDLK_LALT:         key_mods |= SDL_KMOD_LALT;      break;
-                case SDLK_RALT:         key_mods |= SDL_KMOD_RALT;      break;
-                case SDLK_LGUI:         key_mods |= SDL_KMOD_LGUI;      break;
-                case SDLK_RGUI:         key_mods |= SDL_KMOD_RGUI;      break;
-                case SDLK_NUMLOCKCLEAR: key_mods |= SDL_KMOD_NUM;       break;  //NOT SURE ABOUT THIS
-                case SDLK_CAPSLOCK:     key_mods |= SDL_KMOD_CAPS;      break;
-                case SDLK_MODE:         key_mods |= SDL_KMOD_MODE;      break;
-                case SDLK_SCROLLLOCK:   key_mods |= SDL_KMOD_SCROLL;    break;
-            }
-        }
-        else
-        {
-            key.second.down_this_frame = false;
-            if (key.second.down_prev_frame)
-            {
-                key.second.up_this_frame = true;
-            }
-            else
-            {
-                key.second.up_this_frame = false;
-            }
-        }
-        key.second.down_prev_frame = key.second.down;
-    }
-
-    if (mouse.wheel_modified_last_frame)
-    {
-        mouse.wheel_instant.y = 0;
-        mouse.wheel_modified_last_frame = false;
-    }
-    else if (mouse.wheel_instant.y)
-    {
-        mouse.wheel_modified_last_frame = true;
-    }
-}
-
-
-
-
-
-
-//========================
 //         GUID
 //========================
 
@@ -747,33 +680,133 @@ Guid SysNewGuid()
     return OSNewGuid();
 }
 
-InputPriority SysInputUpdate(float dt, InputStates* inputs)
+StaticArray<InputHandler*, 64> s_inputs = {};
+
+void AddInputHandler(InputHandler* input)
 {
-    VALIDATE_V(inputs, InputPriority_None);
-    inputs->InputUpdate();
+    VALIDATE_M(input, "InputHandler", LogLevel_Error, "Error: Invalid input handler used in AddInputHandler");
+    //
+    const u64 index = s_inputs.GetIndexOf(input);
+    VALIDATE_M(index == s_inputs.invalid_index, "InputHandler", LogLevel_Error, "Warning: Was it intentional to add a duplicate input handler? %i", index);
 
-    if (Console_OnKeyboard(inputs))
-        return InputPriority_Console;
+    if (s_inputs.used == 0)
+    {
+        s_inputs.Add(input);
+        return;
+    }
 
-    if (ImGui::GetIO().WantCaptureKeyboard || ImGui::GetIO().WantCaptureMouse)
-        return InputPriority_Imgui;
-
-    return InputPriority_None;
+    for (u64 i = 0; i < s_inputs.used; i++)
+    {
+        if (!s_inputs[i])
+        {
+            FAIL;
+            continue;
+        }
+        if (s_inputs[i]->Priority() <= input->Priority())
+        {
+            s_inputs.Insert(input, i);
+            break;
+        }
+    }
+}
+void RemoveInputHandler(InputHandler* input)
+{
+    s_inputs.Erase(input);
 }
 
-void SysProcessEvents(SDL_Event* event, InputStates* inputs)
+bool SysInputUpdate(float dt, SDL_Event* event)
 {
-    VALIDATE(inputs);
-    // Poll and handle events (inputs, window resize, etc.)
-    // You can read the io.WantCaptureMouse, io.WantCaptureKeyboard flags to tell if dear imgui wants to use your inputs.
-    // - When io.WantCaptureMouse is true, do not dispatch mouse input data to your main application, or clear/overwrite your copy of the mouse data.
-    // - When io.WantCaptureKeyboard is true, do not dispatch keyboard input data to your main application, or clear/overwrite your copy of the keyboard data.
-    // Generally you may always pass all inputs to dear imgui, and hide them from your application based on those two flags.
+    for (InputHandler*& handler : s_inputs)
+    {
+        if (!handler)
+        {
+            Log("CashSystem", LogLevel_Warning, "input handler was nullptr");
+            FAIL;
+            continue;
+        }
+        switch (event->type)
+        {
+            //case SDL_EVENT_TEXT_EDITING:
+            //    DebugPrint("Text Edit: '%s', %i/%i", event->edit.text, event->edit.start, event->edit.length);
+            //    break;
+            //case SDL_EVENT_TEXT_EDITING_CANDIDATES:
+            //    DebugPrint("Text Candidate: Start");
+            //    for (i32 i = 0; i < event->edit_candidates.num_candidates; i++)
+            //    {
+            //        DebugPrint("Text Candidate: %i = '%s'", i, event->edit_candidates.candidates[i]);
+            //    }
+            //    break;
+            //case SDL_EVENT_MOUSE_ADDED:
+            //case SDL_EVENT_MOUSE_REMOVED:
+        case SDL_EVENT_TEXT_INPUT:
+        {
+            std::string text = event->text.text;
+            if (handler->OnTextInput(event->text))
+                return true;
+            break;
+        }
+        case SDL_EVENT_KEY_DOWN:
+        {
+            ASSERT(event->key.down);
+            if (handler->OnKeyDown(event->key))
+                return true;
+            break;
+        }
+        case SDL_EVENT_KEY_UP:
+        {
+            ASSERT(!event->key.down);
+            handler->OnKeyUp(event->key);
+            break;
+        }
+        case SDL_EVENT_MOUSE_MOTION:
+        {
+            if (handler->OnMouseMotion(event->motion))
+                return true;
+            break;
+        }
+        case SDL_EVENT_MOUSE_BUTTON_DOWN:
+        {
+            ASSERT(event->button.down);
+            if (handler->OnMouseDown(event->button))
+                return true;
+            break;
+        }
+        case SDL_EVENT_MOUSE_BUTTON_UP:
+        {
+            ASSERT(!event->button.down);
+            handler->OnMouseUp(event->button);
+            break;
+        }
+        case SDL_EVENT_MOUSE_WHEEL:
+        {
+            if (handler->OnMouseWheel(event->wheel))
+                return true;
+            break;
+        }
+        default:
+            if (handler->OnGeneral(*event))
+                return true;
+            break;
+        }
+
+    }
+
+    return false;
+
+
+    //if (Console_OnKeyboard(inputs))
+    //    return InputPriority_Console;
+
+    //if (ImGui::GetIO().WantCaptureKeyboard || ImGui::GetIO().WantCaptureMouse)
+    //    return InputPriority_Imgui;
+}
+
+bool SysProcessEvents(float dt, SDL_Event* event)
+{
     ZoneScopedN("Poll Events");
-    ImGui_ImplSDL3_ProcessEvent(event);
-    //DebugPrint("Event: %i", event.type);
-    if (event->type == SDL_EVENT_WINDOW_CLOSE_REQUESTED && event->window.windowID == SDL_GetWindowID(gfx.window))
-        g_running = true;
+
+    if (SysInputUpdate(dt, event))
+        return true;
 
     switch (event->type)
     {
@@ -783,32 +816,6 @@ void SysProcessEvents(SDL_Event* event, InputStates* inputs)
     case SDL_EVENT_WINDOW_CLOSE_REQUESTED:
         g_running = !(event->window.windowID == SDL_GetWindowID(gfx.window));
         break;
-    case SDL_EVENT_KEY_DOWN:
-    case SDL_EVENT_KEY_UP:
-        inputs->keys[event->key.key].down = (event->type == SDL_EVENT_KEY_DOWN);
-        break;
-    case SDL_EVENT_MOUSE_BUTTON_DOWN:
-    case SDL_EVENT_MOUSE_BUTTON_UP:
-        inputs->keys[event->button.button].down = event->button.down;
-        break;
-    case SDL_EVENT_MOUSE_MOTION:
-    {
-        ZoneScopedN("SDL_MOUSEMOTION");
-        Vec2 delta;
-        delta.x = ((event->motion.x) - inputs->mouse.p.x);
-        delta.y = ((event->motion.y) - inputs->mouse.p.y);
-
-        inputs->mouse.delta_p += delta;
-        inputs->mouse.p.x = event->motion.x;
-        inputs->mouse.p.y = event->motion.y;
-        break;
-    }
-    case SDL_EVENT_MOUSE_WHEEL:
-    {
-        inputs->mouse.wheel_instant.x = inputs->mouse.wheel.x = event->wheel.x;
-        inputs->mouse.wheel_instant.y = inputs->mouse.wheel.y = event->wheel.y;
-        break;
-    }
     case SDL_EVENT_WINDOW_RESIZED:
     {
         gfx.window_size.x = event->window.data1;
@@ -826,6 +833,7 @@ void SysProcessEvents(SDL_Event* event, InputStates* inputs)
     }
     case SDL_EVENT_WINDOW_FOCUS_LOST:
     {
+        //TODO(CSH): send all input handlers key up events
         g_sysinfo.has_attention = false;
         break;
     }
@@ -852,6 +860,8 @@ void SysProcessEvents(SDL_Event* event, InputStates* inputs)
         //    break;
         //}
     }
+
+    return false;
 }
 
 bool SysRenderInit(const SysRenderInitDesc* desc)

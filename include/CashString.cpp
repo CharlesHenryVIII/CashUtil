@@ -1,5 +1,6 @@
 #include "CashString.h"
 #include "CashSystem.h"
+//#include "CashStaticArray.h"
 
 const char* ReadEntireFileAsString(const char* fileName)
 {

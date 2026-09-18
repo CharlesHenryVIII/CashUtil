@@ -1,11 +1,15 @@
+#pragma once
+
 #include "CashMath.h"
 #include "CashArrayView.h"
+///#include "CashConsole.h"
 
 template <typename T, u64 count>
 struct StaticArray
 {
     u64 used = 0;
-    T data[count];
+    T data[count] = {};
+    static constexpr u64 invalid_index = (u64)(-1);
 
     StaticArray() = default;
     ~StaticArray() = default;
@@ -14,7 +18,7 @@ struct StaticArray
     //          ACCESSORS
     // ===========================
     [[nodiscard]] inline T* begin()             { return data; }
-    [[nodiscard]] inline T* end()               { return data + count; }
+    [[nodiscard]] inline T* end()               { return data + used; }
     [[nodiscard]] inline T& First()             { ASSERT(count && used); return data[0]; }
     [[nodiscard]] inline T& Last()              { ASSERT(count && used); return data[used - 1]; }
     [[nodiscard]] inline T& operator[](u64 i)   { ASSERT(i < count && i < used); return data[i]; }
@@ -23,10 +27,19 @@ struct StaticArray
     //      CONST ACCESSORS
     // ===========================
     [[nodiscard]] inline const T* begin()   const   { return data; }
-    [[nodiscard]] inline const T* end()     const   { return data + count; }
+    [[nodiscard]] inline const T* end()     const   { return data + used; }
     [[nodiscard]] inline const T& First()   const   { ASSERT(count && used); return data[0]; }
     [[nodiscard]] inline const T& Last()    const   { ASSERT(count && used); return data[used - 1]; }
     [[nodiscard]] inline const T& operator[](u64 i) const { ASSERT(i < count && i < used); return data[i]; } 
+    [[nodiscard]] inline u64 GetIndexOf(const T& a) const
+    {
+        for (u64 i = 0; i < used; i++)
+        {
+            if (data[i] == a)
+                return i;
+        }
+        return invalid_index;
+    }
 
     // ===========================
     //          GENERAL
@@ -55,6 +68,15 @@ struct StaticArray
         }
         return &data[start_count + 1];
     }
+    //returns true if it already existed
+    inline bool AddUnique(const T& item)
+    {
+        ASSERT(used < count);
+        const u64 i = GetIndexOf(item);
+        if (i != invalid_index)
+            return &data[i];
+        return Add(item);
+    }
     inline u8* AddRaw(const u8* data, const u64 size)
     {
         VALIDATE_V(size + used < count, nullptr);
@@ -62,6 +84,34 @@ struct StaticArray
         u8* element = (u8*)&(data[used]);
         used = used + size;
         return element;
+    }
+
+    inline void Erase(u64 index)
+    {
+        VALIDATE(index < used && index != invalid_index);
+        for (u64 i = index; i < used; i++)
+        {
+            data[i] = data[i + 1];
+        }
+        used--;
+    }
+    inline void Erase(const T& item)
+    {
+        const u64 index = GetIndexOf(item);
+        if (index == invalid_index)
+            return;
+        Erase(index);
+    }
+
+    inline void Insert(const T& item, u64 index)
+    {
+        VALIDATE(index < used); //Log("StaticArray", LogLevel_Error, "Tried to Insert() beyond used space: %i of %i", index, used);
+        used++;
+        for (u64 i = used; i >= index && i != invalid_index; i--)
+        {
+            data[i] = data[i - 1];
+        }
+        data[index] = item;
     }
 
     inline void Clear()

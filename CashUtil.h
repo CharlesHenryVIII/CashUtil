@@ -18,3 +18,5 @@
 //TODO(CSH): Rewrite gbRect and Rectangle to be consistant and use TopLeft vs BotRight or have those as functions
 // Maybe also do Rect2 and Rect3 for 2d and 3d.
 //TODO(CSH): Look into stb_sprintf
+//TODO(CSH): Seperate DebugPrint() into a seperate CashLog() file and rename it to Log(Log::error, Message, ...)
+// and Log(Log::error, LogLocation::DebugWindow, Message, ...)

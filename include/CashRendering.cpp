@@ -1896,6 +1896,83 @@ bool CashRenderInit(ArrayView<const ArrayView<const u8>> app_icons)
     return true;
 }
 
+static struct ImguiInputHandler : InputHandler {
+    InputPriority priority = InputPriority_None;
+
+    virtual bool OnKeyDown(const SDL_KeyboardEvent& event) override
+    {
+        if (ImGui::GetIO().WantCaptureKeyboard)
+        {
+            // ImGui_ImplSDL3_ProcessEvent requires a SDL_Event and I don't want to pass that around since its mostly unneccesary
+            const SDL_Event e = { .key = event };
+            return ImGui_ImplSDL3_ProcessEvent(&e);
+        }
+        return false;
+        // You can read the io.WantCaptureMouse, io.WantCaptureKeyboard flags to tell if dear imgui wants to use your inputs.
+        // - When io.WantCaptureMouse is true, do not dispatch mouse input data to your main application, or clear/overwrite your copy of the mouse data.
+        // - When io.WantCaptureKeyboard is true, do not dispatch keyboard input data to your main application, or clear/overwrite your copy of the keyboard data.
+        // Generally you may always pass all inputs to dear imgui, and hide them from your application based on those two flags.
+        //DebugPrint("Event: %i", event.type);
+    }
+    virtual void OnKeyUp(const SDL_KeyboardEvent& event) override
+    {
+        if (ImGui::GetIO().WantCaptureKeyboard)
+        {
+            const SDL_Event e = { .key = event };
+            ImGui_ImplSDL3_ProcessEvent(&e);
+        }
+    }
+    virtual bool OnTextInput(const SDL_TextInputEvent& event) override
+    {
+        if (ImGui::GetIO().WantCaptureKeyboard)
+        {
+            const SDL_Event e = { .text = event };
+            return ImGui_ImplSDL3_ProcessEvent(&e);
+        }
+        return false;
+    }
+    virtual bool OnMouseMotion(const SDL_MouseMotionEvent& event) override
+    {
+        if (ImGui::GetIO().WantCaptureMouse)
+        {
+            const SDL_Event e = { .motion = event };
+            return ImGui_ImplSDL3_ProcessEvent(&e);
+        }
+        return false;
+    }
+    virtual bool OnMouseDown(const SDL_MouseButtonEvent& event) override
+    {
+        if (ImGui::GetIO().WantCaptureMouse)
+        {
+            const SDL_Event e = { .button = event };
+            return ImGui_ImplSDL3_ProcessEvent(&e);
+        }
+        return false;
+    }
+    virtual void OnMouseUp(const SDL_MouseButtonEvent& event) override
+    {
+        if (ImGui::GetIO().WantCaptureMouse)
+        {
+            const SDL_Event e = { .button = event };
+            ImGui_ImplSDL3_ProcessEvent(&e);
+        }
+    }
+    virtual bool OnMouseWheel(const SDL_MouseWheelEvent&  event) override
+    {
+        if (ImGui::GetIO().WantCaptureMouse)
+        {
+            const SDL_Event e = { .wheel = event };
+            return ImGui_ImplSDL3_ProcessEvent(&e);
+        }
+        return false;
+    }
+
+    virtual bool OnGeneral(const SDL_Event& event) override
+    {
+        return ImGui_ImplSDL3_ProcessEvent(&event);
+    }
+} s_imgui_input_handler;
+
 void CashImguiInit()
 {
     IMGUI_CHECKVERSION();
@@ -1930,6 +2007,8 @@ void CashImguiInit()
 
     ImGui_ImplSDL3_InitForOther(gfx.window);
     simgui_setup(&desc);
+
+    AddInputHandler(&s_imgui_input_handler);
 }
 void CashImguiDestroy()
 {

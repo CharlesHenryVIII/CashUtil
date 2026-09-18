@@ -4,6 +4,7 @@
 #include "CashArrayView.h"
 #include "CashString.h"
 #include "CashRendering.h"
+#include "CashIdArray.h"
 
 #include "SDL3/SDL.h"
 //#include "SDL3/SDL_events.h"
@@ -47,23 +48,31 @@ struct Key {
     bool up_this_frame;
 };
 
+// Highest value = highest priority
 enum InputPriority {
-    InputPriority_None,
+    InputPriority_None, //lowest  priority
     InputPriority_Console,
-    InputPriority_Imgui,
-    InputPriority_Count,
+    InputPriority_Count,//highest priority
 };
+struct InputHandler {
+    virtual InputPriority Priority() { return InputPriority_None; };
 
-struct InputStates {
-    std::unordered_map<u32, Key> keys;
-    SDL_Keymod key_mods;
-    Mouse mouse = {};
+    //return true if input is consumed.  Up cannot consume input
+    virtual bool OnKeyDown      (const SDL_KeyboardEvent& event)    = 0;
+    virtual void OnKeyUp        (const SDL_KeyboardEvent& event)    = 0;
+    virtual bool OnTextInput    (const SDL_TextInputEvent& event)   = 0;
 
-    void InputUpdate();
+    virtual bool OnMouseMotion  (const SDL_MouseMotionEvent& event) = 0;
+    virtual bool OnMouseDown    (const SDL_MouseButtonEvent& event) = 0;
+    virtual void OnMouseUp      (const SDL_MouseButtonEvent& event) = 0;
+    virtual bool OnMouseWheel   (const SDL_MouseWheelEvent&  event) = 0;
+
+    virtual bool OnGeneral      (const SDL_Event& event) { return false; };
 };
+void AddInputHandler    (InputHandler* input);
+void RemoveInputHandler (InputHandler* input);
 //returns true if state was captured
-void SysProcessEvents(SDL_Event* event, InputStates* inputs);
-InputPriority SysInputUpdate(float dt, InputStates* inputs);
+bool SysProcessEvents(float delta_time, SDL_Event* event);
 
 
 
@@ -73,7 +82,7 @@ struct SysInfo {
     std::wstring name;
     i32 cores;
     i32 threads;
-    InputStates inputs;
+    //InputStates inputs;
     bool has_attention;
     bool drop_active = false;
     std::vector<Path> drop_file;
