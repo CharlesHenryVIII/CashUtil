@@ -1237,6 +1237,31 @@ sg_blend_state ToSokol(const BlendState& a)
     return r;
 }
 
+sg_color_mask  ToSokol(const ColorMask a)
+{
+    switch (a)
+    {
+    case ColorMask_NONE:    return SG_COLORMASK_NONE;
+    case ColorMask_R:       return SG_COLORMASK_R;
+    case ColorMask_G:       return SG_COLORMASK_G;
+    case ColorMask_RG:      return SG_COLORMASK_RG;
+    case ColorMask_B:       return SG_COLORMASK_B;
+    case ColorMask_RB:      return SG_COLORMASK_RB;
+    case ColorMask_GB:      return SG_COLORMASK_GB;
+    case ColorMask_RGB:     return SG_COLORMASK_RGB;
+    case ColorMask_A:       return SG_COLORMASK_A;
+    case ColorMask_RA:      return SG_COLORMASK_RA;
+    case ColorMask_GA:      return SG_COLORMASK_GA;
+    case ColorMask_RGA:     return SG_COLORMASK_RGA;
+    case ColorMask_BA:      return SG_COLORMASK_BA;
+    case ColorMask_RBA:     return SG_COLORMASK_RBA;
+    case ColorMask_GBA:     return SG_COLORMASK_GBA;
+    case ColorMask_RGBA:    return SG_COLORMASK_RGBA;
+    case ColorMask_Count:   [[fallthrough]];
+    default: FAIL;          return _SG_COLORMASK_DEFAULT;
+    }
+}
+
 bool CreatePipeline(Pipeline** pipe, const char* name, const PipelineParams& params)
 {
     ZoneScoped;
@@ -1280,7 +1305,7 @@ bool CreatePipeline(Pipeline** pipe, const char* name, const PipelineParams& par
 
             sg_color_target_state& ts = desc.colors[i];
             ts.pixel_format = t->image_desc.pixel_format;
-            ts.write_mask = SG_COLORMASK_RGBA;
+            ts.write_mask = ToSokol(target.mask);
             ts.blend = ToSokol(target.blend);
 
             desc.color_count = i + 1;
@@ -1660,6 +1685,7 @@ bool CashRenderInit(ArrayView<const ArrayView<const u8>> app_icons)
         FAIL;
         return false;
     }
+    SDL_GetWindowSizeInPixels(gfx.window, &gfx.window_size.x, &gfx.window_size.y);
 
 #if 1
     RenderInitSokol();
