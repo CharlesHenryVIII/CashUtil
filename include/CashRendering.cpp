@@ -1901,13 +1901,10 @@ static struct ImguiInputHandler : InputHandler {
 
     virtual bool OnKeyDown(const SDL_KeyboardEvent& event) override
     {
-        if (ImGui::GetIO().WantCaptureKeyboard)
-        {
-            // ImGui_ImplSDL3_ProcessEvent requires a SDL_Event and I don't want to pass that around since its mostly unneccesary
-            const SDL_Event e = { .key = event };
-            return ImGui_ImplSDL3_ProcessEvent(&e);
-        }
-        return false;
+        // ImGui_ImplSDL3_ProcessEvent requires a SDL_Event and I don't want to pass that around since its mostly unneccesary
+        const SDL_Event e = { .key = event };
+        ImGui_ImplSDL3_ProcessEvent(&e);
+        return ImGui::GetIO().WantCaptureKeyboard;
         // You can read the io.WantCaptureMouse, io.WantCaptureKeyboard flags to tell if dear imgui wants to use your inputs.
         // - When io.WantCaptureMouse is true, do not dispatch mouse input data to your main application, or clear/overwrite your copy of the mouse data.
         // - When io.WantCaptureKeyboard is true, do not dispatch keyboard input data to your main application, or clear/overwrite your copy of the keyboard data.
@@ -1916,55 +1913,37 @@ static struct ImguiInputHandler : InputHandler {
     }
     virtual void OnKeyUp(const SDL_KeyboardEvent& event) override
     {
-        if (ImGui::GetIO().WantCaptureKeyboard)
-        {
-            const SDL_Event e = { .key = event };
-            ImGui_ImplSDL3_ProcessEvent(&e);
-        }
+        const SDL_Event e = { .key = event };
+        ImGui_ImplSDL3_ProcessEvent(&e);
     }
     virtual bool OnTextInput(const SDL_TextInputEvent& event) override
     {
-        if (ImGui::GetIO().WantCaptureKeyboard)
-        {
-            const SDL_Event e = { .text = event };
-            return ImGui_ImplSDL3_ProcessEvent(&e);
-        }
-        return false;
+        const SDL_Event e = { .text = event };
+        ImGui_ImplSDL3_ProcessEvent(&e);
+        return ImGui::GetIO().WantCaptureMouse;
     }
     virtual bool OnMouseMotion(const SDL_MouseMotionEvent& event) override
     {
-        if (ImGui::GetIO().WantCaptureMouse)
-        {
-            const SDL_Event e = { .motion = event };
-            return ImGui_ImplSDL3_ProcessEvent(&e);
-        }
-        return false;
+        const SDL_Event e = { .motion = event };
+        ImGui_ImplSDL3_ProcessEvent(&e);
+        return ImGui::GetIO().WantCaptureMouse;
     }
     virtual bool OnMouseDown(const SDL_MouseButtonEvent& event) override
     {
-        if (ImGui::GetIO().WantCaptureMouse)
-        {
-            const SDL_Event e = { .button = event };
-            return ImGui_ImplSDL3_ProcessEvent(&e);
-        }
-        return false;
+        const SDL_Event e = { .button = event };
+        ImGui_ImplSDL3_ProcessEvent(&e);
+        return ImGui::GetIO().WantCaptureMouse;
     }
     virtual void OnMouseUp(const SDL_MouseButtonEvent& event) override
     {
-        if (ImGui::GetIO().WantCaptureMouse)
-        {
-            const SDL_Event e = { .button = event };
-            ImGui_ImplSDL3_ProcessEvent(&e);
-        }
+        const SDL_Event e = { .button = event };
+        ImGui_ImplSDL3_ProcessEvent(&e);
     }
     virtual bool OnMouseWheel(const SDL_MouseWheelEvent&  event) override
     {
-        if (ImGui::GetIO().WantCaptureMouse)
-        {
-            const SDL_Event e = { .wheel = event };
-            return ImGui_ImplSDL3_ProcessEvent(&e);
-        }
-        return false;
+        const SDL_Event e = { .wheel = event };
+        ImGui_ImplSDL3_ProcessEvent(&e);
+        return ImGui::GetIO().WantCaptureMouse;
     }
 
     virtual bool OnGeneral(const SDL_Event& event) override
@@ -2020,6 +1999,10 @@ void CashImguiNewFrame(double delta_time)
 {
     ZoneScoped;
     {
+        ZoneScopedN("ImGui SDL3 New Frame");
+        ImGui_ImplSDL3_NewFrame();
+    }
+    {
         ZoneScopedN("ImGui SDL Renderer3 New Frame");
         simgui_frame_desc_t desc = {};
         desc.width = gfx.window_size.x;
@@ -2027,14 +2010,6 @@ void CashImguiNewFrame(double delta_time)
         desc.delta_time = delta_time;
         desc.dpi_scale = 1.0f; //unsure
         simgui_new_frame(&desc);
-    }
-    {
-        ZoneScopedN("ImGui SDL3 New Frame");
-        //ImGui_ImplSDL3_NewFrame();
-    }
-    {
-        ZoneScopedN("ImGui New Frame");
-        //ImGui::NewFrame();
     }
 }
 
