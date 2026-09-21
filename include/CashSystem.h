@@ -32,22 +32,6 @@ enum RunProcessFlags : u32 {
 //========================
 
 
-struct Mouse {
-    Vec2 p = {}; //origin is the bottom left of the window
-    Vec2 delta_p = {};
-    Vec2 wheel = {}; //Y for vertical rotations, X for Horizontal rotations/movement
-    Vec2 wheel_instant = {};
-    bool wheel_modified_last_frame = false;
-    //SDL_Cursor* cursors[ImGuiMouseCursor_COUNT] = {};
-};
-
-struct Key {
-    bool down;
-    bool down_prev_frame;
-    bool down_this_frame;
-    bool up_this_frame;
-};
-
 // Highest value = highest priority
 enum InputPriority {
     InputPriority_None, //lowest  priority

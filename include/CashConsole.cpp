@@ -1343,7 +1343,7 @@ static struct ConsoleInputHandler : InputHandler
         for (i32 i = 0; i < len; i++)
         {
             const char c = event.text[i];
-            if (c == '`' || c == '~') return false;
+            if (c == '`' || c == '~') return true;
             STB_TEXTEDIT_KEYTYPE key = c;
             stb_textedit_key(&s_console.input_buf, &s_console.te_state, key);
         }
