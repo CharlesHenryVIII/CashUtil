@@ -189,7 +189,7 @@ struct Console
 };
 static Console s_console;
 
-static std::string s_logo_string;
+static ArrayView<const char*> s_logo_string;
 //static Vec2 s_font_size;
 
 
@@ -515,7 +515,10 @@ CONSOLE_FUNCTION(Logo)
         sConsoleLog(LogLevel_Internal, line, nullptr, &logo_color);
     };
 
-    WriteLine(s_logo_string.c_str());
+    for (u64 i = 0; i < s_logo_string.count; i++)
+    {
+        WriteLine(s_logo_string[i]);
+    }
 }
 
 void ConsoleCheckForInit()
@@ -554,8 +557,8 @@ void ConsoleCheckForInit()
     logStrings.clear();
 }
 
-#define FONT_BITMAP_SIZE_X  512
-#define FONT_BITMAP_SIZE_Y  512
+#define FONT_BITMAP_SIZE_X  1024
+#define FONT_BITMAP_SIZE_Y  1024
 #define FONT_CHAR_START 0
 #define FONT_CHAR_COUNT (1586 - FONT_CHAR_START)
 #if 1
@@ -631,7 +634,7 @@ void DrawText(const char* string, Vec2 bot_left_p, Color color, const SimpleRect
         const char& c = string[i];
         stbtt_aligned_quad q;
 #if 1
-        stbtt_GetPackedQuad(s_char_data, FONT_BITMAP_SIZE_X, FONT_BITMAP_SIZE_Y, c, &bot_left_inv.x, &bot_left_inv.y, &q, 0);
+        stbtt_GetPackedQuad(s_char_data, FONT_BITMAP_SIZE_X, FONT_BITMAP_SIZE_Y, c, &bot_left_inv.x, &bot_left_inv.y, &q, 1);
 #else
         stbtt_GetBakedQuad(s_char_data, FONT_BITMAP_SIZE_X, FONT_BITMAP_SIZE_Y, c - 32, &bot_left_p.x, &bot_left_p.y, &q, 1);
 #endif
@@ -651,10 +654,10 @@ void DrawText(const char* string, Vec2 bot_left_p, Color color, const SimpleRect
         //vert.bot = q.y1;
         //vert.top = q.y1 + (q.y1 - q.y0);
 
-        const Vertex_2D top_left  = { vert.TopLeft(),  color, uv.TopLeft() }; //0 Top Left
-        const Vertex_2D bot_left  = { vert.BotLeft(),  color, uv.BotLeft() }; //1 Bot Left
-        const Vertex_2D top_right = { vert.TopRight(), color, uv.TopRight() }; //2 Top Right
-        const Vertex_2D bot_right = { vert.BotRight(), color, uv.BotRight() }; //3 Bot Right
+        const Vertex_2D top_left  = { Round(vert.TopLeft()),  color, uv.TopLeft() }; //0 Top Left
+        const Vertex_2D bot_left  = { Round(vert.BotLeft()),  color, uv.BotLeft() }; //1 Bot Left
+        const Vertex_2D top_right = { Round(vert.TopRight()), color, uv.TopRight() }; //2 Top Right
+        const Vertex_2D bot_right = { Round(vert.BotRight()), color, uv.BotRight() }; //3 Bot Right
 
         Vertex_2D verts[] = {
             // First part of Quad
@@ -679,7 +682,7 @@ void DrawText(const char* string, Vec2 bot_left_p, Color color, const SimpleRect
     draw.bindings.samplers.Add(gfx.common_sampler);
 
     draw.vertex_index = start_index;
-    draw.vertex_length = end_index - start_index + 1;
+    draw.vertex_length = end_index - start_index;
     draw.scissor = scissor;
 
     draw.color_actions[0] = { };
@@ -721,6 +724,7 @@ void DrawString(Vec2 location, Color color, const SimpleRect& scissor, const cha
 void ConsoleRun()
 {
     ConsoleCheckForInit();
+    DrawString({}, White, {}, "test");
 
     if (s_console.mouse_scrolling)
     {
@@ -1391,14 +1395,18 @@ static struct ConsoleInputHandler : InputHandler
 } s_console_input;
 
 
-void ConsoleInit(const std::string& logo, ArrayView<const u8> console_font_data)
+void ConsoleInit(const ArrayView<const char*>& logo, ArrayView<const u8> console_font_data)
 {
     AddInputHandler(&s_console_input);
 
     s_logo_string = logo;
     const Vec2 window_size = SysGetWindowSize();
     const Vec2 screen_size = SysGetScreenSize();
-    u8 temp_font_bitmap[FONT_BITMAP_SIZE_X][FONT_BITMAP_SIZE_Y] = {};
+    //u8 temp_font_bitmap[FONT_BITMAP_SIZE_X][FONT_BITMAP_SIZE_Y] = {};
+    u8* temp_font_bitmap = (u8*)malloc(FONT_BITMAP_SIZE_X * FONT_BITMAP_SIZE_Y);
+    memset(temp_font_bitmap, 0, FONT_BITMAP_SIZE_X * FONT_BITMAP_SIZE_Y);
+    Defer{ free(temp_font_bitmap); };
+
 
 #if 1
     //STBTT_DEF int stbtt_PackBegin(stbtt_pack_context *spc, unsigned char *pixels, int pw, int ph, int stride_in_bytes, int padding, void *alloc_context)
@@ -1416,7 +1424,7 @@ void ConsoleInit(const std::string& logo, ArrayView<const u8> console_font_data)
         return;
     }
 
-    stbtt_PackSetOversampling(&pc, 2, 2);
+    stbtt_PackSetOversampling(&pc, 4, 4);
     if (!stbtt_PackFontRange(&pc,
         console_font_data.data,
         0,
@@ -1513,7 +1521,16 @@ void ConsoleInit(const std::string& logo, ArrayView<const u8> console_font_data)
         params.targets[0] = {
             .texture = gfx.hdr_target,
             .blend = gfx.blend_normal,
-        },
+        };
+        params.targets[0].blend.enabled = true;
+        params.targets[0].blend.src_factor_rgb = BlendFactor_SrcAlpha;
+        params.targets[0].blend.dst_factor_rgb = BlendFactor_OneMinusSrcAlpha;
+        params.targets[0].blend.op_rgb      = BlendOp_Add;
+        params.targets[0].blend.src_factor_alpha = BlendFactor_One;
+        params.targets[0].blend.dst_factor_alpha = BlendFactor_Zero;
+        params.targets[0].blend.op_alpha    = BlendOp_Add;
+        params.targets[0].mask = ColorMask_RGB;
+
         CreatePipeline(&s_console.pipeline, "Console Pipeline", params);
     }
     CreateGpuBuffer(&s_console.vertex_buffer, "Console Vertex Buffer", GpuBufferType_Vertex, GpuBufferFlag_StreamUpdate, MAX_VERTS * sizeof(Vertex_2D));
@@ -1528,6 +1545,7 @@ void ConsoleInit(const std::string& logo, ArrayView<const u8> console_font_data)
     const Vec4 full = { 1024, 600, 0, 1 };
     const Vec4 half = {  512, 300, 0, 1 };
     const Vec4 zero = {    0,   0, 0, 1 };
+    const Vec4 t    = {    7,   9, 0, 1 };
 
     ShaderConstants_Blit2D uniform = {
         .orthographic = {
@@ -1539,10 +1557,11 @@ void ConsoleInit(const std::string& logo, ArrayView<const u8> console_font_data)
     };
     gb_mat4_transpose(uniform.orthographic);
 
-
+    //TODO(CSH): Delete
     const Vec4 full_r = uniform.orthographic * full;
     const Vec4 half_r = uniform.orthographic * half;
     const Vec4 zero_r = uniform.orthographic * zero;
+    const Vec4 t_r    = uniform.orthographic * t;
 
     s_console.uniform = CreateUniform(CreateArrayView((u8*)&uniform, sizeof(uniform)), 0);
 

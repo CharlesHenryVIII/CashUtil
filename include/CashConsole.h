@@ -24,7 +24,7 @@ enum LogLevel : i32
 ENUMOPS_PURE(LogLevel);
 
 //void ConsoleInit(const std::string& logo, const Vec2 font_size, Console_FuncDrawRect* DrawRect, Console_FuncDrawText* DrawText, Console_FuncPushScissor* PushScissor, Console_FuncPopScissor* PopScissor);
-void ConsoleInit(const std::string& logo, ArrayView<const u8> console_font_data);
+void ConsoleInit(const ArrayView<const char*>& logo, ArrayView<const u8> console_font_data);
 void ConsoleRun();
 void ConsoleLog(LogLevel level, const char* fmt, ...);
 void ConsoleLog(const char* fmt, ...);

@@ -263,7 +263,7 @@ struct SysNetworkAdapterInfo
     bool multicast_enabled;
 };
 
-bool CashInit(ArrayView<const ArrayView<const u8>> app_icons, const std::string& logo, ArrayView<const u8> console_font_data);
+bool CashInit(ArrayView<const ArrayView<const u8>> app_icons, const ArrayView<const char*>& logo, ArrayView<const u8> console_font_data);
 void CashDestroy();
 void* SysGetWindowHandle(SDL_Window* window);
 i32 SysMain(i32 argc, char** argv);

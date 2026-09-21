@@ -619,9 +619,31 @@ struct BlendState {
     BlendOp op_alpha    = BlendOp_Add;
 };
 
+enum ColorMask : u32 {
+    ColorMask_NONE,
+    ColorMask_R,
+    ColorMask_G,
+    ColorMask_RG,
+    ColorMask_B,
+    ColorMask_RB,
+    ColorMask_GB,
+    ColorMask_RGB,
+    ColorMask_A,
+    ColorMask_RA,
+    ColorMask_GA,
+    ColorMask_RGA,
+    ColorMask_BA,
+    ColorMask_RBA,
+    ColorMask_GBA,
+    ColorMask_RGBA,
+    ColorMask_Count,
+};
+ENUMOPS_PURE(ColorMask);
+
 struct RenderTarget {
     Texture* texture;
     BlendState blend;
+    ColorMask mask = ColorMask_RGBA;
 };
 
 struct StencilOpParams {
