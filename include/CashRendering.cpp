@@ -486,7 +486,7 @@ bool CreateTextureAndUpload(Texture** texture, const char* name, const TexturePa
     //========
 
     tex->read_view_desc.texture.image = tex->image;
-    tex->read_view_desc.label = tex->name.c_str();
+    tex->read_view_desc.label = ToString("%s Read View", tex->name.c_str()).c_str();
     tex->read_view = sg_make_view(&tex->read_view_desc);
 
     switch (p.type)
@@ -505,7 +505,7 @@ bool CreateTextureAndUpload(Texture** texture, const char* name, const TexturePa
         tex->write_view_desc.color_attachment.image = tex->image;
         tex->write_view_desc.color_attachment.mip_level = 0;
         tex->write_view_desc.color_attachment.slice = 0;
-        tex->write_view_desc.label = tex->name.c_str();
+        tex->write_view_desc.label = ToString("%s Write View", tex->name.c_str()).c_str();
         tex->write_view = sg_make_view(tex->write_view_desc);
         break;
     }
@@ -515,7 +515,7 @@ bool CreateTextureAndUpload(Texture** texture, const char* name, const TexturePa
         tex->write_view_desc.depth_stencil_attachment.image = tex->image;
         tex->write_view_desc.depth_stencil_attachment.mip_level = 0;
         tex->write_view_desc.depth_stencil_attachment.slice = 0;
-        tex->write_view_desc.label = tex->name.c_str();
+        tex->write_view_desc.label = ToString("%s Write View", tex->name.c_str()).c_str();
         tex->write_view = sg_make_view(tex->write_view_desc);
         break;
     }

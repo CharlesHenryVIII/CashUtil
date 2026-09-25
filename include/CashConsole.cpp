@@ -7,6 +7,8 @@
 #include "SDL3/SDL.h"
 #include <cstdint>
 
+#include "ft2build.h"
+#include FT_FREETYPE_H
 
 typedef uint32_t Pos;
 #define NOT_IMPLEMENTED FAIL
@@ -157,6 +159,7 @@ struct Console
     Tween                       caret_tween;
 
     float                       font_height = 16;// = font_scale = DEFAULT_FONT_SCALE;
+    float                       font_scale  = 1;// = font_scale = DEFAULT_FONT_SCALE;
     float                       font_mono_width = -1;
     Vec2                        window_size;
 
@@ -192,6 +195,37 @@ static Console s_console;
 static ArrayView<const char*> s_logo_string;
 //static Vec2 s_font_size;
 
+#define FONT_BITMAP_SIZE_X  512
+#define FONT_BITMAP_SIZE_Y  512
+#define FONT_BITMAP_SIZE_BYTES (FONT_BITMAP_SIZE_X * FONT_BITMAP_SIZE_Y * sizeof(u32))
+#define FONT_CHAR_START 32
+#define FONT_CHAR_FINAL_INDEX 1586
+#define FONT_CHAR_COUNT (FONT_CHAR_FINAL_INDEX - FONT_CHAR_START)
+
+static float s_font_ascender = 0;
+static float s_font_descender = 0;
+
+#if 1
+static struct Glyph {
+    SimpleRect uvs;
+    Vec2 size;
+    Vec2 offset;
+    float advance_x;
+} _s_char_data[FONT_CHAR_COUNT] = {};
+Glyph& GetGlyph(u32 utf8_index)
+{
+    if (utf8_index < FONT_CHAR_START || utf8_index > FONT_CHAR_FINAL_INDEX)
+    {
+        FAIL;
+        Log("CashConsole", LogLevel_Error, "Trying to get glyph that doesn't exist");
+        return _s_char_data[0];
+    }
+    return _s_char_data[utf8_index - FONT_CHAR_START];
+}
+#else
+static stbtt_packedchar s_char_data[FONT_CHAR_COUNT] = {};
+#endif
+
 
 
 static Color LogColor(LogLevel level)
@@ -217,8 +251,8 @@ static SimpleRect ConsoleRect()
     SimpleRect console_rect;
     console_rect.left = 0.0f;
     console_rect.right = window_size.x;
-    console_rect.top = window_size.y;
-    console_rect.bot = window_size.y - s_console.visible_height;
+    console_rect.top = 0.0f;
+    console_rect.bot = s_console.visible_height;
     return console_rect;
 }
 
@@ -233,19 +267,25 @@ static SimpleRect InputRect()
 {
     const SimpleRect console_rect = ConsoleRect();
     const float line_height = ItemHeight();
-    SimpleRect input_rect = console_rect;
-    input_rect.top = console_rect.bot + line_height;
+    const SimpleRect input_rect = {
+        .left   = console_rect.left,
+        .bot    = console_rect.bot,
+        .right  = console_rect.right,
+        .top    = console_rect.bot - line_height,
+    };
     return input_rect;
 }
 
 static SimpleRect LogRect()
 {
     const SimpleRect console_rect = ConsoleRect();
-    //Vec2 min = console_rect.BotLeft();
-    //Vec2 max = console_rect.TopRight();
-    float line_height = ItemHeight();
-    SimpleRect log_rect = console_rect;
-    log_rect.bot += line_height;
+    const float line_height = ItemHeight();
+    SimpleRect log_rect = {
+        .left   = console_rect.left,
+        .bot    = console_rect.bot - line_height,
+        .right  = console_rect.right,
+        .top    = console_rect.top,
+    };
     return log_rect;
 }
 
@@ -304,9 +344,9 @@ static SimpleRect ScrollbarRect()
 
     // Positioning
     // We have the position calculated for the end, do a lerp from the start
-    float top = max.y - height;
+    float top = max.y + height;
     min.y = Lerp(min.y, top, s_console.scroll_target / MaxScroll());
-    max.y = min.y + height;
+    max.y = min.y - height;
 
     result.BotLeft() = min;
     result.TopRight() = max;
@@ -557,16 +597,6 @@ void ConsoleCheckForInit()
     logStrings.clear();
 }
 
-#define FONT_BITMAP_SIZE_X  1024
-#define FONT_BITMAP_SIZE_Y  1024
-#define FONT_CHAR_START 0
-#define FONT_CHAR_COUNT (1586 - FONT_CHAR_START)
-#if 1
-static stbtt_packedchar s_char_data[FONT_CHAR_COUNT] = {};
-#else
-static stbtt_bakedchar s_char_data[FONT_CHAR_COUNT] = {};
-#endif
-
 void DrawRect(SimpleRect rect, Color color, const SimpleRect& scissor)
 {
     const SimpleRect uv = {
@@ -627,28 +657,46 @@ void DrawRect(SimpleRect rect, Color color, const SimpleRect& scissor)
 void DrawText(const char* string, Vec2 bot_left_p, Color color, const SimpleRect& scissor)
 {
     const i32 start_index = (i32)s_console.vertices.used;
-    Vec2 bot_left_inv = { bot_left_p.x, s_console.window_size.y - bot_left_p.y };
+    //Vec2 bot_left_inv = { bot_left_p.x, s_console.window_size.y - bot_left_p.y };
     size_t len = strlen(string);
     for (size_t i = 0; i < len; i++)
     {
         const char& c = string[i];
-        stbtt_aligned_quad q;
-#if 1
-        stbtt_GetPackedQuad(s_char_data, FONT_BITMAP_SIZE_X, FONT_BITMAP_SIZE_Y, c, &bot_left_inv.x, &bot_left_inv.y, &q, 1);
-#else
-        stbtt_GetBakedQuad(s_char_data, FONT_BITMAP_SIZE_X, FONT_BITMAP_SIZE_Y, c - 32, &bot_left_p.x, &bot_left_p.y, &q, 1);
-#endif
-
         SimpleRect uv;
+        SimpleRect vert;
+#if 1
+        const Glyph& g = GetGlyph(c);
+
+        // Calculate vertex positions
+        // Note: Y is subtracted because FreeType's bearing_y goes UP from the baseline
+        vert.left   = bot_left_p.x + g.offset.x;
+        vert.right  = vert.left + g.size.x;
+        vert.bot    = bot_left_p.y + (g.size.y - g.offset.y) - 2;
+        vert.top    = vert.bot - g.size.y;
+
+        // Advance the cursor for the next character
+        bot_left_p.x += g.advance_x;
+
+        uv = g.uvs;
+        ASSERT(uv.Width() * FONT_BITMAP_SIZE_X == vert.Width());
+        ASSERT(uv.Height() * FONT_BITMAP_SIZE_Y == vert.Height());
+        //uv.left = g.uv0.x;
+        //uv.right = g.uv1.x;
+        //uv.top = g.uv0.y;
+        //uv.bot = g.uv1.y;
+#else
+        stbtt_aligned_quad q;
+        stbtt_GetPackedQuad(s_char_data, FONT_BITMAP_SIZE_X, FONT_BITMAP_SIZE_Y, c, &bot_left_inv.x, &bot_left_inv.y, &q, 1);
         uv.left = q.s0;
         uv.right = q.s1;
         uv.top = q.t0;
         uv.bot = q.t1;
-        SimpleRect vert;
         vert.left = q.x0;
         vert.right = q.x1;
         vert.bot = s_console.window_size.y - q.y1;
         vert.top = s_console.window_size.y - q.y0;
+#endif
+
         //inverting hight so we match y+ is up
         //vert.top = s_console.window_size.y - q.y0;
         //vert.bot = q.y1;
@@ -724,7 +772,7 @@ void DrawString(Vec2 location, Color color, const SimpleRect& scissor, const cha
 void ConsoleRun()
 {
     ConsoleCheckForInit();
-    DrawString({}, White, {}, "test");
+    DrawString({ 0, s_console.font_height }, White, {}, "test");
 
     if (s_console.mouse_scrolling)
     {
@@ -843,12 +891,12 @@ void ConsoleRun()
     for (size_t i = 0; i < s_console.items.size(); i++)
     {
         float y_offset = float((NumItems() - 1) - i) * ItemHeight() - s_console.scroll_position * ItemHeight();
-        min.y = log_rect.bot + y_offset;
+        min.y = log_rect.bot - y_offset;
         auto& item = s_console.items[i];
 
         if (min.y < 0.0f)
             continue;
-        else if (min.y > log_rect.top)//log_rect.bot + ItemHeight())
+        else if (min.y > log_rect.bot + ItemHeight())
             continue;
 
         DrawString(min, item.color, scissor_rect, "%s%s", item.preamble, item.text.c_str());
@@ -1087,90 +1135,6 @@ static void CopySelection()
     }
 }
 
-//
-// Input Handler
-//
-
-bool ConsoleWantsInput()
-{
-    return s_console.wants_input;
-}
-
-bool Console_OnCharacter(i32 c)
-{
-    constexpr uint32_t TILDE_KEY = 126; // Not in SDL documentation?
-    if (c == SDLK_GRAVE || c == TILDE_KEY) return false;
-    if (!ConsoleWantsInput()) return false;
-    STB_TEXTEDIT_KEYTYPE key = c;
-    stb_textedit_key(&s_console.input_buf, &s_console.te_state, key);
-    ConsoleClearAutoComplete();
-    return true;
-}
-
-
-void Console_OnWindowSize(i32 width, i32 height)
-{
-    if (width * height == 0)
-        return;
-    ConsoleCheckForInit(); // Paranoid check to avoid divide by zero
-
-    // Preserve the old ratio that the tween was targeting.
-    float ratio = s_console.tween.v1 / s_console.window_size.y;
-    s_console.tween.v1 = height * ratio;
-    s_console.window_size = {
-        static_cast<float>(width),
-        static_cast<float>(height),
-    };
-}
-
-static bool Contains(const SimpleRect r, const Vec2 point)
-{
-    bool x = point.x > r.left && point.x < r.right;
-    bool y = point.y < r.bot && point.y > r.top;
-    return x && y;
-}
-
-static bool MouseIsOverConsole()
-{
-    Vec2 pos = SysGetMousePosition();
-    SimpleRect console_rect = ConsoleRect();
-    return Contains(console_rect, pos);
-}
-
-bool Console_OnMouseButton(i32 button, bool pressed)
-{
-    if (button == SDL_BUTTON_LEFT && !pressed)
-        s_console.mouse_scrolling = false;
-
-    if (!ConsoleWantsInput())
-        return false;
-    if (!MouseIsOverConsole())
-        return false;
-
-    if (button == SDL_BUTTON_LEFT && pressed)
-    {
-        const Vec2 pos = SysGetMousePosition();
-        const SimpleRect rect = ScrollbarRect();
-        if (Contains(rect, pos))
-        {
-            s_console.mouse_scrolling = true;
-            s_console.mouse_scroll_handle_t = (pos.y - rect.bot) / rect.Height();
-        }
-    }
-
-    return true;
-}
-
-bool Console_OnMouseWheel(float scroll)
-{
-    if (!ConsoleWantsInput())
-        return false;
-    if (!MouseIsOverConsole())
-        return false;
-
-    s_console.scroll_target += scroll * SCROLL_SPEED;
-    return true;
-}
 
 
 
@@ -1225,6 +1189,55 @@ void Log(const wchar_t* category, const LogLevel level, const wchar_t* fmt, ...)
     SysConvertWideCharToMultiByte(cat, category);
     SysConvertWideCharToMultiByte(message, buffer);
     LogInternal(cat, level, message);
+}
+
+//
+// Input Handler
+//
+
+bool ConsoleWantsInput()
+{
+    return s_console.wants_input;
+}
+
+void Console_OnWindowSize(i32 width, i32 height)
+{
+    if (width * height == 0)
+        return;
+    ConsoleCheckForInit(); // Paranoid check to avoid divide by zero
+
+    // Preserve the old ratio that the tween was targeting.
+    float ratio = s_console.tween.v1 / s_console.window_size.y;
+    s_console.tween.v1 = height * ratio;
+    s_console.window_size = {
+        static_cast<float>(width),
+        static_cast<float>(height),
+    };
+}
+
+static bool Contains(const SimpleRect r, const Vec2 point)
+{
+    bool x = point.x > r.left && point.x < r.right;
+    bool y = point.y < r.bot && point.y > r.top;
+    return x && y;
+}
+
+static bool MouseIsOverConsole()
+{
+    Vec2 pos = SysGetMousePosition();
+    SimpleRect console_rect = ConsoleRect();
+    return Contains(console_rect, pos);
+}
+
+bool Console_OnMouseWheel(float scroll)
+{
+    if (!ConsoleWantsInput())
+        return false;
+    if (!MouseIsOverConsole())
+        return false;
+
+    s_console.scroll_target += scroll * SCROLL_SPEED;
+    return true;
 }
 
 static struct ConsoleInputHandler : InputHandler
@@ -1403,12 +1416,105 @@ void ConsoleInit(const ArrayView<const char*>& logo, ArrayView<const u8> console
     const Vec2 window_size = SysGetWindowSize();
     const Vec2 screen_size = SysGetScreenSize();
     //u8 temp_font_bitmap[FONT_BITMAP_SIZE_X][FONT_BITMAP_SIZE_Y] = {};
-    u8* temp_font_bitmap = (u8*)malloc(FONT_BITMAP_SIZE_X * FONT_BITMAP_SIZE_Y);
-    memset(temp_font_bitmap, 0, FONT_BITMAP_SIZE_X * FONT_BITMAP_SIZE_Y);
+    ColorI* temp_font_bitmap = (ColorI*)malloc(FONT_BITMAP_SIZE_BYTES);
+    memset(temp_font_bitmap, 0, FONT_BITMAP_SIZE_BYTES);
     Defer{ free(temp_font_bitmap); };
 
 
 #if 1
+    stbrp_context pack_ctx;
+    stbrp_node pack_nodes[FONT_CHAR_COUNT];
+    stbrp_init_target(&pack_ctx, FONT_BITMAP_SIZE_X, FONT_BITMAP_SIZE_Y, pack_nodes, FONT_CHAR_COUNT);
+
+    FT_Library ft;
+    VALIDATE_M(!FT_Init_FreeType(&ft), "ConsoleInit", LogLevel_Error, "%s", "Failed to create FreeType Library");
+    FT_Face face;
+    VALIDATE_M(!FT_New_Memory_Face(ft, console_font_data.data, (FT_Long)console_font_data.Bytes(), 0, &face), "ConsoleInit", LogLevel_Error, "%s", "Failed to create FreeType Memory Face");
+    VALIDATE_M(!FT_Set_Pixel_Sizes(face, 0, (u32)s_console.font_height * s_console.font_scale), "ConsoleInit", LogLevel_Error, "%s", "Failed to set Pixel Sizes");
+
+    s_font_ascender = (float)(face->size->metrics.ascender >> 6);
+    s_font_descender = (float)(face->size->metrics.descender >> 6);
+    //const float = (float)(face->size->metrics.height >> 6);
+
+    stbrp_rect rects[FONT_CHAR_COUNT] = {};
+    for (i32 i = 0; i < FONT_CHAR_COUNT; i++)
+    {
+        const i32 codepoint = FONT_CHAR_START + i;
+        VALIDATE_M(!FT_Load_Char(face, codepoint, FT_LOAD_DEFAULT), "ConsoleInit", LogLevel_Error, "Failed to load char %i", codepoint);
+
+        rects[i].id = codepoint;
+        rects[i].w = face->glyph->bitmap.width;
+        rects[i].h = face->glyph->bitmap.rows;
+    }
+    stbrp_pack_rects(&pack_ctx, rects, FONT_CHAR_COUNT);
+
+    for (i32 i = 0; i < FONT_CHAR_COUNT; i++)
+    {
+        const i32 codepoint = FONT_CHAR_START + i;
+        const stbrp_rect& rect = rects[i];
+        if (!rect.was_packed)
+            continue;
+
+        FT_Int32 flags = FT_LOAD_RENDER | FT_LOAD_FORCE_AUTOHINT | FT_LOAD_TARGET_LCD;
+#if _DEBUG 
+        flags |= FT_LOAD_PEDANTIC;
+#endif
+        VALIDATE_M(!FT_Load_Char(face, codepoint, flags), "ConsoleInit", LogLevel_Error, "Failed to load char %i", codepoint);
+        if (face->glyph->format != FT_GLYPH_FORMAT_BITMAP)
+            FT_Render_Glyph(face->glyph, FT_RENDER_MODE_NORMAL);
+        FT_Bitmap* bmp = &face->glyph->bitmap;
+
+        //const i32 r = stbi_write_png("test.png", char_pix_width, char_pix_height, FONT_BITMAP_BYTE_PER_PIX, bmp->buffer, bmp->pitch);
+        //ASSERT(r);
+
+        const u32 dest_x = rect.x;
+        const u32 dest_y = rect.y;
+        const u32 src_x = 0;
+        const u32 src_y = 0;
+        const u32 char_pix_width  = rect.w;
+        const u32 char_pix_height = rect.h;
+        for (u32 row = 0; row < char_pix_height; ++row)
+        {
+            for (u32 col = 0; col < char_pix_width; ++col)
+            {
+                const u32 dest_pix_index    = ((dest_y + row) * FONT_BITMAP_SIZE_X) + (dest_x + col);
+                //const i32 atlas_index = (start_y + row) + (start_x + col);
+                //const i32 buffer_index = row * bmp->pitch + col;
+                const u32 src_pix_index     = ((src_y + row) * (bmp->pitch))      + ((src_x + col) * 3);
+                const u32 src_byte_index    = src_pix_index * 3;
+
+                //ASSERT(atlas_index < FONT_BITMAP_SIZE_X * FONT_BITMAP_SIZE_Y);
+                //ASSERT(buffer_index < bmp->rows * bmp->pitch);
+                ColorI& dest = temp_font_bitmap[dest_pix_index];
+                dest.r = bmp->buffer[src_pix_index + 0];
+                dest.g = bmp->buffer[src_pix_index + 1];
+                dest.b = bmp->buffer[src_pix_index + 2];
+                dest.a = ((dest.r + dest.g + dest.b) / 3);
+            }
+        }
+
+        Glyph& g = GetGlyph(codepoint);
+        g.size.x = (float)rect.w;
+        g.size.y = (float)rect.h;
+        //g.size.x = (float)bitmap->width;
+        //g.size.y = (float)bitmap->rows;
+        g.offset.x = (float)face->glyph->bitmap_left;
+        g.offset.y = (float)face->glyph->bitmap_top;
+        // Advance is stored in 1/64th of a pixel, so bitshift right by 6 to get true pixels
+        g.advance_x = (float)(face->glyph->advance.x >> 6);
+        const i32 height = face->glyph->metrics.height >> 6;
+        const i32 b_y = face->glyph->bitmap_top;
+
+        g.uvs.left  = (float)dest_x / FONT_BITMAP_SIZE_X;
+        g.uvs.top   = (float)dest_y / FONT_BITMAP_SIZE_Y;
+        g.uvs.right = (float)(dest_x + char_pix_width) / FONT_BITMAP_SIZE_X;
+        g.uvs.bot   = (float)(dest_y + char_pix_height) / FONT_BITMAP_SIZE_Y;
+        //ASSERT(g.uvs.Width() && g.uvs.Height());
+    }
+
+    FT_Done_Face(face);
+    FT_Done_FreeType(ft);
+#else
     //STBTT_DEF int stbtt_PackBegin(stbtt_pack_context *spc, unsigned char *pixels, int pw, int ph, int stride_in_bytes, int padding, void *alloc_context)
 //    stbtt_PackBegin();
 //stbtt_PackSetOversampling()          -- for improved quality on small fonts
@@ -1441,22 +1547,6 @@ void ConsoleInit(const ArrayView<const char*>& logo, ArrayView<const u8> console
     const i32 char_index = 'M' - FONT_CHAR_START;
     const float monospace_width = s_char_data[char_index].xadvance;
     s_console.font_mono_width = monospace_width;
-#else
-    i32 r = stbtt_BakeFontBitmap(console_font_data.data, 0,         // font location (use offset=0 for plain .ttf)
-        s_console.font_height,                      // height of font in pixels
-        (unsigned char*)temp_font_bitmap, FONT_BITMAP_SIZE_X, FONT_BITMAP_SIZE_Y,  // bitmap to be filled in
-        FONT_CHAR_START, FONT_CHAR_COUNT,   // characters to bake
-        s_char_data);                       // you allocate this, it's num_chars long
-    if (r == 0)
-    {
-        DebugPrint("Error: BakeFontBitmap(): no characters fit and no rows were used");
-        FAIL;
-    }
-    else if (r < 0)
-    {
-        DebugPrint("Error: BakeFontBitmap(): %i number of characters fit", r);
-        FAIL;
-    }
 #endif
 
 #if 1
@@ -1470,19 +1560,19 @@ void ConsoleInit(const ArrayView<const char*>& logo, ArrayView<const u8> console
         .type = TextureType_Texture,
         .update = TextureUpdateType_Immutable,
     };
-    ArrayView<u8> font_bitmap_byte_view = CreateArrayView((u8*)temp_font_bitmap, FONT_BITMAP_SIZE_X * FONT_BITMAP_SIZE_Y);
-    const u64 size = font_bitmap_byte_view.Bytes() * 4;
-    ColorI* font_rgba8_data = (ColorI*)malloc(size);
-    for (i32 i = 0; i < font_bitmap_byte_view.Bytes(); i++)
-    {
-        font_rgba8_data[i].r =
-            font_rgba8_data[i].g =
-            font_rgba8_data[i].b =
-            font_rgba8_data[i].a =
-            font_bitmap_byte_view[i];
-    }
-    ArrayView<u8> font_array_view = CreateArrayView((u8*)font_rgba8_data, size);
-    CreateTextureAndUpload(&s_console.font_texture, "Console Font", tp, font_array_view);
+    ArrayView<u8> font_bitmap_byte_view = CreateArrayView((u8*)temp_font_bitmap, FONT_BITMAP_SIZE_BYTES);
+    //const u64 size = font_bitmap_byte_view.Bytes() * 4;
+    //ColorI* font_rgba8_data = (ColorI*)malloc(size);
+    //for (i32 i = 0; i < font_bitmap_byte_view.Bytes(); i += FONT_BITMAP_BYTE_PER_PIX)
+    //{
+    //    font_rgba8_data[i].r = font_bitmap_byte_view[i + 0];
+    //    font_rgba8_data[i].g = font_bitmap_byte_view[i + 1];
+    //    font_rgba8_data[i].b = font_bitmap_byte_view[i + 2];
+    //    font_rgba8_data[i].a = font_bitmap_byte_view[i + 0];
+    //}
+    //ArrayView<u8> font_array_view = CreateArrayView((u8*)font_rgba8_data, size);
+    ////CreateTextureAndUpload(&s_console.font_texture, "Console Font", tp, font_array_view);
+    CreateTextureAndUpload(&s_console.font_texture, "Console Font", tp, font_bitmap_byte_view);
 #else
     TextureParams tp = {
         .size = { FONT_BITMAP_SIZE_X, FONT_BITMAP_SIZE_Y, 0 },
@@ -1522,13 +1612,13 @@ void ConsoleInit(const ArrayView<const char*>& logo, ArrayView<const u8> console
             .texture = gfx.hdr_target,
             .blend = gfx.blend_normal,
         };
-        params.targets[0].blend.enabled = true;
-        params.targets[0].blend.src_factor_rgb = BlendFactor_SrcAlpha;
-        params.targets[0].blend.dst_factor_rgb = BlendFactor_OneMinusSrcAlpha;
-        params.targets[0].blend.op_rgb      = BlendOp_Add;
-        params.targets[0].blend.src_factor_alpha = BlendFactor_One;
-        params.targets[0].blend.dst_factor_alpha = BlendFactor_Zero;
-        params.targets[0].blend.op_alpha    = BlendOp_Add;
+        //params.targets[0].blend.enabled = true;
+        //params.targets[0].blend.src_factor_rgb = BlendFactor_SrcAlpha;
+        //params.targets[0].blend.dst_factor_rgb = BlendFactor_OneMinusSrcAlpha;
+        //params.targets[0].blend.op_rgb      = BlendOp_Add;
+        //params.targets[0].blend.src_factor_alpha = BlendFactor_One;
+        //params.targets[0].blend.dst_factor_alpha = BlendFactor_Zero;
+        //params.targets[0].blend.op_alpha    = BlendOp_Add;
         params.targets[0].mask = ColorMask_RGB;
 
         CreatePipeline(&s_console.pipeline, "Console Pipeline", params);
@@ -1539,8 +1629,8 @@ void ConsoleInit(const ArrayView<const char*>& logo, ArrayView<const u8> console
     const float display_pos_y = 0;
     const float L = display_pos_x;
     const float R = display_pos_x + gfx.window_size.x;
-    const float B = display_pos_y;
-    const float T = display_pos_y + gfx.window_size.y;
+    const float T = display_pos_y;
+    const float B = display_pos_y + gfx.window_size.y;
 
     const Vec4 full = { 1024, 600, 0, 1 };
     const Vec4 half = {  512, 300, 0, 1 };
@@ -1555,6 +1645,7 @@ void ConsoleInit(const ArrayView<const char*>& logo, ArrayView<const u8> console
              (R+L)/(L-R),  (T+B)/(B-T),    0.5f,       1.0f,
     },
     };
+
     gb_mat4_transpose(uniform.orthographic);
 
     //TODO(CSH): Delete
