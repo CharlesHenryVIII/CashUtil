@@ -19,7 +19,6 @@ bool CashInit(ArrayView<const ArrayView<const u8>> app_icons, const ArrayView<co
     ConsoleInit(logo, console_font_data);
     SDL_StartTextInput(gfx.window);
 
-
     return true;
 }
 void CashDestroy()

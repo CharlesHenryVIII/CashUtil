@@ -1415,7 +1415,6 @@ void ConsoleInit(const ArrayView<const char*>& logo, ArrayView<const u8> console
     s_logo_string = logo;
     const Vec2 window_size = SysGetWindowSize();
     const Vec2 screen_size = SysGetScreenSize();
-    //u8 temp_font_bitmap[FONT_BITMAP_SIZE_X][FONT_BITMAP_SIZE_Y] = {};
     ColorI* temp_font_bitmap = (ColorI*)malloc(FONT_BITMAP_SIZE_BYTES);
     memset(temp_font_bitmap, 0, FONT_BITMAP_SIZE_BYTES);
     Defer{ free(temp_font_bitmap); };
@@ -1437,21 +1436,22 @@ void ConsoleInit(const ArrayView<const char*>& logo, ArrayView<const u8> console
     //const float = (float)(face->size->metrics.height >> 6);
 
     stbrp_rect rects[FONT_CHAR_COUNT] = {};
+    const i32 pad = 1;
     for (i32 i = 0; i < FONT_CHAR_COUNT; i++)
     {
         const i32 codepoint = FONT_CHAR_START + i;
         VALIDATE_M(!FT_Load_Char(face, codepoint, FT_LOAD_DEFAULT), "ConsoleInit", LogLevel_Error, "Failed to load char %i", codepoint);
 
         rects[i].id = codepoint;
-        rects[i].w = face->glyph->bitmap.width;
-        rects[i].h = face->glyph->bitmap.rows;
+        rects[i].w = face->glyph->bitmap.width + pad;
+        rects[i].h = face->glyph->bitmap.rows + pad;
     }
     stbrp_pack_rects(&pack_ctx, rects, FONT_CHAR_COUNT);
 
     for (i32 i = 0; i < FONT_CHAR_COUNT; i++)
     {
-        const i32 codepoint = FONT_CHAR_START + i;
-        const stbrp_rect& rect = rects[i];
+        const i32         codepoint = FONT_CHAR_START + i;
+        const stbrp_rect& rect      = rects[i];
         if (!rect.was_packed)
             continue;
 
@@ -1461,45 +1461,47 @@ void ConsoleInit(const ArrayView<const char*>& logo, ArrayView<const u8> console
 #endif
         VALIDATE_M(!FT_Load_Char(face, codepoint, flags), "ConsoleInit", LogLevel_Error, "Failed to load char %i", codepoint);
         if (face->glyph->format != FT_GLYPH_FORMAT_BITMAP)
+        {
+            FAIL;
             FT_Render_Glyph(face->glyph, FT_RENDER_MODE_NORMAL);
-        FT_Bitmap* bmp = &face->glyph->bitmap;
-
-        //const i32 r = stbi_write_png("test.png", char_pix_width, char_pix_height, FONT_BITMAP_BYTE_PER_PIX, bmp->buffer, bmp->pitch);
-        //ASSERT(r);
+        }
+        const FT_Bitmap& bmp = face->glyph->bitmap;
 
         const u32 dest_x = rect.x;
         const u32 dest_y = rect.y;
         const u32 src_x = 0;
         const u32 src_y = 0;
-        const u32 char_pix_width  = rect.w;
-        const u32 char_pix_height = rect.h;
+        const u32 char_pix_width  = rect.w - pad;
+        const u32 char_pix_height = rect.h - pad;
         for (u32 row = 0; row < char_pix_height; ++row)
         {
             for (u32 col = 0; col < char_pix_width; ++col)
             {
                 const u32 dest_pix_index    = ((dest_y + row) * FONT_BITMAP_SIZE_X) + (dest_x + col);
-                //const i32 atlas_index = (start_y + row) + (start_x + col);
-                //const i32 buffer_index = row * bmp->pitch + col;
-                const u32 src_pix_index     = ((src_y + row) * (bmp->pitch))      + ((src_x + col) * 3);
+                const u32 src_pix_index     = ((src_y + row) * bmp.pitch)           + ((src_x + col) * 3);
                 const u32 src_byte_index    = src_pix_index * 3;
 
-                //ASSERT(atlas_index < FONT_BITMAP_SIZE_X * FONT_BITMAP_SIZE_Y);
-                //ASSERT(buffer_index < bmp->rows * bmp->pitch);
+                u32 r = 0;
+                u32 g = 0;
+                u32 b = 0;
+                if (bmp.buffer)
+                {
+                        r = bmp.buffer[src_pix_index + 0];
+                        g = bmp.buffer[src_pix_index + 1];
+                        b = bmp.buffer[src_pix_index + 2];
+                }
+
                 ColorI& dest = temp_font_bitmap[dest_pix_index];
-                dest.r = bmp->buffer[src_pix_index + 0];
-                dest.g = bmp->buffer[src_pix_index + 1];
-                dest.b = bmp->buffer[src_pix_index + 2];
-                dest.a = ((dest.r + dest.g + dest.b) / 3);
+                dest.a = (u8)((r + g + b) / 3);
+                dest.r = dest.g = dest.b = 255;
             }
         }
 
         Glyph& g = GetGlyph(codepoint);
-        g.size.x = (float)rect.w;
-        g.size.y = (float)rect.h;
-        //g.size.x = (float)bitmap->width;
-        //g.size.y = (float)bitmap->rows;
-        g.offset.x = (float)face->glyph->bitmap_left;
-        g.offset.y = (float)face->glyph->bitmap_top;
+        g.size.x    = (float)char_pix_width;
+        g.size.y    = (float)char_pix_height;
+        g.offset.x  = (float)face->glyph->bitmap_left;
+        g.offset.y  = (float)face->glyph->bitmap_top;
         // Advance is stored in 1/64th of a pixel, so bitshift right by 6 to get true pixels
         g.advance_x = (float)(face->glyph->advance.x >> 6);
         const i32 height = face->glyph->metrics.height >> 6;
@@ -1509,7 +1511,6 @@ void ConsoleInit(const ArrayView<const char*>& logo, ArrayView<const u8> console
         g.uvs.top   = (float)dest_y / FONT_BITMAP_SIZE_Y;
         g.uvs.right = (float)(dest_x + char_pix_width) / FONT_BITMAP_SIZE_X;
         g.uvs.bot   = (float)(dest_y + char_pix_height) / FONT_BITMAP_SIZE_Y;
-        //ASSERT(g.uvs.Width() && g.uvs.Height());
     }
 
     FT_Done_Face(face);
