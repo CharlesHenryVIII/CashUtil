@@ -657,18 +657,14 @@ void DrawRect(SimpleRect rect, Color color, const SimpleRect& scissor)
 void DrawText(const char* string, Vec2 top_left_p, Color color, const SimpleRect& scissor)
 {
     const i32 start_index = (i32)s_console.vertices.used;
-    //Vec2 bot_left_inv = { bot_left_p.x, s_console.window_size.y - bot_left_p.y };
     size_t len = strlen(string);
     for (size_t i = 0; i < len; i++)
     {
         const char& c = string[i];
         SimpleRect uv;
         SimpleRect vert;
-#if 1
         const Glyph& g = GetGlyph(c);
 
-        // Calculate vertex positions
-        // Note: Y is subtracted because FreeType's bearing_y goes UP from the baseline
         vert.left   = top_left_p.x + g.offset.x;
         vert.right  = vert.left + g.size.x;
         vert.bot    = top_left_p.y + (g.size.y - g.offset.y) - 2;
@@ -680,27 +676,6 @@ void DrawText(const char* string, Vec2 top_left_p, Color color, const SimpleRect
         uv = g.uvs;
         ASSERT(uv.Width() * FONT_BITMAP_SIZE_X == vert.Width());
         ASSERT(uv.Height() * FONT_BITMAP_SIZE_Y == vert.Height());
-        //uv.left = g.uv0.x;
-        //uv.right = g.uv1.x;
-        //uv.top = g.uv0.y;
-        //uv.bot = g.uv1.y;
-#else
-        stbtt_aligned_quad q;
-        stbtt_GetPackedQuad(s_char_data, FONT_BITMAP_SIZE_X, FONT_BITMAP_SIZE_Y, c, &bot_left_inv.x, &bot_left_inv.y, &q, 1);
-        uv.left = q.s0;
-        uv.right = q.s1;
-        uv.top = q.t0;
-        uv.bot = q.t1;
-        vert.left = q.x0;
-        vert.right = q.x1;
-        vert.bot = s_console.window_size.y - q.y1;
-        vert.top = s_console.window_size.y - q.y0;
-#endif
-
-        //inverting hight so we match y+ is up
-        //vert.top = s_console.window_size.y - q.y0;
-        //vert.bot = q.y1;
-        //vert.top = q.y1 + (q.y1 - q.y0);
 
         const Vertex_2D top_left  = { Round(vert.TopLeft()),  color, uv.TopLeft() }; //0 Top Left
         const Vertex_2D bot_left  = { Round(vert.BotLeft()),  color, uv.BotLeft() }; //1 Bot Left
@@ -796,8 +771,13 @@ void ConsoleRun()
     float max_scroll = MaxScroll();
     if (s_console.scroll_target > max_scroll)
         s_console.scroll_target = Lerp(s_console.scroll_target, max_scroll, lerp_t);
+#if 1
+    //scroll past the bottom
     s_console.scroll_position = Lerp(s_console.scroll_position, s_console.scroll_target, lerp_t);
-    //s_console.scroll_position = Clamp(s_console.scroll_position, 0.0f, NumItems());
+#else
+    //don't scroll past bottom
+    s_console.scroll_position = Clamp(s_console.scroll_position, 0.0f, NumItems());
+#endif
 
     Console* console = &s_console;
     console->visible_height = TweenValue(console->tween);
@@ -809,12 +789,10 @@ void ConsoleRun()
     SimpleRect empty_scissor = {};
 
     const SimpleRect log_rect = LogRect();
-    //AddRectToRender(RenderType::DebugFill, log_rect, console_color, RenderPrio::Console, CoordinateSpace::UI);
     DrawRect(log_rect, console_color, empty_scissor);
 
     // Input rect
     const SimpleRect input_rect = InputRect();
-    //AddRectToRender(RenderType::DebugFill, input_rect, input_color, RenderPrio::Console, CoordinateSpace::UI);
     DrawRect(input_rect, input_color, empty_scissor);
 
     const char* terminal_prompt = "> ";
@@ -905,13 +883,11 @@ void ConsoleRun()
     // Scrollbar
     {
         SimpleRect scroll = ScrollBackgroundRect();
-        //AddRectToRender(RenderType::DebugFill, scroll, scroll_background_color, RenderPrio::Console, CoordinateSpace::UI);
         DrawRect(scroll, scroll_background_color, scissor_rect);
 
         SimpleRect bar = ScrollbarRect();
         Color color = s_console.mouse_scrolling ? scroll_handle_active_color : scroll_handle_color;
         // The current scissor rect will still clip the y-coord here:
-        //AddRectToRender(RenderType::DebugFill, bar, color, RenderPrio::Console, CoordinateSpace::UI);
         DrawRect(bar, color, scissor_rect);
     }
 
@@ -1419,7 +1395,6 @@ void ConsoleInit(const ArrayView<const char*>& logo, ArrayView<const u8> console
     Defer{ free(temp_font_bitmap); };
 
 
-#if 1
     stbrp_context pack_ctx;
     stbrp_node pack_nodes[FONT_CHAR_COUNT];
     stbrp_init_target(&pack_ctx, FONT_BITMAP_SIZE_X, FONT_BITMAP_SIZE_Y, pack_nodes, FONT_CHAR_COUNT);
@@ -1432,7 +1407,6 @@ void ConsoleInit(const ArrayView<const char*>& logo, ArrayView<const u8> console
 
     s_font_ascender = (float)(face->size->metrics.ascender >> 6);
     s_font_descender = (float)(face->size->metrics.descender >> 6);
-    //const float = (float)(face->size->metrics.height >> 6);
 
     stbrp_rect rects[FONT_CHAR_COUNT] = {};
     const i32 pad = 1;
@@ -1516,42 +1490,7 @@ void ConsoleInit(const ArrayView<const char*>& logo, ArrayView<const u8> console
 
     FT_Done_Face(face);
     FT_Done_FreeType(ft);
-#else
-    //STBTT_DEF int stbtt_PackBegin(stbtt_pack_context *spc, unsigned char *pixels, int pw, int ph, int stride_in_bytes, int padding, void *alloc_context)
-//    stbtt_PackBegin();
-//stbtt_PackSetOversampling()          -- for improved quality on small fonts
-//stbtt_PackFontRanges()               -- pack and renders
-//stbtt_PackEnd()
-//stbtt_GetPackedQuad()
 
-    stbtt_pack_context pc;
-    if (!stbtt_PackBegin(&pc, (u8*)temp_font_bitmap, FONT_BITMAP_SIZE_X, FONT_BITMAP_SIZE_Y, 0, 1, nullptr))
-    {
-        DebugPrint("Font packing failed");
-        FAIL;
-        return;
-    }
-
-    stbtt_PackSetOversampling(&pc, 4, 4);
-    if (!stbtt_PackFontRange(&pc,
-        console_font_data.data,
-        0,
-        s_console.font_height,
-        FONT_CHAR_START,
-        FONT_CHAR_COUNT,
-        s_char_data))
-    {
-        DebugPrint("Failed to build font");
-        FAIL;
-        return;
-    }
-    stbtt_PackEnd(&pc);
-    const i32 char_index = 'M' - FONT_CHAR_START;
-    const float monospace_width = s_char_data[char_index].xadvance;
-    s_console.font_mono_width = monospace_width;
-#endif
-
-#if 1
     TextureParams tp = {
         .size = { FONT_BITMAP_SIZE_X, FONT_BITMAP_SIZE_Y, 0 },
         .msaa_samples = 1,
@@ -1563,32 +1502,7 @@ void ConsoleInit(const ArrayView<const char*>& logo, ArrayView<const u8> console
         .update = TextureUpdateType_Immutable,
     };
     ArrayView<u8> font_bitmap_byte_view = CreateArrayView((u8*)temp_font_bitmap, FONT_BITMAP_SIZE_BYTES);
-    //const u64 size = font_bitmap_byte_view.Bytes() * 4;
-    //ColorI* font_rgba8_data = (ColorI*)malloc(size);
-    //for (i32 i = 0; i < font_bitmap_byte_view.Bytes(); i += FONT_BITMAP_BYTE_PER_PIX)
-    //{
-    //    font_rgba8_data[i].r = font_bitmap_byte_view[i + 0];
-    //    font_rgba8_data[i].g = font_bitmap_byte_view[i + 1];
-    //    font_rgba8_data[i].b = font_bitmap_byte_view[i + 2];
-    //    font_rgba8_data[i].a = font_bitmap_byte_view[i + 0];
-    //}
-    //ArrayView<u8> font_array_view = CreateArrayView((u8*)font_rgba8_data, size);
-    ////CreateTextureAndUpload(&s_console.font_texture, "Console Font", tp, font_array_view);
     CreateTextureAndUpload(&s_console.font_texture, "Console Font", tp, font_bitmap_byte_view);
-#else
-    TextureParams tp = {
-        .size = { FONT_BITMAP_SIZE_X, FONT_BITMAP_SIZE_Y, 0 },
-        .msaa_samples = 1,
-        .mip_count = 1,
-
-        .dimension = TextureDimension_2D,
-        .format = TextureFormat_R8_SNORM,
-        .type = TextureType_Texture,
-        .update = TextureUpdateType_Immutable,
-    };
-    ArrayView<u8> font_bitmap_view = CreateArrayView((u8*)temp_font_bitmap, FONT_BITMAP_SIZE_X * FONT_BITMAP_SIZE_Y);
-    CreateTextureAndUpload(&s_console.font_texture, "Console Font", tp, font_bitmap_view);
-#endif
 
 
     {
