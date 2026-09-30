@@ -429,7 +429,7 @@ static void ConsoleBeginAutocomplete()
     int current_matches = 0;
     for (auto& command : console->commands)
     {
-        
+
         if (StringCompare(StringCase_Insensitive, current.c_str(), command.name, current_len))
         {
             if (current_matches++ % matches_per_line == 0)
@@ -586,7 +586,7 @@ void ConsoleCheckForInit()
     }
 
     Logo();
-    
+
     assert(logStrings.size() == logLevels.size());
     for (int i = 0; i < logStrings.size(); i++)
     {
@@ -1151,10 +1151,10 @@ void LogInternal(const std::string& category, const LogLevel level, const std::s
 
     char time_str[32] = {};
 #if 1
-    snprintf(time_str, sizeof(time_str), "%02d:%02d:%02d", 
+    snprintf(time_str, sizeof(time_str), "%02d:%02d:%02d",
              dt.hour, dt.minute, dt.second);
 #else
-    snprintf(time_str, sizeof(time_str), "%04d-%02d-%02d %02d:%02d:%02d", 
+    snprintf(time_str, sizeof(time_str), "%04d-%02d-%02d %02d:%02d:%02d",
              dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second);
 #endif
 
@@ -1245,7 +1245,7 @@ static struct ConsoleInputHandler : InputHandler
 
     virtual bool OnKeyDown(const SDL_KeyboardEvent& event) override
     {
-        
+
         const SDL_Keymod    mods    = event.mod;
         const SDL_Keycode   key     = event.key;
         const bool          control = FlagIntersects(mods, SDL_KMOD_CTRL);
@@ -1436,28 +1436,30 @@ void ConsoleInit(const ArrayView<const char*>& logo, ArrayView<const u8> console
 
     stbrp_rect rects[FONT_CHAR_COUNT] = {};
     const i32 pad = 1;
+    FT_Int32 flags = FT_LOAD_FORCE_AUTOHINT | FT_LOAD_TARGET_LCD;
+#if _DEBUG
+    flags |= FT_LOAD_PEDANTIC;
+#endif
     for (i32 i = 0; i < FONT_CHAR_COUNT; i++)
     {
         const i32 codepoint = FONT_CHAR_START + i;
-        VALIDATE_M(!FT_Load_Char(face, codepoint, FT_LOAD_DEFAULT), "ConsoleInit", LogLevel_Error, "Failed to load char %i", codepoint);
+        VALIDATE_M(!FT_Load_Char(face, codepoint, flags), "ConsoleInit", LogLevel_Error, "Failed to load char %i", codepoint);
 
         rects[i].id = codepoint;
-        rects[i].w = face->glyph->bitmap.width + pad;
+        rects[i].w = (face->glyph->bitmap.width / 3) + pad;
         rects[i].h = face->glyph->bitmap.rows + pad;
     }
     stbrp_pack_rects(&pack_ctx, rects, FONT_CHAR_COUNT);
 
+    flags |= FT_LOAD_RENDER;
     for (i32 i = 0; i < FONT_CHAR_COUNT; i++)
     {
         const i32         codepoint = FONT_CHAR_START + i;
         const stbrp_rect& rect      = rects[i];
+        ASSERT(rect.id == codepoint);
         if (!rect.was_packed)
             continue;
 
-        FT_Int32 flags = FT_LOAD_RENDER | FT_LOAD_FORCE_AUTOHINT | FT_LOAD_TARGET_LCD;
-#if _DEBUG 
-        flags |= FT_LOAD_PEDANTIC;
-#endif
         VALIDATE_M(!FT_Load_Char(face, codepoint, flags), "ConsoleInit", LogLevel_Error, "Failed to load char %i", codepoint);
         if (face->glyph->format != FT_GLYPH_FORMAT_BITMAP)
         {
