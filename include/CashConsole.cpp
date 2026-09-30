@@ -654,7 +654,7 @@ void DrawRect(SimpleRect rect, Color color, const SimpleRect& scissor)
     CreateDrawCall("Console Draw Text", draw);
 }
 
-void DrawText(const char* string, Vec2 bot_left_p, Color color, const SimpleRect& scissor)
+void DrawText(const char* string, Vec2 top_left_p, Color color, const SimpleRect& scissor)
 {
     const i32 start_index = (i32)s_console.vertices.used;
     //Vec2 bot_left_inv = { bot_left_p.x, s_console.window_size.y - bot_left_p.y };
@@ -669,13 +669,13 @@ void DrawText(const char* string, Vec2 bot_left_p, Color color, const SimpleRect
 
         // Calculate vertex positions
         // Note: Y is subtracted because FreeType's bearing_y goes UP from the baseline
-        vert.left   = bot_left_p.x + g.offset.x;
+        vert.left   = top_left_p.x + g.offset.x;
         vert.right  = vert.left + g.size.x;
-        vert.bot    = bot_left_p.y + (g.size.y - g.offset.y) - 2;
+        vert.bot    = top_left_p.y + (g.size.y - g.offset.y) - 2;
         vert.top    = vert.bot - g.size.y;
 
         // Advance the cursor for the next character
-        bot_left_p.x += g.advance_x;
+        top_left_p.x += g.advance_x;
 
         uv = g.uvs;
         ASSERT(uv.Width() * FONT_BITMAP_SIZE_X == vert.Width());
@@ -772,7 +772,6 @@ void DrawString(Vec2 location, Color color, const SimpleRect& scissor, const cha
 void ConsoleRun()
 {
     ConsoleCheckForInit();
-    DrawString({ 0, s_console.font_height }, White, {}, "test");
 
     if (s_console.mouse_scrolling)
     {
