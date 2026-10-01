@@ -3,7 +3,6 @@
 #include "CashMath.h"
 #include "CashArrayView.h"
 #include "CashString.h"
-#include "CashRendering.h"
 #include <vector>
 //#include <functional>
 

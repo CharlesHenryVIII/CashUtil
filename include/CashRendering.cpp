@@ -1417,8 +1417,6 @@ bool UpdateUniform(UniformID id, ArrayView<u8> data_array, const u32 slot)
 // Include in header mode to get struct definitions
 #define STB_RECT_PACK_IMPLEMENTATION
 #include "stb/stb_rect_pack.h"
-#define STB_TRUETYPE_IMPLEMENTATION
-#include "stb/stb_truetype.h"
 
 //characters per row * rows * verts per character
 #define VERTS_PER_CHARACTER 6
@@ -1431,7 +1429,7 @@ static struct FontData {
     GpuBuffer* vertex_buffer = nullptr;
     Pipeline* pipeline = nullptr;
     UniformID uniform = 0;
-} s_font = {};
+} s_font;
 
 
 #define FONT_BITMAP_SIZE_X  512

@@ -8,7 +8,7 @@ template <typename T, u64 count>
 struct StaticArray
 {
     u64 used = 0;
-    T data[count] = {};
+    T data[count];
     static constexpr u64 invalid_index = (u64)(-1);
 
     StaticArray() = default;

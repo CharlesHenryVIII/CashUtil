@@ -29,17 +29,6 @@ struct String {
 String CreateString(const char* string, Arena* arena);
 String CreateString(Arena* arena, const char* fmt, ...);
 
-template <u64 sizeT>
-struct InlineString
-{
-    u64 max_len = sizeT;
-    char s[sizeT] = {};
-
-    template <typename T = char>
-    ArrayView<T> ToArrayView() { return CreateArrayView(s, max_len); };
-    StringView   ToStringView()  { return ToArrayView(); };
-};
-
 std::vector<i32> TextToIntArray(const char* text, const char lineEnd);
 std::vector<i32> TextToIntArray(const char* text);
 std::vector<i32> FileToIntArray(const char* fileName, const char lineEnd);
