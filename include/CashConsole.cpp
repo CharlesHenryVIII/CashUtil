@@ -3,12 +3,10 @@
 #include "CashMath.h"
 #include "CashRendering.h"
 #include "CashSystem.h"
+#include "Resource.h"
 
 #include "SDL3/SDL.h"
 #include <cstdint>
-
-#include "ft2build.h"
-#include FT_FREETYPE_H
 
 typedef uint32_t Pos;
 #define NOT_IMPLEMENTED FAIL
@@ -19,17 +17,7 @@ typedef uint32_t Pos;
 #define STB_TEXTEDIT_UNDOSTATECOUNT 32
 #define STB_TEXTEDIT_UNDOCHARCOUNT 1024
 
-
-//characters per row * rows * verts per character
-#define VERTS_PER_CHARACTER 6
-#define CHAR_PER_ROW 256
-#define MAX_ROWS 128
-#define MAX_VERTS CHAR_PER_ROW * MAX_ROWS * VERTS_PER_CHARACTER
-
-// Include in header mode to get struct definitions
 #include "stb/stb_textedit.h"
-#define STB_RECT_PACK_IMPLEMENTATION
-#include "stb/stb_rect_pack.h"
 
 typedef std::string TextEditString;
 
@@ -80,13 +68,9 @@ static bool  stbInsertChars(TextEditString* string, int start, char* characters,
 //    STB_TEXTEDIT_K_TEXTSTART2          secondary keyboard input to move cursor to start of text
 //    STB_TEXTEDIT_K_TEXTEND2            secondary keyboard input to move cursor to end of text
 
-
+// Include in header mode to get struct definitions
 #define STB_TEXTEDIT_IMPLEMENTATION
 #include "stb/stb_textedit.h"
-#define STB_TRUETYPE_IMPLEMENTATION
-#include "stb/stb_truetype.h"
-//#define STB_RECT_PACK_IMPLEMENTATION
-//#include "stb/stb_rect_pack.h"
 
 // CONFIG:
 static const float OPEN_TIME          = 0.5f;  // Seconds to fully open the console
@@ -161,6 +145,7 @@ struct Console
     float                       font_height = 16;// = font_scale = DEFAULT_FONT_SCALE;
     float                       font_scale  = 1;// = font_scale = DEFAULT_FONT_SCALE;
     float                       font_mono_width = -1;
+    FontID                      font = {};
     Vec2                        window_size;
 
     // Scrollbar
@@ -181,51 +166,11 @@ struct Console
 
     // STB:
     STB_TexteditState           te_state = {};
-
-    // Rendering
-    Pipeline*                   pipeline = nullptr;
-    StaticArray<Vertex_2D, MAX_VERTS> vertices = {};
-    GpuBuffer*                  vertex_buffer = nullptr;
-    //i32                         vertex_length = 0;
-    UniformID                   uniform = 0;
-    Texture*                    font_texture = nullptr;
 };
 static Console s_console;
 
 static ArrayView<const char*> s_logo_string;
 //static Vec2 s_font_size;
-
-#define FONT_BITMAP_SIZE_X  512
-#define FONT_BITMAP_SIZE_Y  512
-#define FONT_BITMAP_SIZE_BYTES (FONT_BITMAP_SIZE_X * FONT_BITMAP_SIZE_Y * sizeof(u32))
-#define FONT_CHAR_START 32
-#define FONT_CHAR_FINAL_INDEX 1586
-#define FONT_CHAR_COUNT (FONT_CHAR_FINAL_INDEX - FONT_CHAR_START)
-
-static float s_font_ascender = 0;
-static float s_font_descender = 0;
-
-#if 1
-static struct Glyph {
-    SimpleRect uvs;
-    Vec2 size;
-    Vec2 offset;
-    float advance_x;
-} _s_char_data[FONT_CHAR_COUNT] = {};
-Glyph& GetGlyph(u32 utf8_index)
-{
-    if (utf8_index < FONT_CHAR_START || utf8_index > FONT_CHAR_FINAL_INDEX)
-    {
-        FAIL;
-        Log("CashConsole", LogLevel_Error, "Trying to get glyph that doesn't exist");
-        return _s_char_data[0];
-    }
-    return _s_char_data[utf8_index - FONT_CHAR_START];
-}
-#else
-static stbtt_packedchar s_char_data[FONT_CHAR_COUNT] = {};
-#endif
-
 
 
 static Color LogColor(LogLevel level)
@@ -597,153 +542,6 @@ void ConsoleCheckForInit()
     logStrings.clear();
 }
 
-void DrawRect(SimpleRect rect, Color color, const SimpleRect& scissor)
-{
-    const SimpleRect uv = {
-        .left = 0,
-        .bot = 0,
-        .right = 1,
-        .top = 1,
-    };
-    // 6 verts in a quad
-    const Vertex_2D top_left  = { rect.TopLeft(),  color, uv.TopLeft()  }; //0 Top Left
-    const Vertex_2D bot_left  = { rect.BotLeft(),  color, uv.BotLeft()  }; //1 Bot Left
-    const Vertex_2D top_right = { rect.TopRight(), color, uv.TopRight() }; //2 Top Right
-    const Vertex_2D bot_right = { rect.BotRight(), color, uv.BotRight() }; //3 Bot Right
-
-    Vertex_2D verts[6] = {
-        // First part of Quad
-        top_left,
-        bot_left,
-        top_right,
-
-        //Second part of quad
-        top_right,
-        bot_left,
-        bot_right,
-    };
-    const i32 start_index = (i32)s_console.vertices.used;
-    s_console.vertices.Add(CreateArrayView(verts));
-    const i32 end_index = (i32)s_console.vertices.used;
-
-    DrawCallParams draw = {};
-    draw.pipeline = s_console.pipeline;
-    draw.bindings = {};
-    draw.bindings.vertex_buffer = s_console.vertex_buffer;
-    draw.bindings.read_textures.Add(gfx.plain_texture);
-    draw.bindings.samplers.Add(gfx.common_sampler);
-
-    draw.vertex_index = start_index;
-    draw.vertex_length = end_index - start_index + 1;
-    draw.scissor = scissor;
-
-    draw.color_actions[0] = { };
-    draw.depth_action = { };
-    draw.stencil_action = { };
-
-    //ShaderConstants_Blit2D uniform = {
-    //    .orthographic = gb_mat4_identity(),
-    //};
-    //UpdateUniform(s_console.uniform, CreateArrayView((u8*)&uniform, sizeof(uniform)), 0);
-    draw.uniforms.Add(s_console.uniform);
-
-    draw.color_targets[0] = { gfx.hdr_target };
-    draw.depth_stencil_target = {};
-    draw.draw_to_backbuffer = false;
-
-    CreateDrawCall("Console Draw Text", draw);
-}
-
-void DrawText(const char* string, Vec2 top_left_p, Color color, const SimpleRect& scissor)
-{
-    const i32 start_index = (i32)s_console.vertices.used;
-    size_t len = strlen(string);
-    for (size_t i = 0; i < len; i++)
-    {
-        const char& c = string[i];
-        SimpleRect uv;
-        SimpleRect vert;
-        const Glyph& g = GetGlyph(c);
-
-        vert.left   = top_left_p.x + g.offset.x;
-        vert.right  = vert.left + g.size.x;
-        vert.bot    = top_left_p.y + (g.size.y - g.offset.y) - 2;
-        vert.top    = vert.bot - g.size.y;
-
-        // Advance the cursor for the next character
-        top_left_p.x += g.advance_x;
-
-        uv = g.uvs;
-        ASSERT(uv.Width() * FONT_BITMAP_SIZE_X == vert.Width());
-        ASSERT(uv.Height() * FONT_BITMAP_SIZE_Y == vert.Height());
-
-        const Vertex_2D top_left  = { Round(vert.TopLeft()),  color, uv.TopLeft() }; //0 Top Left
-        const Vertex_2D bot_left  = { Round(vert.BotLeft()),  color, uv.BotLeft() }; //1 Bot Left
-        const Vertex_2D top_right = { Round(vert.TopRight()), color, uv.TopRight() }; //2 Top Right
-        const Vertex_2D bot_right = { Round(vert.BotRight()), color, uv.BotRight() }; //3 Bot Right
-
-        Vertex_2D verts[] = {
-            // First part of Quad
-            top_left,
-            bot_left,
-            top_right,
-
-            //Second part of quad
-            top_right,
-            bot_left,
-            bot_right,
-        };
-        s_console.vertices.Add(CreateArrayView(verts));
-    }
-    const i32 end_index = (i32)s_console.vertices.used;
-
-    DrawCallParams draw = {};
-    draw.pipeline = s_console.pipeline;
-    draw.bindings = {};
-    draw.bindings.vertex_buffer = s_console.vertex_buffer;
-    draw.bindings.read_textures.Add(s_console.font_texture);
-    draw.bindings.samplers.Add(gfx.common_sampler);
-
-    draw.vertex_index = start_index;
-    draw.vertex_length = end_index - start_index;
-    draw.scissor = scissor;
-
-    draw.color_actions[0] = { };
-    draw.depth_action = { };
-    draw.stencil_action = { };
-
-    //ShaderConstants_Blit2D uniform = {
-    //    .orthographic = gb_mat4_identity(),
-    //};
-    //UpdateUniform(s_console.uniform, CreateArrayView((u8*)&uniform, sizeof(uniform)), 0);
-    draw.uniforms.Add(s_console.uniform);
-
-
-    draw.color_targets[0] = { gfx.hdr_target };
-    draw.depth_stencil_target = {};
-    draw.draw_to_backbuffer = false;
-
-    CreateDrawCall("Console Draw Text", draw);
-}
-
-void DrawString(Vec2 location, Color color, const SimpleRect& scissor, const char* text, ...)
-{
-    va_list count_args, write_args;
-    va_start(count_args, text);
-    va_copy(write_args, count_args);
-    auto count = vsnprintf(nullptr, 0, text, count_args);
-    va_end(count_args);
-
-    if (count)
-    {
-        std::string buffer;
-        buffer.resize(count);
-        vsnprintf(&buffer[0], buffer.size() + 1, text, write_args);
-        assert(*(buffer.data() + buffer.size()) == 0);
-        DrawText(buffer.c_str(), location, color, scissor);
-    }
-}
-
 void ConsoleRun()
 {
     ConsoleCheckForInit();
@@ -798,7 +596,7 @@ void ConsoleRun()
     const char* terminal_prompt = "> ";
     float charWidth = s_console.font_mono_width;// s_font_size.x * s_console.font_scale;
     float prompt_width = static_cast<float>(charWidth * strlen(terminal_prompt)); // font->StringWidth(terminal_prompt); // TODO:
-    DrawString(input_rect.BotLeft(), font_color, empty_scissor, "%s%s", terminal_prompt, s_console.input_buf.c_str());
+    DrawString(input_rect.BotLeft(), font_color, s_console.font, empty_scissor, "%s%s", terminal_prompt, s_console.input_buf.c_str());
 
     STB_TexteditState& state = s_console.te_state;
 
@@ -876,7 +674,7 @@ void ConsoleRun()
         else if (min.y > log_rect.bot + ItemHeight())
             continue;
 
-        DrawString(min, item.color, scissor_rect, "%s%s", item.preamble, item.text.c_str());
+        DrawString(min, item.color, s_console.font, scissor_rect, "%s%s", item.preamble, item.text.c_str());
         min.y += ItemHeight();//font->AdvanceY();
     }
 
@@ -889,13 +687,6 @@ void ConsoleRun()
         Color color = s_console.mouse_scrolling ? scroll_handle_active_color : scroll_handle_color;
         // The current scissor rect will still clip the y-coord here:
         DrawRect(bar, color, scissor_rect);
-    }
-
-    //Upload data to gpu
-    s_console.vertex_buffer->Upload(s_console.vertices);
-    {
-        ZoneScopedN("Clearing console vertices");
-        s_console.vertices.Clear();
     }
 }
 
@@ -1383,195 +1174,16 @@ static struct ConsoleInputHandler : InputHandler
 } s_console_input;
 
 
-void ConsoleInit(const ArrayView<const char*>& logo, ArrayView<const u8> console_font_data)
+void ConsoleInit(const ArrayView<const char*>& logo)
 {
     AddInputHandler(&s_console_input);
 
     s_logo_string = logo;
-    const Vec2 window_size = SysGetWindowSize();
-    const Vec2 screen_size = SysGetScreenSize();
-    ColorI* temp_font_bitmap = (ColorI*)malloc(FONT_BITMAP_SIZE_BYTES);
-    memset(temp_font_bitmap, 0, FONT_BITMAP_SIZE_BYTES);
-    Defer{ free(temp_font_bitmap); };
 
-
-    stbrp_context pack_ctx;
-    stbrp_node pack_nodes[FONT_CHAR_COUNT];
-    stbrp_init_target(&pack_ctx, FONT_BITMAP_SIZE_X, FONT_BITMAP_SIZE_Y, pack_nodes, FONT_CHAR_COUNT);
-
-    FT_Library ft;
-    VALIDATE_M(!FT_Init_FreeType(&ft), "ConsoleInit", LogLevel_Error, "%s", "Failed to create FreeType Library");
-    FT_Face face;
-    VALIDATE_M(!FT_New_Memory_Face(ft, console_font_data.data, (FT_Long)console_font_data.Bytes(), 0, &face), "ConsoleInit", LogLevel_Error, "%s", "Failed to create FreeType Memory Face");
-    VALIDATE_M(!FT_Set_Pixel_Sizes(face, 0, (u32)s_console.font_height * s_console.font_scale), "ConsoleInit", LogLevel_Error, "%s", "Failed to set Pixel Sizes");
-
-    s_font_ascender = (float)(face->size->metrics.ascender >> 6);
-    s_font_descender = (float)(face->size->metrics.descender >> 6);
-
-    stbrp_rect rects[FONT_CHAR_COUNT] = {};
-    const i32 pad = 1;
-    FT_Int32 flags = FT_LOAD_FORCE_AUTOHINT | FT_LOAD_TARGET_LCD;
-#if _DEBUG
-    flags |= FT_LOAD_PEDANTIC;
-#endif
-    for (i32 i = 0; i < FONT_CHAR_COUNT; i++)
-    {
-        const i32 codepoint = FONT_CHAR_START + i;
-        VALIDATE_M(!FT_Load_Char(face, codepoint, flags), "ConsoleInit", LogLevel_Error, "Failed to load char %i", codepoint);
-
-        rects[i].id = codepoint;
-        rects[i].w = (face->glyph->bitmap.width / 3) + pad;
-        rects[i].h = face->glyph->bitmap.rows + pad;
-    }
-    stbrp_pack_rects(&pack_ctx, rects, FONT_CHAR_COUNT);
-
-    flags |= FT_LOAD_RENDER;
-    for (i32 i = 0; i < FONT_CHAR_COUNT; i++)
-    {
-        const i32         codepoint = FONT_CHAR_START + i;
-        const stbrp_rect& rect      = rects[i];
-        ASSERT(rect.id == codepoint);
-        if (!rect.was_packed)
-            continue;
-
-        VALIDATE_M(!FT_Load_Char(face, codepoint, flags), "ConsoleInit", LogLevel_Error, "Failed to load char %i", codepoint);
-        if (face->glyph->format != FT_GLYPH_FORMAT_BITMAP)
-        {
-            FAIL;
-            FT_Render_Glyph(face->glyph, FT_RENDER_MODE_NORMAL);
-        }
-        const FT_Bitmap& bmp = face->glyph->bitmap;
-
-        const u32 dest_x = rect.x;
-        const u32 dest_y = rect.y;
-        const u32 src_x = 0;
-        const u32 src_y = 0;
-        const u32 char_pix_width  = rect.w - pad;
-        const u32 char_pix_height = rect.h - pad;
-        for (u32 row = 0; row < char_pix_height; ++row)
-        {
-            for (u32 col = 0; col < char_pix_width; ++col)
-            {
-                const u32 dest_pix_index    = ((dest_y + row) * FONT_BITMAP_SIZE_X) + (dest_x + col);
-                const u32 src_pix_index     = ((src_y + row) * bmp.pitch)           + ((src_x + col) * 3);
-                const u32 src_byte_index    = src_pix_index * 3;
-
-                u32 r = 0;
-                u32 g = 0;
-                u32 b = 0;
-                if (bmp.buffer)
-                {
-                        r = bmp.buffer[src_pix_index + 0];
-                        g = bmp.buffer[src_pix_index + 1];
-                        b = bmp.buffer[src_pix_index + 2];
-                }
-
-                ColorI& dest = temp_font_bitmap[dest_pix_index];
-                dest.a = (u8)((r + g + b) / 3);
-                dest.r = dest.g = dest.b = 255;
-            }
-        }
-
-        Glyph& g = GetGlyph(codepoint);
-        g.size.x    = (float)char_pix_width;
-        g.size.y    = (float)char_pix_height;
-        g.offset.x  = (float)face->glyph->bitmap_left;
-        g.offset.y  = (float)face->glyph->bitmap_top;
-        // Advance is stored in 1/64th of a pixel, so bitshift right by 6 to get true pixels
-        g.advance_x = (float)(face->glyph->advance.x >> 6);
-        const i32 height = face->glyph->metrics.height >> 6;
-        const i32 b_y = face->glyph->bitmap_top;
-
-        g.uvs.left  = (float)dest_x / FONT_BITMAP_SIZE_X;
-        g.uvs.top   = (float)dest_y / FONT_BITMAP_SIZE_Y;
-        g.uvs.right = (float)(dest_x + char_pix_width) / FONT_BITMAP_SIZE_X;
-        g.uvs.bot   = (float)(dest_y + char_pix_height) / FONT_BITMAP_SIZE_Y;
-    }
-
-    FT_Done_Face(face);
-    FT_Done_FreeType(ft);
-
-    TextureParams tp = {
-        .size = { FONT_BITMAP_SIZE_X, FONT_BITMAP_SIZE_Y, 0 },
-        .msaa_samples = 1,
-        .mip_count = 1,
-
-        .dimension = TextureDimension_2D,
-        .format = TextureFormat_RGBA8_UNORM_SRGB,
-        .type = TextureType_Texture,
-        .update = TextureUpdateType_Immutable,
-    };
-    ArrayView<u8> font_bitmap_byte_view = CreateArrayView((u8*)temp_font_bitmap, FONT_BITMAP_SIZE_BYTES);
-    CreateTextureAndUpload(&s_console.font_texture, "Console Font", tp, font_bitmap_byte_view);
-
-
-    {
-        PipelineParams params = {
-            .shader = gfx.blit2d_shader,
-            .primitive_type = PrimitiveType_Triangles,
-            .cull_mode = RenderCullMode_None,
-            .msaa_sample_count = 1,
-            .has_index_buffer = false,
-            .front_ccw_winding_order = true,
-            .alpha_to_coverage_enabled = false,
-
-            //.depth,
-            //.depth_compare_func,
-            //.depth_bias = 0.0f,
-            //.depth_bias_slope_scale = 0.0f,
-            //.depth_bias_clamp = 0.0f,
-
-            .stencil = gfx.stencil_2d,
-        };
-
-        params.targets[0] = {
-            .texture = gfx.hdr_target,
-            .blend = gfx.blend_normal,
-        };
-        //params.targets[0].blend.enabled = true;
-        //params.targets[0].blend.src_factor_rgb = BlendFactor_SrcAlpha;
-        //params.targets[0].blend.dst_factor_rgb = BlendFactor_OneMinusSrcAlpha;
-        //params.targets[0].blend.op_rgb      = BlendOp_Add;
-        //params.targets[0].blend.src_factor_alpha = BlendFactor_One;
-        //params.targets[0].blend.dst_factor_alpha = BlendFactor_Zero;
-        //params.targets[0].blend.op_alpha    = BlendOp_Add;
-        params.targets[0].mask = ColorMask_RGB;
-
-        CreatePipeline(&s_console.pipeline, "Console Pipeline", params);
-    }
-    CreateGpuBuffer(&s_console.vertex_buffer, "Console Vertex Buffer", GpuBufferType_Vertex, GpuBufferFlag_StreamUpdate, MAX_VERTS * sizeof(Vertex_2D));
-
-    const float display_pos_x = 0;
-    const float display_pos_y = 0;
-    const float L = display_pos_x;
-    const float R = display_pos_x + gfx.window_size.x;
-    const float T = display_pos_y;
-    const float B = display_pos_y + gfx.window_size.y;
-
-    const Vec4 full = { 1024, 600, 0, 1 };
-    const Vec4 half = {  512, 300, 0, 1 };
-    const Vec4 zero = {    0,   0, 0, 1 };
-    const Vec4 t    = {    7,   9, 0, 1 };
-
-    ShaderConstants_Blit2D uniform = {
-        .orthographic = {
-             2.0f/(R-L),   0.0f,           0.0f,       0.0f,
-             0.0f,         2.0f/(T-B),     0.0f,       0.0f,
-             0.0f,         0.0f,           0.5f,       0.0f,
-             (R+L)/(L-R),  (T+B)/(B-T),    0.5f,       1.0f,
-    },
-    };
-
-    gb_mat4_transpose(uniform.orthographic);
-
-    //TODO(CSH): Delete
-    const Vec4 full_r = uniform.orthographic * full;
-    const Vec4 half_r = uniform.orthographic * half;
-    const Vec4 zero_r = uniform.orthographic * zero;
-    const Vec4 t_r    = uniform.orthographic * t;
-
-    s_console.uniform = CreateUniform(CreateArrayView((u8*)&uniform, sizeof(uniform)), 0);
-
+    i32 console_font_size = 0;
+    u8* jetbrainsmono_data = (u8*)SysGetDataFromResource(&console_font_size, IDR_FONT_JETBRAINSMONO);
+    ArrayView<u8> jetbrainsmon_array = CreateArrayView(jetbrainsmono_data, console_font_size);
+    s_console.font = CreateFont("JetBrainsMono", jetbrainsmon_array, (u32)(s_console.font_height * s_console.font_scale));
     ConsoleCheckForInit();
 }
 

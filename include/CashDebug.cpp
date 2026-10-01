@@ -1,4 +1,4 @@
 #include "CashDebug.h"
 
 bool g_running = true;
-uint64_t g_frame_index = -1;
+uint64_t g_frame_index = 0;

@@ -11,12 +11,12 @@
 
 SysInfo g_sysinfo;
 
-bool CashInit(ArrayView<const ArrayView<const u8>> app_icons, const ArrayView<const char*>& logo, ArrayView<const u8> console_font_data)
+bool CashInit(ArrayView<const ArrayView<const u8>> app_icons, const ArrayView<const char*>& logo)
 {
     VALIDATE_MV(CashRenderInit(app_icons), false, "CashInit", LogLevel_Error, "Failed to init Renderer");
     VALIDATE_MV(OSInit(), false, "CashInit", LogLevel_Error, "Failed to init OS");
     CashImguiInit();
-    ConsoleInit(logo, console_font_data);
+    ConsoleInit(logo);
     SDL_StartTextInput(gfx.window);
 
     return true;

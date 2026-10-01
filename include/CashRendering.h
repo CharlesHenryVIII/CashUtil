@@ -816,6 +816,27 @@ bool CreateDrawCall(const char* name, const DrawCallParams& params);
 
 
 //========================
+//        FONTS
+//========================
+
+#define FONT_CHAR_START 32
+#define FONT_CHAR_FINAL_INDEX 1586
+#define FONT_CHAR_COUNT (FONT_CHAR_FINAL_INDEX - FONT_CHAR_START)
+
+DATAID_TYPE(FontID);
+
+FontID CreateFont(const char* name, ArrayView<u8> font_data, u32 height_in_pixels);
+void DrawText(const char* string, Vec2 top_left_p, Color color, FontID font, const SimpleRect& scissor);
+void DrawString(Vec2 location, Color color, FontID font, const SimpleRect& scissor, const char* text, ...);
+void DrawRect(SimpleRect rect, Color color, const SimpleRect& scissor);
+
+
+
+
+
+
+
+//========================
 //       Renderer
 //========================
 
@@ -843,4 +864,3 @@ struct Renderer
     Sampler* common_sampler;
 };
 extern Renderer gfx;
-
