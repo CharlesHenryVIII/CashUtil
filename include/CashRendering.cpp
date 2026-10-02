@@ -1439,9 +1439,9 @@ static struct FontData {
 struct Glyph
 {
     SimpleRect uvs;
-    Vec2 size;
-    Vec2 offset;
-    float advance_x;
+    Vec2I size;
+    Vec2I offset;
+    i32 advance_x;
 };
 
 struct CashFont
@@ -1451,8 +1451,8 @@ struct CashFont
     Texture* texture = nullptr;
     Glyph char_data[FONT_CHAR_COUNT] = {};
 
-    float ascender = 0;
-    float descender = 0;
+    i32 ascender = 0;
+    i32 descender = 0;
 
     Glyph& GetGlyph(u32 utf8_index)
     {
@@ -1517,12 +1517,6 @@ void FontInit()
     const float T = display_pos_y;
     const float B = display_pos_y + gfx.window_size.y;
 
-    //TODO(CSH): Delete
-    const Vec4 full = { 1024, 600, 0, 1 };
-    const Vec4 half = {  512, 300, 0, 1 };
-    const Vec4 zero = {    0,   0, 0, 1 };
-    const Vec4 t    = {    7,   9, 0, 1 };
-
     ShaderConstants_Blit2D uniform = {
         .orthographic = {
              2.0f/(R-L),   0.0f,           0.0f,       0.0f,
@@ -1531,15 +1525,7 @@ void FontInit()
              (R+L)/(L-R),  (T+B)/(B-T),    0.5f,       1.0f,
     },
     };
-
     gb_mat4_transpose(uniform.orthographic);
-
-    //TODO(CSH): Delete
-    const Vec4 full_r = uniform.orthographic * full;
-    const Vec4 half_r = uniform.orthographic * half;
-    const Vec4 zero_r = uniform.orthographic * zero;
-    const Vec4 t_r    = uniform.orthographic * t;
-
     s_font.uniform = CreateUniform(CreateArrayView((u8*)&uniform, sizeof(uniform)), 0);
 }
 
@@ -1600,7 +1586,7 @@ void DrawRect(SimpleRect rect, Color color, const SimpleRect& scissor)
     CreateDrawCall("Console Draw Text", draw);
 }
 
-void DrawText(const char* string, Vec2 top_left_p, Color color, FontID font, const SimpleRect& scissor)
+void DrawText(const char* string, Vec2 bot_left_p, Color color, FontID font, const SimpleRect& scissor)
 {
     CashFont* f = s_fonts.TryGet(font);
     VALIDATE_M(f, "Rendering", LogLevel_Warning, "Trying to draw text (%s) with non-existant font", string);
@@ -1613,22 +1599,31 @@ void DrawText(const char* string, Vec2 top_left_p, Color color, FontID font, con
         SimpleRect vert;
         const Glyph& g = f->GetGlyph(c);
 
-        vert.left   = top_left_p.x + g.offset.x;
+        vert.left   = bot_left_p.x + g.offset.x;
         vert.right  = vert.left + g.size.x;
-        vert.bot    = top_left_p.y + (g.size.y - g.offset.y) - 2;
+        vert.bot    = bot_left_p.y + (g.size.y - g.offset.y) - 2;
         vert.top    = vert.bot - g.size.y;
 
         // Advance the cursor for the next character
-        top_left_p.x += g.advance_x;
-
+        bot_left_p.x += g.advance_x;
         uv = g.uvs;
-        ASSERT(uv.Width() * FONT_BITMAP_SIZE_X == vert.Width());
-        ASSERT(uv.Height() * FONT_BITMAP_SIZE_Y == vert.Height());
 
-        const Vertex_2D top_left  = { Round(vert.TopLeft()),  color, uv.TopLeft() }; //0 Top Left
-        const Vertex_2D bot_left  = { Round(vert.BotLeft()),  color, uv.BotLeft() }; //1 Bot Left
-        const Vertex_2D top_right = { Round(vert.TopRight()), color, uv.TopRight() }; //2 Top Right
-        const Vertex_2D bot_right = { Round(vert.BotRight()), color, uv.BotRight() }; //3 Bot Right
+        const float uv_width    = uv.Width();
+        const float uv_height   = -uv.Height();//inverted since <0,0> is top
+        const float vert_width  = vert.Width();
+        const float vert_height = -vert.Height();//inverted since <0,0> is top
+
+        if (uv_width <= FLT_EPSILON ||
+            uv_height <= FLT_EPSILON)
+            continue;
+
+        ASSERT( uv_width * FONT_BITMAP_SIZE_X - vert_width  <= FLT_EPSILON);
+        ASSERT(uv_height * FONT_BITMAP_SIZE_Y - vert_height <= FLT_EPSILON);
+
+        const Vertex_2D top_left  = { vert.TopLeft(),  color, uv.TopLeft() }; //0 Top Left
+        const Vertex_2D bot_left  = { vert.BotLeft(),  color, uv.BotLeft() }; //1 Bot Left
+        const Vertex_2D top_right = { vert.TopRight(), color, uv.TopRight() }; //2 Top Right
+        const Vertex_2D bot_right = { vert.BotRight(), color, uv.BotRight() }; //3 Bot Right
 
         Vertex_2D verts[] = {
             // First part of Quad
@@ -1713,8 +1708,8 @@ FontID CreateFont(const char* name, ArrayView<u8> font_data, u32 height_in_pixel
     VALIDATE_MV(!FT_New_Memory_Face(ft, font_data.data, (FT_Long)font_data.Bytes(), 0, &face), {}, debug_cat, LogLevel_Error, "%s", "Failed to create FreeType Memory Face");
     VALIDATE_MV(!FT_Set_Pixel_Sizes(face, 0, height_in_pixels), {}, debug_cat, LogLevel_Error, "%s", "Failed to set Pixel Sizes");
 
-    f->ascender = (float)(face->size->metrics.ascender >> 6);
-    f->descender = (float)(face->size->metrics.descender >> 6);
+    f->ascender = (face->size->metrics.ascender >> 6);
+    f->descender = (face->size->metrics.descender >> 6);
 
     stbrp_rect rects[FONT_CHAR_COUNT] = {};
     const i32 pad = 1;
@@ -1781,19 +1776,19 @@ FontID CreateFont(const char* name, ArrayView<u8> font_data, u32 height_in_pixel
         }
 
         Glyph& g = f->GetGlyph(codepoint);
-        g.size.x = (float)char_pix_width;
-        g.size.y = (float)char_pix_height;
-        g.offset.x = (float)face->glyph->bitmap_left;
-        g.offset.y = (float)face->glyph->bitmap_top;
+        g.size.x = char_pix_width;
+        g.size.y = char_pix_height;
+        g.offset.x = face->glyph->bitmap_left;
+        g.offset.y = face->glyph->bitmap_top;
         // Advance is stored in 1/64th of a pixel, so bitshift right by 6 to get true pixels
-        g.advance_x = (float)(face->glyph->advance.x >> 6);
+        g.advance_x = (face->glyph->advance.x >> 6);
         const i32 height = face->glyph->metrics.height >> 6;
         const i32 b_y = face->glyph->bitmap_top;
 
-        g.uvs.left = (float)dest_x / FONT_BITMAP_SIZE_X;
-        g.uvs.top = (float)dest_y / FONT_BITMAP_SIZE_Y;
-        g.uvs.right = (float)(dest_x + char_pix_width) / FONT_BITMAP_SIZE_X;
-        g.uvs.bot = (float)(dest_y + char_pix_height) / FONT_BITMAP_SIZE_Y;
+        g.uvs.left  = float(dest_x) / FONT_BITMAP_SIZE_X;
+        g.uvs.top   = float(dest_y) / FONT_BITMAP_SIZE_Y;
+        g.uvs.right = float(dest_x + char_pix_width) / FONT_BITMAP_SIZE_X;
+        g.uvs.bot   = float(dest_y + char_pix_height) / FONT_BITMAP_SIZE_Y;
     }
 
     FT_Done_Face(face);

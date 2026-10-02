@@ -282,45 +282,50 @@ struct Rect {
 //    gbVec4(gbVec3<T> _xyz, T _w) : x(_xyz.x), y(_xyz.y), z(_xyz.z), w(_w) {};
 //};
 
-union SimpleRect {
+template <typename T>
+union SimpleRectTemplate {
     struct {
-        float left;
-        float bot;
-        float right;
-        float top;
+        T left;
+        T bot;
+        T right;
+        T top;
     };
     struct {
-        Vec2 xy1;
-        Vec2 xy2;
+        gbVec2<T> xy1;
+        gbVec2<T> xy2;
     };
     struct {
-        Vec4 xyxy;
+        gbVec4<T> xyxy;
     };
     struct {
-        float e[4];
+        T e[4];
     };
 
 
-    float Width() const
+    T Width() const
     {
         return right - left;
     }
 
-    float Height() const
+    T Height() const
     {
         return top - bot;
     }
 
-    Vec2 Center() const { return Vec2(right + left, bot + top) / 2.0f; }
+    gbVec2<T> Center() const { return gbVec2<T>(right + left, bot + top) / 2; }
 
-    Vec2 TopLeft()  const { return { left,  top }; }
-    Vec2 BotLeft()  const { return { left,  bot }; }
-    Vec2 TopRight() const { return { right, top }; }
-    Vec2 BotRight() const { return { right, bot }; }
+    gbVec2<T> TopLeft()  const { return { left,  top }; }
+    gbVec2<T> BotLeft()  const { return { left,  bot }; }
+    gbVec2<T> TopRight() const { return { right, top }; }
+    gbVec2<T> BotRight() const { return { right, bot }; }
 
-    Vec2& BotLeft()  { return xy1; }
-    Vec2& TopRight() { return xy2; }
+    gbVec2<T>& BotLeft()  { return xy1; }
+    gbVec2<T>& TopRight() { return xy2; }
 };
+
+typedef SimpleRectTemplate<float> SimpleRect;
+typedef SimpleRectTemplate<i32> SimpleRectI;
+
 
 struct LineSegment {
     Vec2 p0;
