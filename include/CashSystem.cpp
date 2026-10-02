@@ -326,21 +326,20 @@ Vec2 SysGetMousePosition()
     SDL_GetMouseState(&result.x, &result.y);
     return result;
 }
-Vec2 SysGetWindowSize()
+Vec2I SysGetWindowSize()
 {
-    Vec2I resulti;
-    SDL_GetWindowSize(gfx.window, &resulti.x, &resulti.y);
-    Vec2 result = ToVec2(resulti);
+    Vec2I result;
+    SDL_GetWindowSize(gfx.window, &result.x, &result.y);
     return result;
 }
-Vec2 SysGetScreenSize()
+Vec2I SysGetScreenSize()
 {
-    Vec2I resulti;
+    Vec2I result;
     const SDL_DisplayMode* mode = SDL_GetCurrentDisplayMode(SDL_GetPrimaryDisplay());
     if (mode)
     {
-        resulti.x = mode->w;
-        resulti.y = mode->h;
+        result.x = mode->w;
+        result.y = mode->h;
     }
     else
     {
@@ -348,7 +347,6 @@ Vec2 SysGetScreenSize()
         DebugPrint("Failed to get window mode from SDL");
         return {};
     }
-    Vec2 result = ToVec2(resulti);
     return result;
 }
 
@@ -868,27 +866,12 @@ bool SysProcessEvents(float dt, SDL_Event* event)
     return false;
 }
 
-bool SysRenderInit(const SysRenderInitDesc* desc)
-{
-    return OSRenderInit(desc);
-}
-void SysRenderDestroy()
-{
-    OSRenderDestroy();
-}
-void SysRenderPresent()
-{
-    ZoneScoped;
-    OSRenderPresent();
-}
-void SysGetRenderEnvironment(sg_environment* env)
-{
-    OSGetRenderEnvironment(env);
-}
-void SysGetRenderSwapchain(sg_swapchain* env)
-{
-    OSGetRenderSwapchain(env);
-}
+bool SysRenderInit(const SysRenderInitDesc* desc)   { return OSRenderInit(desc); }
+void SysRenderDestroy()                             { OSRenderDestroy(); }
+void SysRenderUpdate(const Vec2I window_size)       { OSRenderUpdate(window_size); }
+void SysRenderPresent()                             { ZoneScoped; OSRenderPresent(); }
+void SysGetRenderEnvironment(sg_environment* env)   { OSGetRenderEnvironment(env); }
+void SysGetRenderSwapchain(sg_swapchain* env)       { OSGetRenderSwapchain(env); }
 
 
 

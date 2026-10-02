@@ -19,6 +19,7 @@
 #include "../CashRendering.h"
 #include "Tracy.hpp"
 #include "../CashSystem.h"
+#include "../CashConsole.h"
 #define SOKOL_IMPL
 #define SOKOL_D3D11
 #include "sokol/sokol_gfx.h"
@@ -436,7 +437,7 @@ void CreateRenderTargetView(ID3D11RenderTargetView** rtv,  DXGI_FORMAT format, I
     SafeRelease(r);
 }
 
-void CreateDefaultRenderTargets()
+void CreateRenderTargets()
 {
     VERIFY(SUCCEEDED(s_rs.swap_chain->GetBuffer(0, IID_PPV_ARGS(&s_rs.rt_tex))) && s_rs.rt_tex);
     VERIFY(SUCCEEDED(s_rs.device->CreateRenderTargetView(s_rs.rt_tex, NULL, &s_rs.rt_view)) && s_rs.rt_view);
@@ -456,21 +457,37 @@ void CreateDefaultRenderTargets()
     // MSAA render target and view
     if (s_rs.sample_count > 1)
     {
-        VERIFY(SUCCEEDED(s_rs.device->CreateTexture2D(&tex_desc, NULL, &s_rs.msaa_tex)) && s_rs.msaa_tex);
-        VERIFY(SUCCEEDED(s_rs.device->CreateRenderTargetView((ID3D11Resource*)s_rs.msaa_tex, NULL, &s_rs.msaa_view)) && s_rs.msaa_view);
+        if (s_rs.msaa_tex || s_rs.msaa_view)
+        {
+            LOG(LogLevel_Error, "msaa_tex or msaa_view not deleted before trying to create them");
+            FAIL;
+        }
+        else
+        {
+            VERIFY(SUCCEEDED(s_rs.device->CreateTexture2D(&tex_desc, NULL, &s_rs.msaa_tex)) && s_rs.msaa_tex);
+            VERIFY(SUCCEEDED(s_rs.device->CreateRenderTargetView((ID3D11Resource*)s_rs.msaa_tex, NULL, &s_rs.msaa_view)) && s_rs.msaa_view);
+        }
     }
 
     // depth-stencil render target and view
     if (!s_rs.no_depth_buffer)
     {
-        tex_desc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
-        tex_desc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
-        VERIFY(SUCCEEDED(s_rs.device->CreateTexture2D(&tex_desc, NULL, &s_rs.ds_tex)) && s_rs.ds_tex);
-        VERIFY(SUCCEEDED(s_rs.device->CreateDepthStencilView((ID3D11Resource*)s_rs.ds_tex, NULL, &s_rs.ds_view)) && s_rs.ds_view);
+        if (s_rs.ds_tex || s_rs.ds_view)
+        {
+            LOG(LogLevel_Error, "ds_tex or ds_view not deleted before trying to create them");
+            FAIL;
+        }
+        else
+        {
+            tex_desc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+            tex_desc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+            VERIFY(SUCCEEDED(s_rs.device->CreateTexture2D(&tex_desc, NULL, &s_rs.ds_tex)) && s_rs.ds_tex);
+            VERIFY(SUCCEEDED(s_rs.device->CreateDepthStencilView((ID3D11Resource*)s_rs.ds_tex, NULL, &s_rs.ds_view)) && s_rs.ds_view);
+        }
     }
 }
 
-void DestroyDefaultRenderTargets()
+void DestroyRenderTargets()
 {
     SafeRelease(s_rs.rt_tex);
     SafeRelease(s_rs.rt_view);
@@ -480,14 +497,8 @@ void DestroyDefaultRenderTargets()
     SafeRelease(s_rs.msaa_view);
 }
 
-void UpdateDefaultRenderTargets()
+void UpdateSwapchain(const Vec2I& size)
 {
-    if (s_rs.swap_chain)
-    {
-        DestroyDefaultRenderTargets();
-        VERIFY(SUCCEEDED(s_rs.swap_chain->ResizeBuffers(2, s_rs.size.x, s_rs.size.y, SWAP_CHAIN_FORMAT, 0)));
-        CreateDefaultRenderTargets();
-    }
 }
 
 bool OSRenderInit(const SysRenderInitDesc* desc)
@@ -547,27 +558,46 @@ bool OSRenderInit(const SysRenderInitDesc* desc)
     }
     VALIDATE_V(SUCCEEDED(hr) && s_rs.swap_chain && s_rs.device && s_rs.device_context, false);
 
-    CreateDefaultRenderTargets();
+    CreateRenderTargets();
     return true;
 }
 void OSRenderDestroy()
 {
-    DestroyDefaultRenderTargets();
+    DestroyRenderTargets();
     SafeRelease(s_rs.swap_chain);
     SafeRelease(s_rs.device_context);
     SafeRelease(s_rs.device);
 }
 
+void OSRenderUpdate(const Vec2I size)
+{
+    if (s_rs.size == size || size.x * size.y == 0)
+        return;
+    if (!s_rs.swap_chain)
+        return;
+
+    DestroyRenderTargets();
+    s_rs.size = size;
+    s_rs.swap_chain_desc.BufferDesc.Width = size.x;
+    s_rs.swap_chain_desc.BufferDesc.Height = size.y;
+    //s_rs.swap_chain_desc.BufferDesc.RefreshRate.Numerator;
+    //s_rs.swap_chain_desc.SampleDesc.Count;
+    //s_rs.swap_chain_desc.SampleDesc.Quality;
+
+    VERIFY(SUCCEEDED(s_rs.swap_chain->ResizeBuffers(2, s_rs.size.x, s_rs.size.y, SWAP_CHAIN_FORMAT, 0)));
+
+    //ID3D11Texture2D* backbuffer;
+    //VERIFY(SUCCEEDED(s_rs.swap_chain->GetBuffer(0, IID_PPV_ARGS(&backbuffer))));
+    CreateRenderTargets();
+
+    //D3D11_TEXTURE2D_DESC backbuffer_desc = {};
+    //backbuffer->GetDesc(&backbuffer_desc);
+    //SafeRelease(backbuffer);
+}
+
 void OSRenderPresent()
 {
     s_rs.swap_chain->Present(1, 0);
-    const Vec2 desired = SysGetWindowSize();
-    const Vec2 actual = ToVec2(s_rs.size);
-    if (desired.x && desired.y && desired != actual)
-    {
-        s_rs.size = ToVec2I(desired);
-        UpdateDefaultRenderTargets();
-    }
 }
 
 void OSGetRenderEnvironment(sg_environment* env)

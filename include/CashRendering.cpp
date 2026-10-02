@@ -147,59 +147,6 @@ void SgLogFunc(
 
 
 
-//static const char* vertex_shader_text_2d = R"TERM(
-//cbuffer ShaderConstants_2D : register (b0) {
-//    float4x4 orthographic;
-//};
-//
-//struct VS_INPUT
-//{
-//    float2 pos : POSITION;
-//    float4 col : COLOR;
-//    float2 uv  : TEXCOORD;
-//};
-//
-//struct VS_OUTPUT
-//{
-//    float4 pos : SV_POSITION;
-//    float4 col : COLOR;
-//    float2 uv  : TEXCOORD;
-//};
-//
-//VS_OUTPUT main(VS_INPUT input)
-//{
-//    VS_OUTPUT output;
-//    output.pos = mul(ProjectionMatrix, float4(input.pos.xy, 0.f, 1.f));
-//    output.col = input.col;
-//    output.uv  = input.uv;
-//    return output;
-//}
-//)TERM";
-//
-//static const char* pixel_shader_text_2d = R"TERM(
-//struct PS_INPUT
-//{
-//    float4 pos : SV_POSITION;
-//    float4 col : COLOR;
-//    float2 uv  : TEXCOORD;
-//};
-//struct PS_OUTPUT
-//{
-//    float4 col : SV_Target;
-//}
-//
-//sampler     sampler : register(s0);
-//Texture2D   texture : register(t0)
-//
-//PS_OUTPUT main(PS_INPUT input) : SV_Target
-//{
-//    PS_OUTPUT output;
-//    output.col = input.col * texture.Sample(sampler0, input.uv);
-//    return output;
-//}
-//)TERM";
-
-
 
 
 
@@ -408,6 +355,88 @@ constexpr sg_pixel_format ToSokol(const TextureFormat f)
     }
 }
 
+bool DeleteSokolTexture(GfxTexture* tex)
+{
+    ZoneScoped;
+    VALIDATE_V(tex, false);
+    if (tex->image.id != SG_INVALID_ID)
+        sg_destroy_image(tex->image);
+    if (tex->read_view.id != SG_INVALID_ID)
+        sg_destroy_view(tex->read_view);
+    if (tex->write_view.id != SG_INVALID_ID)
+        sg_destroy_view(tex->write_view);
+    return true;
+}
+
+bool UpdateTextureInternal(GfxTexture* tex)
+{
+    VALIDATE_MV(tex, false, "CashRendering", LogLevel_Error, "Tried to resize invalid texture");
+
+    tex->image = sg_make_image(&tex->image_desc);
+    VALIDATE_MV(tex->image.id != SG_INVALID_ID, false, "CashRendering", LogLevel_Error, "Failed to create texture: %s", tex->name.c_str());
+
+    //========
+    //  View
+    //========
+
+    tex->read_view_desc.texture.image = tex->image;
+    tex->read_view = sg_make_view(&tex->read_view_desc);
+    VALIDATE_MV(tex->read_view.id != SG_INVALID_ID, false, "CashRendering", LogLevel_Error, "Failed to create read view for texture: %s", tex->name.c_str());
+
+    switch (tex->parameters.type)
+    {
+    case TextureType_Texture:
+    {
+        //tex->view_desc.texture.image = tex->image;
+        ////do I need these??
+        //tex->view_desc.texture.mip_levels = { 0, max_mips }; //Starting mip level are hard coded
+        //tex->view_desc.texture.slices = { 0, tex->image_desc.num_slices }; //Starting slice is hard coded
+        break;
+    }
+    case TextureFlag_ColorTarget:
+    {
+        //color target
+        tex->write_view_desc.color_attachment.image = tex->image;
+        tex->write_view = sg_make_view(&tex->write_view_desc);
+        VALIDATE_MV(tex->write_view.id != SG_INVALID_ID, false, "CashRendering", LogLevel_Error, "Failed to create write view for color texture: %s", tex->name.c_str());
+        break;
+    }
+    case TextureFlag_DepthStencil:
+    {
+        //depth target
+        tex->write_view_desc.depth_stencil_attachment.image = tex->image;
+        tex->write_view = sg_make_view(&tex->write_view_desc);
+        VALIDATE_MV(tex->write_view.id != SG_INVALID_ID, false, "CashRendering", LogLevel_Error, "Failed to create write view for depth texture: %s", tex->name.c_str());
+        break;
+    }
+    //tex->view_desc.storage_buffer; //Unorderd Access View equivilent for Computer Shaders I think
+    //tex->view_desc.storage_image;  //Unorderd Access View equivilent for Computer Shaders I think
+    //tex->view_desc.resolve_attachment; //For resolving MSAA... Do I even need these??
+    case TextureType_Invalid:       [[fallthrough]];
+    case TextureType_Count:         [[fallthrough]];
+    default: FAIL; break;
+    }
+    return true;
+}
+
+void TextureResize(Texture** texture, Vec3I new_size)
+{
+    VALIDATE_M(texture, "CashRendering", LogLevel_Error, "Tried to resize invalid texture");
+    GfxTexture* tex = AsGfx(*texture);
+    VALIDATE_M(tex, "CashRendering", LogLevel_Error, "Tried to resize invalid texture");
+
+    tex->image_desc.width = tex->parameters.size.x = new_size.x;
+    tex->image_desc.height = tex->parameters.size.y = new_size.y;
+    if (tex->parameters.dimension == TextureDimension_2D)
+    {
+        ASSERT(new_size.z == 1 || new_size.z == 0);
+        tex->parameters.size.z = 1;
+    }
+    tex->image_desc.num_slices = tex->parameters.size.z;
+    DeleteSokolTexture(tex);
+    UpdateTextureInternal(tex);
+}
+
 bool CreateTextureAndUpload(Texture** texture, const char* name, const TextureParams& tp, ArrayView<u8> data)
 {
     ArrayView<u8> arr[CASH_GFX_MAX_MIPS] = {};
@@ -478,27 +507,11 @@ bool CreateTextureAndUpload(Texture** texture, const char* name, const TexturePa
         }
     }
     tex->image_desc.label = tex->name.c_str();
-    tex->image = sg_make_image(&tex->image_desc);
-
-
-    //========
-    //  View
-    //========
-
-    tex->read_view_desc.texture.image = tex->image;
     tex->read_view_desc.label = ToString("%s Read View", tex->name.c_str()).c_str();
-    tex->read_view = sg_make_view(&tex->read_view_desc);
 
-    switch (p.type)
+    switch (tex->parameters.type)
     {
-    case TextureType_Texture:
-    {
-        //tex->view_desc.texture.image = tex->image;
-        ////do I need these??
-        //tex->view_desc.texture.mip_levels = { 0, max_mips }; //Starting mip level are hard coded
-        //tex->view_desc.texture.slices = { 0, tex->image_desc.num_slices }; //Starting slice is hard coded
-        break;
-    }
+    case TextureType_Texture: break;
     case TextureFlag_ColorTarget:
     {
         //color target
@@ -506,7 +519,6 @@ bool CreateTextureAndUpload(Texture** texture, const char* name, const TexturePa
         tex->write_view_desc.color_attachment.mip_level = 0;
         tex->write_view_desc.color_attachment.slice = 0;
         tex->write_view_desc.label = ToString("%s Write View", tex->name.c_str()).c_str();
-        tex->write_view = sg_make_view(tex->write_view_desc);
         break;
     }
     case TextureFlag_DepthStencil:
@@ -516,17 +528,16 @@ bool CreateTextureAndUpload(Texture** texture, const char* name, const TexturePa
         tex->write_view_desc.depth_stencil_attachment.mip_level = 0;
         tex->write_view_desc.depth_stencil_attachment.slice = 0;
         tex->write_view_desc.label = ToString("%s Write View", tex->name.c_str()).c_str();
-        tex->write_view = sg_make_view(tex->write_view_desc);
         break;
     }
     //tex->view_desc.storage_buffer; //Unorderd Access View equivilent for Computer Shaders I think
     //tex->view_desc.storage_image;  //Unorderd Access View equivilent for Computer Shaders I think
     //tex->view_desc.resolve_attachment; //For resolving MSAA... Do I even need these??
-    case TextureType_Invalid:       [[fallthrough]];
-    case TextureType_Count:         [[fallthrough]];
+    case TextureType_Invalid:   [[fallthrough]];
+    case TextureType_Count:     [[fallthrough]];
     default: FAIL; break;
     }
-    return true;
+    return UpdateTextureInternal(tex);
 }
 
 void DeleteTexture(Texture** texture)
@@ -535,7 +546,7 @@ void DeleteTexture(Texture** texture)
     VALIDATE(texture);
     GfxTexture* tex = AsGfx(*texture);
     DEBUG_LOG("GPU Buffer deleted '%s': %i\n", tex->name.c_str(), tex->image);
-    sg_destroy_image(tex->image);
+    DeleteSokolTexture(tex);
     delete tex;
 }
 
@@ -1468,6 +1479,24 @@ struct CashFont
 
 static IdArray<CashFont, FontID> s_fonts;
 
+void Get2DMatrix(Mat4& orthographic)
+{
+    const float display_pos_x = 0;
+    const float display_pos_y = 0;
+    const float L = display_pos_x;
+    const float R = display_pos_x + gfx.window_size.x;
+    const float T = display_pos_y;
+    const float B = display_pos_y + gfx.window_size.y;
+
+    orthographic =
+    {
+             2.0f/(R-L),   0.0f,           0.0f,       0.0f,
+             0.0f,         2.0f/(T-B),     0.0f,       0.0f,
+             0.0f,         0.0f,           0.5f,       0.0f,
+             (R+L)/(L-R),  (T+B)/(B-T),    0.5f,       1.0f,
+    };
+    gb_mat4_transpose(orthographic);
+}
 
 void FontInit()
 {
@@ -1507,25 +1536,8 @@ void FontInit()
     }
     CreateGpuBuffer(&s_font.vertex_buffer, "Console Vertex Buffer", GpuBufferType_Vertex, GpuBufferFlag_StreamUpdate, MAX_VERTS * sizeof(Vertex_2D));
 
-    const Vec2 window_size = SysGetWindowSize();
-    const Vec2 screen_size = SysGetScreenSize();
-
-    const float display_pos_x = 0;
-    const float display_pos_y = 0;
-    const float L = display_pos_x;
-    const float R = display_pos_x + gfx.window_size.x;
-    const float T = display_pos_y;
-    const float B = display_pos_y + gfx.window_size.y;
-
-    ShaderConstants_Blit2D uniform = {
-        .orthographic = {
-             2.0f/(R-L),   0.0f,           0.0f,       0.0f,
-             0.0f,         2.0f/(T-B),     0.0f,       0.0f,
-             0.0f,         0.0f,           0.5f,       0.0f,
-             (R+L)/(L-R),  (T+B)/(B-T),    0.5f,       1.0f,
-    },
-    };
-    gb_mat4_transpose(uniform.orthographic);
+    ShaderConstants_Blit2D uniform;
+    Get2DMatrix(uniform.orthographic);
     s_font.uniform = CreateUniform(CreateArrayView((u8*)&uniform, sizeof(uniform)), 0);
 }
 
@@ -2074,6 +2086,26 @@ void RenderDestroySokol()
     SysRenderDestroy();
 }
 
+void UpdateBackbuffers()
+{
+    if (gfx.hdr_target)
+    {
+        TextureResize(&gfx.hdr_target, Vec3I(gfx.window_size, 0));
+    }
+    else
+    {
+        TextureParams params = {
+            .size = Vec3I(gfx.window_size, 0),
+            .msaa_samples = 1,
+            .mip_count = 1,
+            .dimension = TextureDimension_2D,
+            .format = TextureFormat_RG11B10_FLOAT,
+            .type = TextureFlag_ColorTarget,
+            .update = TextureUpdateType_Immutable,
+        };
+        CreateTextureAndUpload(&gfx.hdr_target, "HDR Render Target", params, {});
+    }
+}
 
 bool CashRenderInit(ArrayView<const ArrayView<const u8>> app_icons)
 {
@@ -2209,19 +2241,7 @@ bool CashRenderInit(ArrayView<const ArrayView<const u8>> app_icons)
         .ref_value    = 0,
     };
 
-    {
-        TextureParams params = {
-            .size = Vec3I(gfx.window_size, 0),
-            .msaa_samples = 1,
-            .mip_count = 1,
-            .dimension = TextureDimension_2D,
-            .format = TextureFormat_RG11B10_FLOAT,
-            .type = TextureFlag_ColorTarget,
-            .update = TextureUpdateType_Immutable,
-        };
-        //how does this work with uploading "{}"
-        CreateTextureAndUpload(&gfx.hdr_target, "HDR Render Target", params, {});
-    }
+    UpdateBackbuffers();
 
     {
         sg_swapchain swapchain;
@@ -2350,6 +2370,33 @@ bool CashRenderInit(ArrayView<const ArrayView<const u8>> app_icons)
     return true;
 }
 
+void CashRenderUpdate(double delta_time)
+{
+    ZoneScoped;
+
+    SysRenderUpdate(gfx.window_size);
+    UpdateBackbuffers();
+    Console_OnWindowSize(gfx.window_size);
+
+    ShaderConstants_Blit2D uniform;
+    Get2DMatrix(uniform.orthographic);
+    UpdateUniform(s_font.uniform, CreateArrayView((u8*)&uniform, sizeof(uniform)), 0);
+
+    {
+        ZoneScopedN("ImGui SDL3 New Frame");
+        ImGui_ImplSDL3_NewFrame();
+    }
+    {
+        ZoneScopedN("ImGui SDL Renderer3 New Frame");
+        simgui_frame_desc_t desc = {};
+        desc.width = gfx.window_size.x;
+        desc.height = gfx.window_size.y;
+        desc.delta_time = delta_time;
+        desc.dpi_scale = 1.0f; //unsure
+        simgui_new_frame(&desc);
+    }
+}
+
 static struct ImguiInputHandler : InputHandler {
     InputPriority priority = InputPriority_None;
 
@@ -2451,20 +2498,6 @@ void CashImguiDestroy()
 
 void CashImguiNewFrame(double delta_time)
 {
-    ZoneScoped;
-    {
-        ZoneScopedN("ImGui SDL3 New Frame");
-        ImGui_ImplSDL3_NewFrame();
-    }
-    {
-        ZoneScopedN("ImGui SDL Renderer3 New Frame");
-        simgui_frame_desc_t desc = {};
-        desc.width = gfx.window_size.x;
-        desc.height = gfx.window_size.y;
-        desc.delta_time = delta_time;
-        desc.dpi_scale = 1.0f; //unsure
-        simgui_new_frame(&desc);
-    }
 }
 
 //TODO(CSH): Clean this up

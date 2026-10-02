@@ -22,6 +22,7 @@ struct sg_environment;
 struct sg_swapchain;
 bool OSRenderInit(const SysRenderInitDesc* desc);
 void OSRenderDestroy();
+void OSRenderUpdate(const Vec2I window_size);
 void OSRenderPresent();
 void OSGetRenderEnvironment(sg_environment* env);
 void OSGetRenderSwapchain(sg_swapchain* sc);

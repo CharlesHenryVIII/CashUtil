@@ -32,11 +32,7 @@ void ConsoleSetLogLevel(LogLevel level);
 void ConsoleAddCommand(const char* name, CommandFunc func);
 void ConsoleAddCommand(const char* name, CommandFuncArgs func);
 
-bool Console_OnCharacter(i32 c);
-struct InputStates;
-bool Console_OnMouseButton(i32 button, bool pressed);
-bool Console_OnMouseWheel(float scroll);
-void Console_OnWindowSize(i32 width, i32 height);
+void Console_OnWindowSize(Vec2I size);
 
 void Log(const char*    category, const LogLevel level, const char*     fmt, ...);
 void Log(const wchar_t* category, const LogLevel level, const wchar_t*  fmt, ...);

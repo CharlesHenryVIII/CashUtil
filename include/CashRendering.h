@@ -53,11 +53,11 @@ enum CashRenderBackend : u32 {
 ENUMOPS_PURE(CashRenderBackend);
 
 bool CashRenderInit(ArrayView<const ArrayView<const u8>> app_icons);
+void CashRenderUpdate(double delta_time);
 void CashRenderDestroy();
 void CashRender();
 void CashImguiInit();
 void CashImguiDestroy();
-void CashImguiNewFrame(double delta_time);
 
 
 
@@ -224,6 +224,7 @@ bool CreateTextureAndUpload(Texture** texture, const char* name, const TexturePa
 //bool CreateTexture(Texture** texture, Vec3I size, TextureFormat format, i32 bytes_per_pixel, const std::string& name, TextureType type = TextureType_Texture);
 //bool CreateTexture(Texture** texture, TextureFormat format, TextureFilter filter, const std::string& name, TextureType type = TextureType_Texture);
 //bool UpdateTexture(Texture** texture, u32 mip_slice, void* data, u32 row_pitch_bytes, u32 depth_pitch_bytes);
+void TextureResize(Texture** texture, Vec3I new_size);
 void DeleteTexture(Texture** texture);
 
 

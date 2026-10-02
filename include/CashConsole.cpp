@@ -146,7 +146,7 @@ struct Console
     float                       font_scale  = 1;// = font_scale = DEFAULT_FONT_SCALE;
     float                       font_mono_width = -1;
     FontID                      font = {};
-    Vec2                        window_size;
+    Vec2I                       window_size;
 
     // Scrollbar
     float                       scroll_position = 0.0f;
@@ -191,11 +191,11 @@ static void ConsoleClearInput()
 
 static SimpleRect ConsoleRect()
 {
-    const Vec2 window_size = s_console.window_size;// GetWindowSize();
+    const Vec2I window_size = s_console.window_size;// GetWindowSize();
 
     SimpleRect console_rect;
     console_rect.left = 0.0f;
-    console_rect.right = window_size.x;
+    console_rect.right = float(window_size.x);
     console_rect.top = 0.0f;
     console_rect.bot = s_console.visible_height;
     return console_rect;
@@ -510,7 +510,11 @@ void ConsoleCheckForInit()
 {
     if (s_console.initialized)
         return;
-    s_console.window_size = SysGetWindowSize();
+    const Vec2I window_size = SysGetWindowSize();
+    if (window_size != s_console.window_size)
+        Console_OnWindowSize(window_size);
+
+    s_console.window_size = window_size;
     s_console.initialized = true;
     s_console.items.reserve(1000);
     ConsoleAddCommand("help", ShowHelp);
@@ -781,8 +785,8 @@ void ConsoleClose()
 
 static float TargetHeight(bool large)
 {
-    Vec2 size = s_console.window_size;
-    float target = large ? size.y * OPEN_LARGE : size.y * OPEN_STANDARD;
+    const Vec2I size = s_console.window_size;
+    const float target = large ? size.y * OPEN_LARGE : size.y * OPEN_STANDARD;
     return target;
 }
 
@@ -966,19 +970,18 @@ bool ConsoleWantsInput()
     return s_console.wants_input;
 }
 
-void Console_OnWindowSize(i32 width, i32 height)
+void Console_OnWindowSize(Vec2I size)
 {
-    if (width * height == 0)
+    if (size.x * size.y == 0 || size == s_console.window_size)
         return;
-    ConsoleCheckForInit(); // Paranoid check to avoid divide by zero
+    //ConsoleCheckForInit(); // Paranoid check to avoid divide by zero
 
     // Preserve the old ratio that the tween was targeting.
-    float ratio = s_console.tween.v1 / s_console.window_size.y;
-    s_console.tween.v1 = height * ratio;
-    s_console.window_size = {
-        static_cast<float>(width),
-        static_cast<float>(height),
-    };
+    float ratio = 0.0f;
+    if (s_console.window_size.y != 0.0f)
+        ratio = s_console.tween.v1 / s_console.window_size.y;
+    s_console.tween.v1 = size.y * ratio;
+    s_console.window_size = size;
 }
 
 static bool Contains(const SimpleRect r, const Vec2 point)
@@ -993,17 +996,6 @@ static bool MouseIsOverConsole()
     Vec2 pos = SysGetMousePosition();
     SimpleRect console_rect = ConsoleRect();
     return Contains(console_rect, pos);
-}
-
-bool Console_OnMouseWheel(float scroll)
-{
-    if (!ConsoleWantsInput())
-        return false;
-    if (!MouseIsOverConsole())
-        return false;
-
-    s_console.scroll_target += scroll * SCROLL_SPEED;
-    return true;
 }
 
 static struct ConsoleInputHandler : InputHandler

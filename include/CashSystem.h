@@ -292,8 +292,8 @@ void SysSleep(u64 ms);
 double SysGetTime();
 float SysMonitorScale();
 Vec2 SysGetMousePosition();
-Vec2 SysGetWindowSize();
-Vec2 SysGetScreenSize();
+Vec2I SysGetWindowSize();
+Vec2I SysGetScreenSize();
 
 void ParseCSV(PowershellResponse& out, const std::string& in, bool using_quotes);
 
@@ -307,6 +307,8 @@ struct sg_environment;
 struct sg_swapchain;
 bool SysRenderInit(const SysRenderInitDesc* desc);
 void SysRenderDestroy();
+//DO NOT CALL instead use CashRenderUpdate()
+void SysRenderUpdate(const Vec2I window_size);
 //DO NOT CALL instead use CashRender()
 void SysRenderPresent();
 void SysGetRenderEnvironment(sg_environment* env);
