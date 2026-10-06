@@ -375,6 +375,10 @@ bool UpdateTextureInternal(GfxTexture* tex)
     tex->image = sg_make_image(&tex->image_desc);
     VALIDATE_MV(tex->image.id != SG_INVALID_ID, false, "CashRendering", LogLevel_Error, "Failed to create texture: %s", tex->name.c_str());
 
+    const std::string read_view_name = ToString("%s Read View", tex->name.c_str());
+    tex->read_view_desc.label = read_view_name.c_str();
+    const std::string write_view_name = ToString("%s Write View", tex->name.c_str());
+
     //========
     //  View
     //========
@@ -397,6 +401,7 @@ bool UpdateTextureInternal(GfxTexture* tex)
     {
         //color target
         tex->write_view_desc.color_attachment.image = tex->image;
+        tex->write_view_desc.label = write_view_name.c_str();
         tex->write_view = sg_make_view(&tex->write_view_desc);
         VALIDATE_MV(tex->write_view.id != SG_INVALID_ID, false, "CashRendering", LogLevel_Error, "Failed to create write view for color texture: %s", tex->name.c_str());
         break;
@@ -405,6 +410,7 @@ bool UpdateTextureInternal(GfxTexture* tex)
     {
         //depth target
         tex->write_view_desc.depth_stencil_attachment.image = tex->image;
+        tex->write_view_desc.label = write_view_name.c_str();
         tex->write_view = sg_make_view(&tex->write_view_desc);
         VALIDATE_MV(tex->write_view.id != SG_INVALID_ID, false, "CashRendering", LogLevel_Error, "Failed to create write view for depth texture: %s", tex->name.c_str());
         break;
@@ -506,8 +512,8 @@ bool CreateTextureAndUpload(Texture** texture, const char* name, const TexturePa
             }
         }
     }
+
     tex->image_desc.label = tex->name.c_str();
-    tex->read_view_desc.label = ToString("%s Read View", tex->name.c_str()).c_str();
 
     switch (tex->parameters.type)
     {
@@ -518,7 +524,6 @@ bool CreateTextureAndUpload(Texture** texture, const char* name, const TexturePa
         tex->write_view_desc.color_attachment.image = tex->image;
         tex->write_view_desc.color_attachment.mip_level = 0;
         tex->write_view_desc.color_attachment.slice = 0;
-        tex->write_view_desc.label = ToString("%s Write View", tex->name.c_str()).c_str();
         break;
     }
     case TextureFlag_DepthStencil:
@@ -527,7 +532,6 @@ bool CreateTextureAndUpload(Texture** texture, const char* name, const TexturePa
         tex->write_view_desc.depth_stencil_attachment.image = tex->image;
         tex->write_view_desc.depth_stencil_attachment.mip_level = 0;
         tex->write_view_desc.depth_stencil_attachment.slice = 0;
-        tex->write_view_desc.label = ToString("%s Write View", tex->name.c_str()).c_str();
         break;
     }
     //tex->view_desc.storage_buffer; //Unorderd Access View equivilent for Computer Shaders I think
@@ -1462,8 +1466,7 @@ struct CashFont
     Texture* texture = nullptr;
     Glyph char_data[FONT_CHAR_COUNT] = {};
 
-    i32 ascender = 0;
-    i32 descender = 0;
+    FontInfo info;
 
     Glyph& GetGlyph(u32 utf8_index)
     {
@@ -1720,8 +1723,11 @@ FontID CreateFont(const char* name, ArrayView<u8> font_data, u32 height_in_pixel
     VALIDATE_MV(!FT_New_Memory_Face(ft, font_data.data, (FT_Long)font_data.Bytes(), 0, &face), {}, debug_cat, LogLevel_Error, "%s", "Failed to create FreeType Memory Face");
     VALIDATE_MV(!FT_Set_Pixel_Sizes(face, 0, height_in_pixels), {}, debug_cat, LogLevel_Error, "%s", "Failed to set Pixel Sizes");
 
-    f->ascender = (face->size->metrics.ascender >> 6);
-    f->descender = (face->size->metrics.descender >> 6);
+    f->info.ascender = (face->size->metrics.ascender >> 6);
+    f->info.descender = (face->size->metrics.descender >> 6);
+    f->info.size.x = (face->size->metrics.max_advance >> 6);
+    f->info.size.y = height_in_pixels;
+    f->info.is_mono_space = FT_IS_FIXED_WIDTH(face);
 
     stbrp_rect rects[FONT_CHAR_COUNT] = {};
     const i32 pad = 1;
@@ -1817,7 +1823,7 @@ FontID CreateFont(const char* name, ArrayView<u8> font_data, u32 height_in_pixel
         .update = TextureUpdateType_Immutable,
     };
     ArrayView<u8> font_bitmap_byte_view = CreateArrayView((u8*)temp_font_bitmap, FONT_BITMAP_SIZE_BYTES);
-    CreateTextureAndUpload(&f->texture, "Console Font", tp, font_bitmap_byte_view);
+    CreateTextureAndUpload(&f->texture, name, tp, font_bitmap_byte_view);
 
     return f->data_id;
 }
@@ -1837,7 +1843,16 @@ void FontRenderUpdate()
     }
 }
 
-
+const FontInfo& GetFontInfo(FontID id)
+{
+    const CashFont* f = s_fonts.TryGet(id);
+    if (f)
+    {
+        return f->info;
+    }
+    LOG(LogLevel_Error, "Failed to get font: %i", id.e);
+    return {};
+}
 
 
 

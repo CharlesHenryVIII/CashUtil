@@ -36,4 +36,5 @@ void Console_OnWindowSize(Vec2I size);
 
 void Log(const char*    category, const LogLevel level, const char*     fmt, ...);
 void Log(const wchar_t* category, const LogLevel level, const wchar_t*  fmt, ...);
-#define LOG(_level, ...) Log(__FILENAME__, _level, __VA_ARGS__)
+void Log(const char* category, const u32 line_number, const LogLevel level, const char* fmt, ...);
+#define LOG(_level, ...) Log(__FILENAME__, __LINE__, _level, __VA_ARGS__)

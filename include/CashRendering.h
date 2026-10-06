@@ -825,10 +825,17 @@ bool CreateDrawCall(const char* name, const DrawCallParams& params);
 #define FONT_CHAR_COUNT (FONT_CHAR_FINAL_INDEX - FONT_CHAR_START)
 
 DATAID_TYPE(FontID);
+struct FontInfo {
+    Vec2I size = {};
+    i32 ascender = 0;
+    i32 descender = 0;
+    bool is_mono_space;
+};
 
 FontID CreateFont(const char* name, ArrayView<u8> font_data, u32 height_in_pixels);
 void DrawString(Vec2 location, Color color, FontID font, const SimpleRect& scissor, const char* text, ...);
 void DrawRect(SimpleRect rect, Color color, const SimpleRect& scissor);
+const FontInfo& GetFontInfo(FontID id);
 
 
 

@@ -144,7 +144,7 @@ struct Console
 
     float                       font_height = 16;// = font_scale = DEFAULT_FONT_SCALE;
     float                       font_scale  = 1;// = font_scale = DEFAULT_FONT_SCALE;
-    float                       font_mono_width = -1;
+    i32                         font_mono_width = -1;
     FontID                      font = {};
     Vec2I                       window_size;
 
@@ -590,6 +590,7 @@ void ConsoleRun()
     //FontSprite* font = ConsoleFont();
     SimpleRect empty_scissor = {};
 
+    // Console rect
     const SimpleRect log_rect = LogRect();
     DrawRect(log_rect, console_color, empty_scissor);
 
@@ -598,8 +599,8 @@ void ConsoleRun()
     DrawRect(input_rect, input_color, empty_scissor);
 
     const char* terminal_prompt = "> ";
-    float charWidth = s_console.font_mono_width;// s_font_size.x * s_console.font_scale;
-    float prompt_width = static_cast<float>(charWidth * strlen(terminal_prompt)); // font->StringWidth(terminal_prompt); // TODO:
+    i32 char_width = s_console.font_mono_width;// s_font_size.x * s_console.font_scale;
+    i32 prompt_width = char_width * (i32)strlen(terminal_prompt); // font->StringWidth(terminal_prompt); // TODO:
     DrawString(input_rect.BotLeft(), font_color, s_console.font, empty_scissor, "%s%s", terminal_prompt, s_console.input_buf.c_str());
 
     STB_TexteditState& state = s_console.te_state;
@@ -620,18 +621,18 @@ void ConsoleRun()
         }
 
         // Nothing selected, draw the cursor
-        float caret_x = static_cast<float>(state.cursor * charWidth);// TODO: font->StringWidth(s_console.input_buf.c_str(), state.cursor);
+        i32 caret_x = state.cursor * char_width;// TODO: font->StringWidth(s_console.input_buf.c_str(), state.cursor);
         caret_x += prompt_width;
         SimpleRect caret;
-        caret.left  = caret_x - 1.0f;
-        caret.right = caret_x + 1.0f;
+        caret.left  = float(caret_x) - 1.0f;
+        caret.right = float(caret_x) + 1.0f;
 
         float center_y = (input_rect.bot + input_rect.top) / 2.0f;
         caret.bot = center_y - ItemHeight() * 0.5f;
         caret.top = center_y + ItemHeight() * 0.5f;
         Color c = caret_color;
         c.a = alpha;
-        DrawRect(caret, input_color, empty_scissor);
+        DrawRect(caret, c, empty_scissor);
     }
     else
     {
@@ -639,8 +640,8 @@ void ConsoleRun()
         int start = Min(state.select_start, state.select_end);
         int end = Max(state.select_start, state.select_end);
 
-        float select_start = static_cast<float>(start * charWidth); // TODO: font->StringWidth(s_console.input_buf.c_str(), start);
-        float select_end = static_cast<float>(end * charWidth); // TODO: font->StringWidth(s_console.input_buf.c_str(), end);
+        float select_start = static_cast<float>(start * char_width); // TODO: font->StringWidth(s_console.input_buf.c_str(), start);
+        float select_end = static_cast<float>(end * char_width); // TODO: font->StringWidth(s_console.input_buf.c_str(), end);
         select_start += prompt_width;
         select_end += prompt_width;
         float select_width = select_end - select_start;
@@ -960,6 +961,18 @@ void Log(const wchar_t* category, const LogLevel level, const wchar_t* fmt, ...)
     SysConvertWideCharToMultiByte(message, buffer);
     LogInternal(cat, level, message);
 }
+void Log(const char* category, const u32 line, const LogLevel level, const char* fmt, ...)
+{
+    va_list list;
+    va_start(list, fmt);
+    char format_string[Kibibytes(4)] = {};
+    const i32 end = SYS_VSNPRINTF(format_string, arrsize(format_string), fmt, list);
+    va_end(list);
+
+    char filenumber[256] = {};
+    snprintf(filenumber, sizeof(filenumber), "%s(%d)", category, line);
+    LogInternal(filenumber, level, format_string);
+}
 
 //
 // Input Handler
@@ -1176,6 +1189,9 @@ void ConsoleInit(const ArrayView<const char*>& logo)
     u8* jetbrainsmono_data = (u8*)SysGetDataFromResource(&console_font_size, IDR_FONT_JETBRAINSMONO);
     ArrayView<u8> jetbrainsmon_array = CreateArrayView(jetbrainsmono_data, console_font_size);
     s_console.font = CreateFont("JetBrainsMono", jetbrainsmon_array, (u32)(s_console.font_height * s_console.font_scale));
+    const FontInfo& font = GetFontInfo(s_console.font);
+    ASSERT(font.is_mono_space);
+    s_console.font_mono_width = font.size.x;
     ConsoleCheckForInit();
 }
 
