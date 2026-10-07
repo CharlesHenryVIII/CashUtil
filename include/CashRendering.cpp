@@ -77,13 +77,13 @@ Private* GfxGenericCreate(Public** object, const char* name)
         FAIL;
         Private* ob = AsGfx(*object);
         //Private* ob = reinterpret_cast<Private*>(object);
-        DebugPrint("Error: Render object not null during create: '%s'", ob->name.c_str());
+        DebugPrint("Error: Render object not null during create: '%s'", ob->name.data);
         return nullptr;
     }
 
     Private* ob = new Private;
     (*object) = AsGfx(ob);
-    ob->name = name;
+    ob->name.CopyFrom(name);
     return ob;
 }
 
@@ -126,23 +126,39 @@ void SgLogFunc(
 )
 {
     ASSERT(user_data == nullptr);
-    std::string log_level_s;
+    const char* log_level_s;
+    LogLevel log_level_e;
     switch (log_level)
     {
-    case 0: log_level_s = "PANIC";      break;
-    case 1: log_level_s = "ERROR";      break;
-    case 2: log_level_s = "Warning";    break;
-    case 3: log_level_s = "Info";       break;
-    default: log_level_s = ToString("UNKNOWN LOG LEVEL (%s)", log_level); FAIL; break;
+    case 0:
+        log_level_s = "PANIC";
+        log_level_e = LogLevel_Error;
+        break;
+    case 1:
+        log_level_s = "ERROR";
+        log_level_e = LogLevel_Error;
+        break;
+    case 2:
+        log_level_s = "Warning";
+        log_level_e = LogLevel_Warning;
+        break;
+    case 3:
+        log_level_s = "Info";
+        log_level_e = LogLevel_Info;
+        break;
+    default:
+        log_level_s = ArenaPush(&g_cash_arena, "UNKNOWN LOG LEVEL (%s)", log_level);
+        log_level_e = LogLevel_Error;
+        FAIL; break;
     }
 
-    const std::string log = std::format("{} {}({}) SG_LOGITEM_{}: {}",
-        log_level_s.c_str(),
+    const char* log = ArenaPush(&g_cash_arena, "%s %s(%i) SG_LOGITEM_%i: %s",
+        log_level_s,
         filename_or_null ? filename_or_null : "Unknown File",
         line_nr,
         log_item_id,
         message_or_null ? message_or_null : "(No Message)");
-    DebugPrint("%s", log.c_str());
+    LOG(log_level_e, log);
 }
 
 
@@ -370,14 +386,14 @@ bool DeleteSokolTexture(GfxTexture* tex)
 
 bool UpdateTextureInternal(GfxTexture* tex)
 {
-    VALIDATE_MV(tex, false, "CashRendering", LogLevel_Error, "Tried to resize invalid texture");
+    VALIDATE_MV(tex, false, LogLevel_Error, "Tried to resize invalid texture");
 
     tex->image = sg_make_image(&tex->image_desc);
-    VALIDATE_MV(tex->image.id != SG_INVALID_ID, false, "CashRendering", LogLevel_Error, "Failed to create texture: %s", tex->name.c_str());
+    VALIDATE_MV(tex->image.id != SG_INVALID_ID, false, LogLevel_Error, "Failed to create texture: %s", tex->name.data);
 
-    const std::string read_view_name = ToString("%s Read View", tex->name.c_str());
-    tex->read_view_desc.label = read_view_name.c_str();
-    const std::string write_view_name = ToString("%s Write View", tex->name.c_str());
+    const char* read_view_name = ArenaPush(&g_cash_arena, "%s Read View", tex->name.data);
+    tex->read_view_desc.label = read_view_name;
+    const char* write_view_name = ArenaPush(&g_cash_arena, "%s Write View", tex->name.data);
 
     //========
     //  View
@@ -385,7 +401,7 @@ bool UpdateTextureInternal(GfxTexture* tex)
 
     tex->read_view_desc.texture.image = tex->image;
     tex->read_view = sg_make_view(&tex->read_view_desc);
-    VALIDATE_MV(tex->read_view.id != SG_INVALID_ID, false, "CashRendering", LogLevel_Error, "Failed to create read view for texture: %s", tex->name.c_str());
+    VALIDATE_MV(tex->read_view.id != SG_INVALID_ID, false, LogLevel_Error, "Failed to create read view for texture: %s", tex->name.data);
 
     switch (tex->parameters.type)
     {
@@ -401,18 +417,18 @@ bool UpdateTextureInternal(GfxTexture* tex)
     {
         //color target
         tex->write_view_desc.color_attachment.image = tex->image;
-        tex->write_view_desc.label = write_view_name.c_str();
+        tex->write_view_desc.label = write_view_name;
         tex->write_view = sg_make_view(&tex->write_view_desc);
-        VALIDATE_MV(tex->write_view.id != SG_INVALID_ID, false, "CashRendering", LogLevel_Error, "Failed to create write view for color texture: %s", tex->name.c_str());
+        VALIDATE_MV(tex->write_view.id != SG_INVALID_ID, false, LogLevel_Error, "Failed to create write view for color texture: %s", tex->name.data);
         break;
     }
     case TextureFlag_DepthStencil:
     {
         //depth target
         tex->write_view_desc.depth_stencil_attachment.image = tex->image;
-        tex->write_view_desc.label = write_view_name.c_str();
+        tex->write_view_desc.label = write_view_name;
         tex->write_view = sg_make_view(&tex->write_view_desc);
-        VALIDATE_MV(tex->write_view.id != SG_INVALID_ID, false, "CashRendering", LogLevel_Error, "Failed to create write view for depth texture: %s", tex->name.c_str());
+        VALIDATE_MV(tex->write_view.id != SG_INVALID_ID, false, LogLevel_Error, "Failed to create write view for depth texture: %s", tex->name.data);
         break;
     }
     //tex->view_desc.storage_buffer; //Unorderd Access View equivilent for Computer Shaders I think
@@ -427,9 +443,9 @@ bool UpdateTextureInternal(GfxTexture* tex)
 
 void TextureResize(Texture** texture, Vec3I new_size)
 {
-    VALIDATE_M(texture, "CashRendering", LogLevel_Error, "Tried to resize invalid texture");
+    VALIDATE_M(texture, LogLevel_Error, "Tried to resize invalid texture");
     GfxTexture* tex = AsGfx(*texture);
-    VALIDATE_M(tex, "CashRendering", LogLevel_Error, "Tried to resize invalid texture");
+    VALIDATE_M(tex, LogLevel_Error, "Tried to resize invalid texture");
 
     tex->image_desc.width = tex->parameters.size.x = new_size.x;
     tex->image_desc.height = tex->parameters.size.y = new_size.y;
@@ -513,7 +529,7 @@ bool CreateTextureAndUpload(Texture** texture, const char* name, const TexturePa
         }
     }
 
-    tex->image_desc.label = tex->name.c_str();
+    tex->image_desc.label = tex->name.data;
 
     switch (tex->parameters.type)
     {
@@ -549,7 +565,7 @@ void DeleteTexture(Texture** texture)
     ZoneScoped;
     VALIDATE(texture);
     GfxTexture* tex = AsGfx(*texture);
-    DEBUG_LOG("GPU Buffer deleted '%s': %i\n", tex->name.c_str(), tex->image);
+    DEBUG_LOG("GPU Buffer deleted '%s': %i\n", tex->name.data, tex->image);
     DeleteSokolTexture(tex);
     delete tex;
 }
@@ -641,7 +657,7 @@ bool CreateSampler(Sampler** sampler, const char* name, const SamplerParams& par
     sam->sampler_desc.border_color  = ToSokol(p.border_color);
     sam->sampler_desc.compare       = ToSokol(p.compare_func);
     sam->sampler_desc.max_anisotropy = p.max_anisotropy;
-    sam->sampler_desc.label = sam->name.c_str();
+    sam->sampler_desc.label = sam->name.data;
 
     sam->sampler = sg_make_sampler(&sam->sampler_desc);
     return true;
@@ -651,7 +667,7 @@ void DeleteSampler(Sampler** sampler)
     ZoneScoped;
     VALIDATE(sampler);
     GfxSampler* sam = AsGfx(*sampler);
-    DEBUG_LOG("GPU sampler deleted '%s': %i\n", sam->name.c_str(), sam->sampler);
+    DEBUG_LOG("GPU sampler deleted '%s': %i\n", sam->name.data, sam->sampler);
     sg_destroy_sampler(sam->sampler);
     delete sam;
 }
@@ -687,7 +703,7 @@ void DeleteBuffer(GpuBuffer** buffer)
     ZoneScoped;
     VALIDATE(buffer);
     GfxGpuBuffer* buf = AsGfx(*buffer);
-    DEBUG_LOG("GPU Buffer deleted '%s': %i\n", buf->name.c_str(), buf->buffer);
+    DEBUG_LOG("GPU Buffer deleted '%s': %i\n", buf->name.data, buf->buffer);
     sg_destroy_buffer(buf->buffer);
     delete buf;
 }
@@ -723,7 +739,7 @@ void GpuBuffer::Upload(const void* data, const size_t in_count, const u32 in_ele
         desc.usage.dynamic_update = FlagIntersects(buf->flags, GpuBufferFlag_Dynamic);
         desc.usage.stream_update = FlagIntersects(buf->flags, GpuBufferFlag_StreamUpdate);
         desc.usage.write_unsealed = false;//FlagIntersects(buf->flags, GpuBufferFlag_WriteUnsealed);
-        desc.label = buf->name.c_str();
+        desc.label = buf->name.data;
         sg_init_buffer(buf->buffer, desc);
         buf->has_uploaded = true;
 
@@ -780,7 +796,7 @@ void GpuBuffer::Upload(const void* data, const size_t in_count, const u32 in_ele
 //    ZoneScoped;
 //    VALIDATE(binding);
 //    GfxGpuBinding* bin = AsGfx(*binding);
-//    DEBUG_LOG("GPU binding deleted '%s'\n", bin->name.c_str());
+//    DEBUG_LOG("GPU binding deleted '%s'\n", bin->name.data);
 //    delete bin;
 //}
 //
@@ -793,7 +809,7 @@ void GpuBuffer::Upload(const void* data, const size_t in_count, const u32 in_ele
 //
 //    sg_buffer& b = bin->binding.vertex_buffers[slot];
 //    if (b.id != 0)
-//        DebugPrint("Warning: Overwriting binding(%s) slot(%i) for vertex buffer (%s)", bin->name.c_str(), slot, buf->name.c_str());
+//        DebugPrint("Warning: Overwriting binding(%s) slot(%i) for vertex buffer (%s)", bin->name.data, slot, buf->name.data);
 //    b = buf->buffer;
 //}
 //void GpuBinding::BindIndex(const GpuBuffer* buffer)
@@ -804,7 +820,7 @@ void GpuBuffer::Upload(const void* data, const size_t in_count, const u32 in_ele
 //    GfxGpuBinding* bin = AsGfx(this);
 //    sg_buffer& b = bin->binding.index_buffer;
 //    if (b.id != 0)
-//        DebugPrint("Warning: Overwriting binding (%s) for index buffer (%s)", bin->name.c_str(), buf->name.c_str());
+//        DebugPrint("Warning: Overwriting binding (%s) for index buffer (%s)", bin->name.data, buf->name.data);
 //    b = buf->buffer;
 //}
 //void GpuBinding::BindView(GpuBuffer* view)
@@ -1099,7 +1115,7 @@ bool CreateShader(Shader** shader, const char* name, const sg_shader_desc* shade
 //        desc.texture_sampler_pairs[psti2].stage = SG_SHADERSTAGE_FRAGMENT;
 //    }
 //    desc.mtl_threads_per_threadgroup; //Only used for compute shaders
-//    desc.label = s->name.c_str();
+//    desc.label = s->name.data;
 //
 //    s->shader = sg_make_shader(s->shader_desc);
 //    return true;
@@ -1111,7 +1127,7 @@ void DeleteShader(Shader** shader)
     VALIDATE(shader);
     GfxShader* s = AsGfx(*shader);
     sg_destroy_shader(s->shader);
-    DEBUG_LOG("GPU SHader deleted '%s'\n", s->name.c_str());
+    DEBUG_LOG("GPU SHader deleted '%s'\n", s->name.data);
     delete s;
 }
 
@@ -1283,7 +1299,7 @@ bool CreatePipeline(Pipeline** pipe, const char* name, const PipelineParams& par
     GfxPipeline* p = GfxGenericCreate<Pipeline, GfxPipeline>(pipe, name);
     VALIDATE_V(p, false);
     (*pipe) = p;
-    p->name = name;
+    p->name.CopyFrom(name);
     const GfxShader* shader = AsGfx(params.shader);
     const GfxTexture* depth = AsGfx(params.depth);
 
@@ -1333,7 +1349,7 @@ bool CreatePipeline(Pipeline** pipe, const char* name, const PipelineParams& par
     desc.sample_count = params.msaa_sample_count;
     desc.blend_color = {}; //NOTE(CSH): Not sure what to do with this
     desc.alpha_to_coverage_enabled = params.alpha_to_coverage_enabled;
-    desc.label = p->name.c_str();
+    desc.label = p->name.data;
     p->pipe = sg_make_pipeline(desc);
     return true;
 
@@ -1346,7 +1362,7 @@ void DeletePipeline(Pipeline** pipeline)
     GfxPipeline* pipe = AsGfx(*pipeline);
     VALIDATE(pipe);
     sg_destroy_pipeline(pipe->pipe);
-    DEBUG_LOG("Deleted pipeline'%s': %i\n", pipe->name.c_str(), pipe->pipe);
+    DEBUG_LOG("Deleted pipeline'%s': %i\n", pipe->name.data, pipe->pipe);
     delete pipe;
 }
 
@@ -1604,7 +1620,7 @@ void DrawRect(SimpleRect rect, Color color, const SimpleRect& scissor)
 void DrawText(const char* string, Vec2 bot_left_p, Color color, FontID font, const SimpleRect& scissor)
 {
     CashFont* f = s_fonts.TryGet(font);
-    VALIDATE_M(f, "Rendering", LogLevel_Warning, "Trying to draw text (%s) with non-existant font", string);
+    VALIDATE_M(f, LogLevel_Warning, "Trying to draw text (%s) with non-existant font", string);
     const i32 start_index = (i32)s_font.vertices.used;
     size_t len = strlen(string);
     for (size_t i = 0; i < len; i++)
@@ -1684,44 +1700,36 @@ void DrawText(const char* string, Vec2 bot_left_p, Color color, FontID font, con
     CreateDrawCall("Console Draw Text", draw);
 }
 
-void DrawString(Vec2 location, Color color, FontID font, const SimpleRect& scissor, const char* text, ...)
+void DrawString(Vec2 location, Color color, FontID font, const SimpleRect& scissor, const char* fmt, ...)
 {
-    va_list count_args, write_args;
-    va_start(count_args, text);
-    va_copy(write_args, count_args);
-    auto count = vsnprintf(nullptr, 0, text, count_args);
-    va_end(count_args);
+    va_list args;
+    va_start(args, fmt);
+    const char* buffer = ArenaPushArgs(&g_cash_arena, fmt, args);
+    va_end(args);
 
-    if (count)
-    {
-        std::string buffer;
-        buffer.resize(count);
-        vsnprintf(&buffer[0], buffer.size() + 1, text, write_args);
-        assert(*(buffer.data() + buffer.size()) == 0);
-        DrawText(buffer.c_str(), location, color, font, scissor);
-    }
+    if (buffer)
+        DrawText(buffer, location, color, font, scissor);
 }
 
 
 FontID CreateFont(const char* name, ArrayView<u8> font_data, u32 height_in_pixels)
 {
-    const char* debug_cat = "CreateFont";
     ColorI* temp_font_bitmap = (ColorI*)malloc(FONT_BITMAP_SIZE_BYTES);
     memset(temp_font_bitmap, 0, FONT_BITMAP_SIZE_BYTES);
     Defer{ free(temp_font_bitmap); };
 
     CashFont* f = s_fonts.CreateNew();
-    VALIDATE_MV(f, {}, debug_cat, LogLevel_Error, "%s", "Failed to create new font");
+    VALIDATE_MV(f, {}, LogLevel_Error, "%s", "Failed to create new font");
 
     stbrp_context pack_ctx;
     stbrp_node pack_nodes[FONT_CHAR_COUNT];
     stbrp_init_target(&pack_ctx, FONT_BITMAP_SIZE_X, FONT_BITMAP_SIZE_Y, pack_nodes, FONT_CHAR_COUNT);
 
     FT_Library ft;
-    VALIDATE_MV(!FT_Init_FreeType(&ft), {}, debug_cat, LogLevel_Error, "%s", "Failed to create FreeType Library");
+    VALIDATE_MV(!FT_Init_FreeType(&ft), {}, LogLevel_Error, "%s", "Failed to create FreeType Library");
     FT_Face face;
-    VALIDATE_MV(!FT_New_Memory_Face(ft, font_data.data, (FT_Long)font_data.Bytes(), 0, &face), {}, debug_cat, LogLevel_Error, "%s", "Failed to create FreeType Memory Face");
-    VALIDATE_MV(!FT_Set_Pixel_Sizes(face, 0, height_in_pixels), {}, debug_cat, LogLevel_Error, "%s", "Failed to set Pixel Sizes");
+    VALIDATE_MV(!FT_New_Memory_Face(ft, font_data.data, (FT_Long)font_data.Bytes(), 0, &face), {}, LogLevel_Error, "%s", "Failed to create FreeType Memory Face");
+    VALIDATE_MV(!FT_Set_Pixel_Sizes(face, 0, height_in_pixels), {}, LogLevel_Error, "%s", "Failed to set Pixel Sizes");
 
     f->info.ascender = (face->size->metrics.ascender >> 6);
     f->info.descender = (face->size->metrics.descender >> 6);
@@ -1738,7 +1746,7 @@ FontID CreateFont(const char* name, ArrayView<u8> font_data, u32 height_in_pixel
     for (i32 i = 0; i < FONT_CHAR_COUNT; i++)
     {
         const i32 codepoint = FONT_CHAR_START + i;
-        VALIDATE_MV(!FT_Load_Char(face, codepoint, flags), {}, "ConsoleInit", LogLevel_Error, "Failed to load char %i", codepoint);
+        VALIDATE_MV(!FT_Load_Char(face, codepoint, flags), {}, LogLevel_Error, "Failed to load char %i", codepoint);
 
         rects[i].id = codepoint;
         rects[i].w = (face->glyph->bitmap.width / 3) + pad;
@@ -1755,7 +1763,7 @@ FontID CreateFont(const char* name, ArrayView<u8> font_data, u32 height_in_pixel
         if (!rect.was_packed)
             continue;
 
-        VALIDATE_MV(!FT_Load_Char(face, codepoint, flags), {}, "ConsoleInit", LogLevel_Error, "Failed to load char %i", codepoint);
+        VALIDATE_MV(!FT_Load_Char(face, codepoint, flags), {}, LogLevel_Error, "Failed to load char %i", codepoint);
         if (face->glyph->format != FT_GLYPH_FORMAT_BITMAP)
         {
             FAIL;
@@ -1851,7 +1859,8 @@ const FontInfo& GetFontInfo(FontID id)
         return f->info;
     }
     LOG(LogLevel_Error, "Failed to get font: %i", id.e);
-    return {};
+    FAIL;
+    return (s_fonts.data[0]).info;
 }
 
 
@@ -1869,7 +1878,7 @@ bool CreateDrawCall(const char* name, const DrawCallParams& params)
     ZoneScoped;
     DrawCall* draw = s_draws.CreateNew();
     VALIDATE_V(draw, false);
-    draw->name = name;
+    draw->name.CopyFrom(name);
     draw->params = params;
 
     //TODO(CSH): Remove the constant delete and new allocations and create something more static
@@ -1940,7 +1949,7 @@ void RenderDrawCalls()
         GfxGpuBuffer* ind = AsGfx(bind.index_buffer);
         if (!vert)
         {
-            DebugPrint("No Vertex buffer bound to draw, skipping: %s", draw->name.c_str());
+            DebugPrint("No Vertex buffer bound to draw, skipping: %s", draw->name.data);
             continue;
         }
 
@@ -1986,7 +1995,7 @@ void RenderDrawCalls()
                 pass.attachments.depth_stencil = depth_texture->write_view;
         }
 
-        pass.label = draw->name.c_str();
+        pass.label = draw->name.data;
         sg_begin_pass(&pass);
 
         sg_apply_pipeline(pipe->pipe);
@@ -2001,7 +2010,7 @@ void RenderDrawCalls()
             GfxTexture* t = AsGfx(bind.read_textures[i]);
             if (!t)
             {
-                DebugPrint("Added element to read_textures but no valid texture: %i '%s'", i, draw->name.c_str());
+                DebugPrint("Added element to read_textures but no valid texture: %i '%s'", i, draw->name.data);
                 FAIL;
                 continue;
             }
@@ -2013,7 +2022,7 @@ void RenderDrawCalls()
             GfxSampler* s = AsGfx(bind.samplers[i]);
             if (!s)
             {
-                DebugPrint("Added element to samplers but no valid sampler: %i '%s'", i, draw->name.c_str());
+                DebugPrint("Added element to samplers but no valid sampler: %i '%s'", i, draw->name.data);
                 FAIL;
                 continue;
             }

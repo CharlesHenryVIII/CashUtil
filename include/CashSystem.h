@@ -265,6 +265,7 @@ struct SysNetworkAdapterInfo
 
 bool CashInit(ArrayView<const ArrayView<const u8>> app_icons, const ArrayView<const char*>& logo);
 void CashDestroy();
+void CashFrameInit(double& delta_time, double& total_time);
 void* SysGetWindowHandle(SDL_Window* window);
 i32 SysMain(i32 argc, char** argv);
 
@@ -374,6 +375,7 @@ u64 SysGetOsPageSize();
 //        MEMORY
 //========================
 
+extern Arena g_cash_arena;
 
 void* SysReserveMemory(u64 bytes);
 void SysCommitMemory(void* p, u64 bytes);

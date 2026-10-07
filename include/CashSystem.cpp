@@ -13,8 +13,8 @@ SysInfo g_sysinfo;
 
 bool CashInit(ArrayView<const ArrayView<const u8>> app_icons, const ArrayView<const char*>& logo)
 {
-    VALIDATE_MV(CashRenderInit(app_icons), false, "CashInit", LogLevel_Error, "Failed to init Renderer");
-    VALIDATE_MV(OSInit(), false, "CashInit", LogLevel_Error, "Failed to init OS");
+    VALIDATE_MV(CashRenderInit(app_icons), false, LogLevel_Error, "Failed to init Renderer");
+    VALIDATE_MV(OSInit(), false, LogLevel_Error, "Failed to init OS");
     CashImguiInit();
     ConsoleInit(logo);
     SDL_StartTextInput(gfx.window);
@@ -27,6 +27,38 @@ void CashDestroy()
     CashRenderDestroy();
     OSDestroy();
     SDL_Quit();
+}
+
+static const double s_freq = double(SDL_GetPerformanceFrequency()); //HZ
+static const double s_start_time = SDL_GetPerformanceCounter() / s_freq;
+static double s_total_time = SDL_GetPerformanceCounter() / s_freq - s_start_time; //sec;
+static double s_previous_time = -1; //NOTE(CSH): This is to force our delta_time to be 1/60 so we force a physics update
+static double s_last_shader_update_time = s_total_time;
+void CashFrameInit(double& delta_time, double& total_time)
+{
+    ++g_frame_index;
+    static double slowest_hz = 60.0;
+
+    total_time = SDL_GetPerformanceCounter() / s_freq - s_start_time;
+    delta_time = total_time - s_previous_time;
+    s_previous_time = total_time;
+    //TODO: Time stepping for simulation
+    //NOTE(CSH): This is to fix issues with long frame times.  Big issue when moving the window
+    if (delta_time > (1.0 / slowest_hz))
+    {
+        delta_time = 1.0 / slowest_hz;
+        delta_time = delta_time;
+    }
+
+    ArenaClear(&g_cash_arena);
+    //TODO(CSH): vvvvvvvvvvvvvvvvv
+//#ifdef _DEBUG
+//    ArenaRelease(&g_cash_arena);
+//    g_cash_arena = ArenaAlloc();
+//#else
+//    ArenaClear(&g_cash_arena);
+//#endif
+    
 }
 
 void* SysGetWindowHandle(SDL_Window* window)
@@ -638,6 +670,8 @@ u64 SysGetOsPageSize()
     return OSGetPageSize();
 }
 
+Arena g_cash_arena = ArenaAlloc();
+
 void* SysReserveMemory(u64 bytes) { return OSReserveMemory(bytes); };
 void SysCommitMemory(void* p, u64 bytes) { OSCommitMemory(p, bytes); };
 bool SysFreeMemory(void* p, u64 bytes) { return OSFreeMemory(p, bytes); };
@@ -686,10 +720,10 @@ StaticArray<InputHandler*, 64> s_inputs = {};
 
 void AddInputHandler(InputHandler* input)
 {
-    VALIDATE_M(input, "InputHandler", LogLevel_Error, "Error: Invalid input handler used in AddInputHandler");
+    VALIDATE_M(input, LogLevel_Error, "Error: Invalid input handler used in AddInputHandler");
     //
     const u64 index = s_inputs.GetIndexOf(input);
-    VALIDATE_M(index == s_inputs.invalid_index, "InputHandler", LogLevel_Error, "Warning: Was it intentional to add a duplicate input handler? %i", index);
+    VALIDATE_M(index == s_inputs.invalid_index, LogLevel_Error, "Warning: Was it intentional to add a duplicate input handler? %i", index);
 
     if (s_inputs.used == 0)
     {

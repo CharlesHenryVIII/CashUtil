@@ -1,6 +1,8 @@
 #pragma once
 #include "CashMath.h"
 
+#define CASH_DEFAULT_ALIGNMENT 16
+//#define ARENA_PREFIX [[nodiscard]] inline
 
 struct Arena {
     u64 reserved;
@@ -14,14 +16,20 @@ struct ArenaParams {
     u64 commit_size = 0;
 };
 
-Arena ArenaAlloc(const u64 reserve_size = Mebibytes(64), const u64 commit_size = 0);
-void ArenaFree(Arena* arena);
-void* _ArenaPush(Arena* arena, u64 size, u64 alignment, bool zero);
 
-#define ArenaPush(arena, size)                     _ArenaPush(arena, size, DefaultAlignment, true)
+[[nodiscard]]   Arena   ArenaAlloc(const u64 reserve_size = Mebibytes(64), const u64 commit_size = 0);
+                void    ArenaFree(Arena* arena);
+[[nodiscard]]   void*   ArenaPush(Arena* arena, u64 size, u64 alignment = CASH_DEFAULT_ALIGNMENT, bool zero = true);
+
 #define ArenaPushStruct(arena, type)        (type*)_ArenaPush(arena, sizeof(size), alignof(type), true)
 #define ArenaPushArray(arena, count, type)  (type*)_ArenaPush(arena, (count) * sizeof(type), alignof(type[1]), true)
-#define ArenaPushString(arena, string)      (char*)_ArenaPush(arena, strlen(string), DefaultAlignment, true)
 
+
+
+[[nodiscard]]   char* ArenaPush(Arena* arena, const char* fmt, ...);
+[[nodiscard]]   char* ArenaPushArgs(Arena* arena, const char* fmt, va_list args);
+
+//Zeroes memory
 void ArenaClear  (Arena* arena);
+//Releases memory
 void ArenaRelease(Arena* arena);

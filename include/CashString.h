@@ -26,8 +26,6 @@ struct String {
     u64 len = 0;
     char* s = nullptr;
 };
-String CreateString(const char* string, Arena* arena);
-String CreateString(Arena* arena, const char* fmt, ...);
 
 std::vector<i32> TextToIntArray(const char* text, const char lineEnd);
 std::vector<i32> TextToIntArray(const char* text);

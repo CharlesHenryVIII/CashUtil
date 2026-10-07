@@ -77,11 +77,11 @@ struct StaticArray
             return &data[i];
         return Add(item);
     }
-    inline u8* AddRaw(const u8* data, const u64 size)
+    inline u8* AddRaw(const u8* in_data, const u64 size)
     {
         VALIDATE_V(size + used < count, nullptr);
-        memmove((void*)&data[used], data, size);
-        u8* element = (u8*)&(data[used]);
+        memmove((void*)(data + used), in_data, size);
+        u8* element = (u8*)(data + used);
         used = used + size;
         return element;
     }
@@ -137,6 +137,5 @@ struct StaticArray
 template <u64 _count>
 struct InlineString : StaticArray<char, _count>
 {
-    //ArrayView<T> ToArrayView() { return CreateArrayView(s, capacity); };
-    //StringView   ToStringView()  { return ToArrayView(); };
+    u8* CopyFrom(const char* str) { return this->AddRaw((u8*)str, strlen(str) + 1); };
 };

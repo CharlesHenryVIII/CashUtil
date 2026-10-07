@@ -214,7 +214,8 @@ struct TextureParams {
 };
 
 struct Texture {
-    std::string name;
+    InlineString<64> name;
+    //std::string name;
     TextureParams parameters;
     u32 mip_levels = 1;
 };
@@ -286,7 +287,8 @@ struct SamplerParams {
 };
 
 struct Sampler {
-    std::string name;
+    //std::string name;
+    InlineString<64> name;
     SamplerParams params;
 };
 
@@ -337,7 +339,8 @@ ENUMOPS(GpuBufferFlag);
 
 struct GpuBuffer
 {
-    std::string name;
+    //std::string name;
+    InlineString<64> name;
     GpuBufferFlag flags = GpuBufferFlag_None;
     GpuBufferType type = GpuBufferType_Invalid;
     size_t count = 0;
@@ -409,8 +412,10 @@ void DeleteBuffer(GpuBuffer** buffer);
 //========================
 
 struct ShaderMacro {
-    std::string name;
-    std::string value;
+    InlineString<64> name;
+    InlineString<64> value;
+    //std::string name;
+    //std::string value;
 };
 
 enum ShaderType : u32 {
@@ -515,7 +520,7 @@ struct ShaderParams
     std::vector<ShaderMacro> macros;
     u32 vertex_component_count = 0;
     u32 input_stride_bytes = 0;
-    std::vector<std::string> reference_file_names;
+    std::vector<InlineString<256>> reference_file_names;
     std::vector<u64>         reference_file_times;
 };
 
@@ -526,7 +531,7 @@ struct Shader
     //~Shader();
     //void CheckForUpdate();
 
-    std::string name;
+    InlineString<64> name;
     ShaderParams params;
 
     //bool CompileShader(std::string text, const std::string& file_name, ShaderType shader_type, std::string entry_name = "");
@@ -690,7 +695,8 @@ struct PipelineParams {
 };
 
 struct Pipeline {
-    std::string name;
+    //std::string name;
+    InlineString<64> name;
     PipelineParams params;
 };
 
@@ -773,7 +779,8 @@ struct DrawCallParams {
 };
 struct DrawCall {
     DrawID data_id;
-    std::string name;
+    //std::string name;
+    InlineString<64> name;
     DrawCallParams params;
 //struct CashDrawCall
 //{

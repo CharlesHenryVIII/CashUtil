@@ -47,8 +47,8 @@ void OsAssert(bool expr, const char* message, const char* file, int line);
 #define VERIFY(expr)        [](bool valid) -> bool { ASSERT(valid); return valid; }(!!(expr))
 #define VALIDATE(expr)                              { if (!VERIFY(expr)) {                                  return;     } } REQUIRE_SEMICOLON
 #define VALIDATE_V(expr, __v)                       { if (!VERIFY(expr)) {                                  return __v; } } REQUIRE_SEMICOLON
-#define VALIDATE_M(expr, _cat, _level, ...)         { if (!VERIFY(expr)) { Log(_cat, _level, __VA_ARGS__);  return;     } } REQUIRE_SEMICOLON
-#define VALIDATE_MV(expr, __v, _cat, _level, ...)   { if (!VERIFY(expr)) { Log(_cat, _level, __VA_ARGS__);  return __v; } } REQUIRE_SEMICOLON
+#define VALIDATE_M(expr, _level, ...)               { if (!VERIFY(expr)) { Log(__FILENAME__, __LINE__, _level, __VA_ARGS__);  return;     } } REQUIRE_SEMICOLON
+#define VALIDATE_MV(expr, __v, _level, ...)         { if (!VERIFY(expr)) { Log(__FILENAME__, __LINE__, _level, __VA_ARGS__);  return __v; } } REQUIRE_SEMICOLON
 
 #define arrsize(arr__) (sizeof(arr__) / sizeof(arr__[0]))
 #define IndexOf(type, mtype, member) (offsetof(type, member) / sizeof(mtype))
