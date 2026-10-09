@@ -2,6 +2,7 @@
 
 #include "CashMath.h"
 #include "CashArrayView.h"
+#include "CashMemoryArena.h"
 ///#include "CashConsole.h"
 
 template <typename T, u64 count>
@@ -138,4 +139,76 @@ template <u64 _count>
 struct InlineString : StaticArray<char, _count>
 {
     u8* CopyFrom(const char* str) { return this->AddRaw((u8*)str, strlen(str) + 1); };
+};
+
+
+template <typename T>
+struct DynamicArray
+{
+    u64 used = 0;
+    u64 cap = 16; //default = 16
+    T* data = nullptr;
+    Arena* arena = nullptr;
+    //static constexpr u64 invalid_index = (u64)(-1);
+
+    T* Push(T& a)
+    {
+        const u64 _count = 1;
+        Add(_count);
+        data[used - _count] = a;
+        return &(data[used - _count]);
+    }
+
+    void Add(u64 _count)
+    {
+        if (_count + used > cap)
+            Realloc(_count + used);
+        used += _count;
+    }
+
+    T* Insert(T& a, u64 pos, u64 _count = 1)
+    {
+        Add(_count);
+        memmove(&(data[pos + _count]), &(data[pos]), sizeof(T) * (used - pos - _count));
+        return &(data[pos]);
+    }
+
+    //TODO(CSH): Replace with ArrayView<T>
+    void Append(T* a, u64 _count)
+    {
+        if (_count + used > cap)
+        {
+            Realloc(_count);
+        }
+        memmove(&(data[used]), a, _count * sizeof(T));
+        used += _count;
+    }
+
+    void Reserve(u64 total_count)
+    {
+        if (total_count > cap)
+            Realloc(total_count - cap);
+    }
+
+    T* First() { return used ?  data       : nullptr; };
+    T* Last () { return used ? &data[used] : nullptr; };
+
+    u64 GetBytesUsed() { return used * sizeof(T); };
+    u64 GetBytesCapacity() { return cap * sizeof(T); };
+
+private:
+    void Realloc(u64 needed)
+    {
+        VALIDATE(arena && arena->IsValid());//, LogLevel_Error, "Invalid arena when trying to realloc dynamic array");
+
+        u64 new_cap = (u64)Ceiling(1.25f * cap);
+        if (needed + cap > new_cap)
+            new_cap = (u64)Ceiling(1.25f * (needed + cap));
+
+        T* new_data = (T*)ArenaPush(arena, new_cap);
+        memmove((void*)new_data, (void*)data, GetBytesUsed());
+        memset(new_data + GetBytesUsed(), 0, new_cap * sizeof(T) - GetBytesUsed());
+        data = new_data;
+        cap = new_cap;
+    }
 };

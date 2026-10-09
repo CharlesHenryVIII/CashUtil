@@ -453,7 +453,7 @@ struct RunProcessJob : Job
     //
 
     bool m_run_all_jobs = false;
-    virtual void RunJob() override;
+    virtual void RunJob(Arena& arena) override;
 };
 
 #include "stb/stb_sprintf.h"

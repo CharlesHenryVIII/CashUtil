@@ -6,7 +6,7 @@
 #include "CashMemoryArena.h"
 #include "CashStaticArray.h"
 
-#include <string>
+//#include <string>
 #include <charconv>
 #include <filesystem>
 #include <fstream>
@@ -60,6 +60,8 @@ bool StringGetToken(char(&buf)[size], const char** input) { return StringGetToke
 constexpr bool StringIsWhitespace(char c) { return c == ' '; }
 
 bool StringContains(const std::wstring& source, const std::wstring& find, StringCase case_insensitive);
+const char* StringContains(const char* source, const char  find);
+const char* StringContains(const char* source, const char* find);
 bool StringCompare(StringCase case_sensitivity, const char* a,          const char* b,          const i32 num_chars );
 bool StringCompare(StringCase case_sensitivity, const std::string& a,   const std::string& b,   const i32 num_chars );
 bool StringCompare(StringCase case_sensitivity, const char* a,          const char* b                               );

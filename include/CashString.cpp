@@ -510,6 +510,15 @@ bool StringContains(const std::wstring& source, const std::wstring& find, String
     return false;
 }
 
+const char* StringContains(const char* source, const char find)
+{
+    return strrchr(source, find);
+}
+const char* StringContains(const char* source, const char* find)
+{
+    return strstr(source, find);
+}
+
 bool CopyFile(const Path& source, const Path& dest)
 {
     if (source.empty() || dest.empty())

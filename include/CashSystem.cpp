@@ -129,7 +129,7 @@ bool SysIsConsoleVisible()
 struct WaitForProcessJob : Job
 {
     SDL_Process* process = nullptr;
-    virtual void RunJob()
+    virtual void RunJob(Arena& arena)
     {
         VALIDATE(process);
         SDL_WaitProcess(process, true, nullptr);
@@ -916,7 +916,7 @@ void SysGetRenderSwapchain(sg_swapchain* env)       { OSGetRenderSwapchain(env);
 //========================
 
 
-void RunProcessJob::RunJob()
+void RunProcessJob::RunJob(Arena& arena)
 {
     VALIDATE(!m_args_string.empty() || m_args_array.size());
 

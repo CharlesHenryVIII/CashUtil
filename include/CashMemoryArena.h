@@ -9,6 +9,8 @@ struct Arena {
     u64 committed;
     u64 used;
     void* data;
+
+    bool IsValid() { return data && reserved; };
 };
 
 struct ArenaParams {

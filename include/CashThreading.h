@@ -1,6 +1,7 @@
 #pragma once
 #include "CashMath.h"
 #include "CashDebug.h"
+#include "CashMemoryArena.h"
 
 #include "Tracy.hpp"
 
@@ -40,14 +41,14 @@ struct AsyncData {
 struct Job
 {
     Atomic<AsyncStatus>* status = nullptr;
-    virtual void RunJob() = 0;
+    virtual void RunJob(Arena& arena) = 0;
     virtual ~Job() = default;
 };
 
 struct Threading {
 private:
     TRACY_MUTEX(m_jobVectorMutex);
-    Semaphore<INT32_MAX>      m_semaphore;
+    Semaphore<INT32_MAX>        m_semaphore;
     Atomic<i32>                 m_jobsInFlight = {};
     Atomic<bool>                m_running;
     std::vector<Job*>           m_jobs;
@@ -56,6 +57,7 @@ private:
     struct ThreadData {
         std::string name;
         u32 index;
+        Arena arena;
     };
 
     static i32 ThreadFunction(ThreadData data);
@@ -89,7 +91,7 @@ public:
             m_jobsInFlight--;
         }
     }
-	void SubmitJob(Job* job);
+    void SubmitJob(Job* job);
 };
 
 bool OnMainThread();
