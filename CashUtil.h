@@ -5,13 +5,12 @@
 #include "include/CashString.h"
 #include "include/CashThemes.h"
 #include "include/CashThreading.h"
-#include "include/CashWinInterop_File.h"
 #include "include/CashRendering.h"
 #include "include/CashSystem.h"
 #include "include/CashConsole.h"
+#include "include/CashFile.h"
 
 
-//TODO(CSH): redo wininterop_file
 //TODO(CSH): move this project to a seperate dependency in premake
 //TODO(CSH): Fix ArrayView.h and logging so that ArrayView.h can have access to logging
 //TODO(CSH): Rewrite gbRect and Rectangle to be consistant and use TopLeft vs BotRight or have those as functions
@@ -19,6 +18,5 @@
 //TODO(CSH): Look into stb_sprintf
 //TODO(CSH): Seperate DebugPrint() into a seperate CashLog() file and rename it to Log(Log::error, Message, ...)
 // and Log(Log::error, LogLocation::DebugWindow, Message, ...)
-//TODO(CSH): Memory Arenas!
 //TODO(CSH): Fix console scroll bar
 //TODO(CSH): Fix console text cutoff height when scrolling to remove pop-in

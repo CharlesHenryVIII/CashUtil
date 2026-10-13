@@ -3,6 +3,7 @@
 #include "CashArrayView.h"
 #include "CashOS.h"
 #include "CashConsole.h"
+#include "CashFile.h"
 
 #include <array>
 
@@ -274,17 +275,12 @@ i32 SysRunProcess(ArrayView<const char*> args, AsyncData<std::string>* output, A
         else
         {
             ZoneScopedN("Output File");
-            std::fstream file(output_file->data, std::ios_base::out);
-            if (!file.good())
-            {
-                DebugPrint("Failed to open file for write: %s", ToString(output_file->data).c_str());
-                FAIL;
-            }
-            else
-            {
-                TRACY_LOCK(output_file->lock);
-                file << (output ? output->data : local_file_buffer);
-            }
+            const std::string& data = (output ? output->data : local_file_buffer);
+            TRACY_LOCK(output_file->lock);
+            std::string filepath;
+            SysConvertWideCharToMultiByte(filepath, output_file->data.wstring());
+            FileID file = FileOpen(filepath.c_str(), FileMode_AppendCreate);
+            FileWrite(file, data);
         }
     }
 

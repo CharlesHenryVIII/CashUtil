@@ -787,37 +787,3 @@ void TuiProgressBar(u64 count, u64 max)
 
     fflush(stdout);
 }
-
-u64 FileReadAll(std::string& out, const Path& filepath)
-{
-    std::ifstream file(filepath, std::ios::binary | std::ios::ate);
-    if (!file)
-    {
-        DebugPrint("Error: Failed to open file: %s", ToString(filepath).c_str());
-        FAIL;
-        return 0;
-    }
-    const u64 file_size = (u64)file.tellg();
-    if (file_size > out.size())
-        out.resize(file_size);
-    file.seekg(0, std::ios::beg);
-    file.read((char*)out.data(), file_size);
-    return file_size;
-}
-
-u64 FileReadAll(std::wstring& out, const Path& filepath)
-{
-    std::wifstream file(filepath, std::ios::binary | std::ios::ate);
-    if (!file)
-    {
-        DebugPrint("Error: Failed to open file: %s", ToString(filepath).c_str());
-        FAIL;
-        return 0;
-    }
-    const u64 file_size = (u64)file.tellg();
-    if (file_size > out.size())
-        out.resize(file_size);
-    file.seekg(0, std::ios::beg);
-    file.read((wchar_t*)out.data(), file_size);
-    return file_size;
-}

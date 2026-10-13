@@ -9,7 +9,6 @@
 //#include <string>
 #include <charconv>
 #include <filesystem>
-#include <fstream>
 #include <cwctype>
 
 namespace fs = std::filesystem;
@@ -96,8 +95,5 @@ std::wstring PathAddEndSlash(const std::wstring& s);
 std::wstring PathConcat(const std::wstring& a, const std::wstring& b);
 std::string PathConcat(const std::string& a, const std::string& b);
 void CreateParentDirectories(const Path& path);
-
-u64 FileReadAll(std::string& out, const Path& filepath);
-u64 FileReadAll(std::wstring& out, const Path& filepath);
 
 void TuiProgressBar(u64 count, u64 max);

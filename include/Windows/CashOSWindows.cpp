@@ -12,7 +12,7 @@
 #include <dxgi.h>
 
 #include "../CashOS.h"
-#include "../CashWinInterop_File.h"
+#include "../CashFile.h"
 #include "../CashMath.h"
 #include "../CashString.h"
 #include "json.hpp"
@@ -24,11 +24,11 @@
 #define SOKOL_D3D11
 #include "sokol/sokol_gfx.h"
 
-#include <fstream>
+//#include <fstream>
 #include <filesystem>
 #include <cwctype>
 #include <format>
-#include <iostream>
+//#include <iostream>
 #include <chrono>
 #include <charconv>
 

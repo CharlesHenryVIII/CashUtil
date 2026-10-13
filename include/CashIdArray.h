@@ -235,7 +235,7 @@ struct StaticIdArray
 {
     StaticIdArray()
     {
-        memset(data, 0xFF, _size * sizeof(T));
+        memset(storage, 0xFF, sizeof(storage));
     }
     ~StaticIdArray()
     {
@@ -249,9 +249,10 @@ struct StaticIdArray
     {
         if (id.index <= highest_active)
         {
-            if (data[id.index].data_id.generation == id.generation)
+            T* d =  GetData();
+            if (d[id.index].data_id.generation == id.generation)
             {
-                return &data[id.index];
+                return &d[id.index];
             }
         }
         return nullptr;
@@ -261,9 +262,10 @@ struct StaticIdArray
     {
         if (id.index <= highest_active)
         {
-            if (data[id.index].data_id.generation == id.generation)
+            const T* d =  GetData();
+            if (d[id.index].data_id.generation == id.generation)
             {
-                return &data[id.index];
+                return &d[id.index];
             }
         }
         return nullptr;
@@ -272,6 +274,7 @@ struct StaticIdArray
     [[nodiscard]] T* CreateNew()
     {
         TID id;
+        T* d = GetData();
         if (first_inactive == (u16)-1)
         {
             highest_active++;
@@ -281,13 +284,13 @@ struct StaticIdArray
         else
         {
             id.index = first_inactive;
-            id.generation = data[first_inactive].data_id.generation;
-            first_inactive = data[first_inactive].data_id.index;
+            id.generation = d[first_inactive].data_id.generation;
+            first_inactive = d[first_inactive].data_id.index;
         }
 
-        new (&data[id.index]) T();
-        data[id.index].data_id = id;
-        return &data[id.index];
+        new (&d[id.index]) T();
+        d[id.index].data_id = id;
+        return &d[id.index];
     }
 
     bool Erase(const TID id)
@@ -345,7 +348,7 @@ struct StaticIdArray
 
     bool IsValid(u16 index) const
     {
-        return data[index].data_id.index == index;
+        return GetData()[index].data_id.index == index;
     }
 
     bool NextValidElement(const T** element) const
@@ -361,7 +364,7 @@ struct StaticIdArray
         {
             if (IsValid(i))
             {
-                *element = &data[i];
+                *element = &GetData()[i];
                 return true;
             }
         }
@@ -381,7 +384,7 @@ struct StaticIdArray
         {
             if (IsValid(i))
             {
-                *element = &data[i];
+                *element = &GetData()[i];
                 return true;
             }
         }
@@ -396,7 +399,7 @@ struct StaticIdArray
             {
                 if (IsValid(i))
                 {
-                    *element = &data[i];
+                    *element = &GetData()[i];
                     return true;
                 }
             }
@@ -404,10 +407,12 @@ struct StaticIdArray
         return false;
     }
 
-public:
+            T* GetData()        { return reinterpret_cast<      T*>(storage); }
+    const   T* GetData() const  { return reinterpret_cast<const T*>(storage); }
 
-    const static u16 max_elements = _size > -2 ? -2 : _size;
-    T data[max_elements];
+    const static u16 max_elements = _size < -2 ? -2 : _size;
+    const static u64 bytes = max_elements * sizeof(T);
+    alignas(T) u8 storage[bytes];
     u16 first_inactive = -1;
     u16 highest_active = -1;
     static_assert(_size <= (u16)(-2));
