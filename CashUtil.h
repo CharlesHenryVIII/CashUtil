@@ -17,3 +17,4 @@
 // Maybe also do Rect2 and Rect3 for 2d and 3d.
 //TODO(CSH): Look into stb_sprintf
 //TODO(CSH): Seperate DebugPrint() into a seperate CashLog() file
+//TODO(CSH): Console allow wordwrap

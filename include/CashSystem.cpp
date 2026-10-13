@@ -815,6 +815,14 @@ bool SysInputUpdate(float dt, SDL_Event* event)
                 return true;
             break;
         }
+        case SDL_EVENT_WINDOW_FOCUS_LOST:
+        {
+            //TODO(CSH): Handle this properly?
+            //handler->OnKeyUp(event->key);
+            //handler->OnMouseUp(event->button);
+            
+            break;
+        }
         default:
             if (handler->OnGeneral(*event))
                 return true;

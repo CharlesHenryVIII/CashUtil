@@ -181,9 +181,8 @@ MATH_CONSTEXPR_PREFIX ColorI ToColorI(Color c)
 }
 
 
-//TODO(CSH): rename these to PTN, PNTC, PNC, etc (position, normal, texture, color)
 #pragma pack(push, 1)
-struct Vertex_2D
+struct Vertex_PTC
 {
     Vec2  position;
     Color color;
@@ -194,44 +193,17 @@ struct Vertex_PNTC
     Vec3 position;
     Vec3 normal;
     Vec2 uv;
-    Vec4 color;
-};
-
-struct Vertex {
-    Vec3 p;
-    Vec2 uv;
-    Vec3 n;
-};
-struct Vertex_Cube {
-    Vec3 p;
-    Vec3 n;
-    Vec2 uv;
     Color color;
 };
-struct Vertex_Tetra {
+struct Vertex_PNC {
     Color color;
     Vec3 p;
     Vec3 n;
 };
-struct Vertex_Gltf {
-    Vec3 p;
-    Vec3 n;
-    Vec2 uv;
-};
-struct Vertex_Line {
+struct Vertex_PC {
     Vec3 p;
     Color color;
 };
-struct Vertex_Font {
-    Vec2 p;
-    Color color;
-    Vec2 uv;
-};
-struct Vertex_Simple {
-    Vec3 p;
-    Vec3 n;
-};
-
 #pragma pack(pop)
 
 struct RectInt {

@@ -1142,7 +1142,7 @@ static struct ConsoleInputHandler : InputHandler
     }
 
     virtual bool OnMouseMotion(const SDL_MouseMotionEvent& event) override { return false; }
-    virtual bool OnMouseDown(const SDL_MouseButtonEvent& event) override
+    bool OnMouseDownInternal(const SDL_MouseButtonEvent& event)
     {
         const bool pressed = event.down;
         const u8 button = event.button;
@@ -1167,7 +1167,14 @@ static struct ConsoleInputHandler : InputHandler
 
         return true;
     }
-    virtual void OnMouseUp(const SDL_MouseButtonEvent& event) override { }
+    virtual bool OnMouseDown(const SDL_MouseButtonEvent& event) override
+    {
+        return OnMouseDownInternal(event);
+    }
+    virtual void OnMouseUp(const SDL_MouseButtonEvent& event) override
+    {
+        OnMouseDownInternal(event);
+    }
     virtual bool OnMouseWheel(const SDL_MouseWheelEvent& event) override
     {
         if (!ConsoleWantsInput())

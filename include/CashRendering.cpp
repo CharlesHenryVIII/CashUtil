@@ -1456,7 +1456,7 @@ bool UpdateUniform(UniformID id, ArrayView<u8> data_array, const u32 slot)
 #define MAX_VERTS CHAR_PER_ROW * MAX_ROWS * VERTS_PER_CHARACTER
 
 static struct FontData {
-    StaticArray<Vertex_2D, Mebibytes(2)> vertices;
+    StaticArray<Vertex_PTC, Mebibytes(2)> vertices;
     GpuBuffer* vertex_buffer = nullptr;
     Pipeline* pipeline = nullptr;
     UniformID uniform = 0;
@@ -1553,7 +1553,7 @@ void FontInit()
 
         CreatePipeline(&s_font.pipeline, "Console Pipeline", params);
     }
-    CreateGpuBuffer(&s_font.vertex_buffer, "Console Vertex Buffer", GpuBufferType_Vertex, GpuBufferFlag_StreamUpdate, MAX_VERTS * sizeof(Vertex_2D));
+    CreateGpuBuffer(&s_font.vertex_buffer, "Console Vertex Buffer", GpuBufferType_Vertex, GpuBufferFlag_StreamUpdate, MAX_VERTS * sizeof(Vertex_PTC));
 
     ShaderConstants_Blit2D uniform;
     Get2DMatrix(uniform.orthographic);
@@ -1569,12 +1569,12 @@ void DrawRect(SimpleRect rect, Color color, const SimpleRect& scissor)
         .top = 1,
     };
     // 6 verts in a quad
-    const Vertex_2D top_left  = { rect.TopLeft(),  color, uv.TopLeft()  }; //0 Top Left
-    const Vertex_2D bot_left  = { rect.BotLeft(),  color, uv.BotLeft()  }; //1 Bot Left
-    const Vertex_2D top_right = { rect.TopRight(), color, uv.TopRight() }; //2 Top Right
-    const Vertex_2D bot_right = { rect.BotRight(), color, uv.BotRight() }; //3 Bot Right
+    const Vertex_PTC top_left  = { rect.TopLeft(),  color, uv.TopLeft()  }; //0 Top Left
+    const Vertex_PTC bot_left  = { rect.BotLeft(),  color, uv.BotLeft()  }; //1 Bot Left
+    const Vertex_PTC top_right = { rect.TopRight(), color, uv.TopRight() }; //2 Top Right
+    const Vertex_PTC bot_right = { rect.BotRight(), color, uv.BotRight() }; //3 Bot Right
 
-    Vertex_2D verts[6] = {
+    Vertex_PTC verts[6] = {
         // First part of Quad
         top_left,
         bot_left,
@@ -1650,12 +1650,12 @@ void DrawText(const char* string, Vec2 bot_left_p, Color color, FontID font, con
         ASSERT(IsNearZero(uv_width * FONT_BITMAP_SIZE_X - vert_width));
         ASSERT(IsNearZero(uv_height * FONT_BITMAP_SIZE_Y - vert_height));
 
-        const Vertex_2D top_left  = { vert.TopLeft(),  color, uv.TopLeft() }; //0 Top Left
-        const Vertex_2D bot_left  = { vert.BotLeft(),  color, uv.BotLeft() }; //1 Bot Left
-        const Vertex_2D top_right = { vert.TopRight(), color, uv.TopRight() }; //2 Top Right
-        const Vertex_2D bot_right = { vert.BotRight(), color, uv.BotRight() }; //3 Bot Right
+        const Vertex_PTC top_left  = { vert.TopLeft(),  color, uv.TopLeft() }; //0 Top Left
+        const Vertex_PTC bot_left  = { vert.BotLeft(),  color, uv.BotLeft() }; //1 Bot Left
+        const Vertex_PTC top_right = { vert.TopRight(), color, uv.TopRight() }; //2 Top Right
+        const Vertex_PTC bot_right = { vert.BotRight(), color, uv.BotRight() }; //3 Bot Right
 
-        Vertex_2D verts[] = {
+        Vertex_PTC verts[] = {
             // First part of Quad
             top_left,
             bot_left,
@@ -2172,11 +2172,11 @@ bool CashRenderInit(ArrayView<const ArrayView<const u8>> app_icons)
     SDL_SetRenderVSync(gfx.context, 1);
 #endif
 
-    {// Vertex_2D
+    {// Vertex_PTC
         VertexParams params[] = {
-            { 0, 0, offsetof(Vertex_2D, position),  VertexFormat_Float2,    VertexSemantic_Position,    0, VertexStep_Vertex, 0 },
-            { 1, 0, offsetof(Vertex_2D, color),     VertexFormat_Float4,    VertexSemantic_Color,       0, VertexStep_Vertex, 0 },
-            { 2, 0, offsetof(Vertex_2D, uv),        VertexFormat_Float2,    VertexSemantic_TexCoord,    0, VertexStep_Vertex, 0 },
+            { 0, 0, offsetof(Vertex_PTC, position),  VertexFormat_Float2,    VertexSemantic_Position,    0, VertexStep_Vertex, 0 },
+            { 1, 0, offsetof(Vertex_PTC, color),     VertexFormat_Float4,    VertexSemantic_Color,       0, VertexStep_Vertex, 0 },
+            { 2, 0, offsetof(Vertex_PTC, uv),        VertexFormat_Float2,    VertexSemantic_TexCoord,    0, VertexStep_Vertex, 0 },
         };
         gfx.vertex_2d_layout = CreateVertexLayout(CreateArrayView(params));
     }
@@ -2191,7 +2191,7 @@ bool CashRenderInit(ArrayView<const ArrayView<const u8>> app_icons)
     }
 
     {
-        Vertex_2D verts[] = {
+        Vertex_PTC verts[] = {
             { { -1.0f, +1.0f }, White, { 0.0f, 0.0f }, },  // Top Left
             { { -1.0f, -3.0f }, White, { 0.0f, 2.0f }, },  // Bot Left
             { { +3.0f, +1.0f }, White, { 2.0f, 0.0f }, }   // Top Right
