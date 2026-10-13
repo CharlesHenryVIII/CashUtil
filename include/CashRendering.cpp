@@ -1902,22 +1902,6 @@ bool CreateDrawCall(const char* name, const DrawCallParams& params)
     return true;
 }
 
-//DrawCall& AllocDrawCall()
-//{
-//    DrawCall* draw = s_draws.CreateNew();
-//    if (!draw)
-//    {
-//        FAIL;
-//        DebugPrint("Something seriously wrong CreateNew returned nullptr");
-//    }
-//    //if (!scissorStack.empty())
-//    //{
-//    //    info.scissor = scissorStack.back();
-//    //}
-//
-//    return *draw;
-//}
-
 
 
 
