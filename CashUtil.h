@@ -18,5 +18,3 @@
 //TODO(CSH): Look into stb_sprintf
 //TODO(CSH): Seperate DebugPrint() into a seperate CashLog() file and rename it to Log(Log::error, Message, ...)
 // and Log(Log::error, LogLocation::DebugWindow, Message, ...)
-//TODO(CSH): Fix console scroll bar
-//TODO(CSH): Fix console text cutoff height when scrolling to remove pop-in

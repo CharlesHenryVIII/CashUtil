@@ -293,8 +293,10 @@ static SimpleRect ScrollbarRect()
     min.y = Lerp(min.y, top, s_console.scroll_target / MaxScroll());
     max.y = min.y - height;
 
-    result.BotLeft() = min;
-    result.TopRight() = max;
+    result.left  = Clamp(min.x, log_rect.left, log_rect.right);
+    result.right = Clamp(max.x, log_rect.left, log_rect.right);
+    result.bot = Clamp(min.y, log_rect.top, log_rect.bot);
+    result.top = Clamp(max.y, log_rect.top, log_rect.bot);
     return result;
 }
 

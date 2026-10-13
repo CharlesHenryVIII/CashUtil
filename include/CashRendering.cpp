@@ -1644,12 +1644,11 @@ void DrawText(const char* string, Vec2 bot_left_p, Color color, FontID font, con
         const float vert_width  = vert.Width();
         const float vert_height = -vert.Height();//inverted since <0,0> is top
 
-        if (uv_width <= FLT_EPSILON ||
-            uv_height <= FLT_EPSILON)
+        if (IsNearZero(uv_width) || IsNearZero(uv_height))
             continue;
 
-        ASSERT( uv_width * FONT_BITMAP_SIZE_X - vert_width  <= FLT_EPSILON);
-        ASSERT(uv_height * FONT_BITMAP_SIZE_Y - vert_height <= FLT_EPSILON);
+        ASSERT(IsNearZero(uv_width * FONT_BITMAP_SIZE_X - vert_width));
+        ASSERT(IsNearZero(uv_height * FONT_BITMAP_SIZE_Y - vert_height));
 
         const Vertex_2D top_left  = { vert.TopLeft(),  color, uv.TopLeft() }; //0 Top Left
         const Vertex_2D bot_left  = { vert.BotLeft(),  color, uv.BotLeft() }; //1 Bot Left
@@ -2055,10 +2054,10 @@ void RenderDrawCalls()
             sg_apply_uniforms(u->slot, &range);
         }
 
-        if (params.scissor.left  != 0.0f &&
-            params.scissor.bot   != 0.0f &&
-            params.scissor.right != 0.0f &&
-            params.scissor.top   != 0.0f)
+        if (!IsNearZero(params.scissor.left)    ||
+            !IsNearZero(params.scissor.bot)     ||
+            !IsNearZero(params.scissor.right)   ||
+            !IsNearZero(params.scissor.top))
         {
             const SimpleRect& r = params.scissor;
             sg_apply_scissor_rectf(r.left, r.bot, r.Width(), r.Height(), false);

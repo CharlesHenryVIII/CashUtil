@@ -887,7 +887,7 @@ MATH_PREFIX i32 Sign(i32 value)
 template<typename T>
 MATH_PREFIX bool IsNearZero(const T a)
 {
-    return a <= T(1.0e-12f);
+    return a <= T(1.0e-6f);
 }
 
 
