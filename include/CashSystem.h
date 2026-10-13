@@ -326,12 +326,12 @@ enum ScanDirectoryFlags : u32 {
     ScanDirectoryFlags_All = ScanDirectoryFlags_Recursive | ScanDirectoryFlags_IncludeDirs,
 };
 struct ScannedFile {
-    std::wstring name;
+    std::string name;
     bool dir;
 };
 using ScannedFiles = std::vector<ScannedFile>;
 void SysScanDirectoryForFileNames(const Path& dir, ScannedFiles& out, ScanDirectoryFlags flags);
-bool SysGetDirectoryFromUser(const Path& currentDir, std::wstring& dir);
+//bool SysGetDirectoryFromUser(const Path& currentDir, std::wstring& dir);
 enum MessageBoxResponse : i32 {
     MessageBoxResponse_Invalid,
     MessageBoxResponse_OpenLog,

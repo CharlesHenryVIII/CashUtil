@@ -504,15 +504,17 @@ i32 SysShowCustomErrorWindow(const std::string& title, const std::string& text)
     return 1;
 }
 
+//TODO(CSH): Rewrite with SDL functions for cross compatability
 void SysScanDirectoryForFileNames(const Path& dir, ScannedFiles& out, ScanDirectoryFlags flags)
 {
+
     OSScanDirectoryForFileNames(dir, out, flags);
 }
 
-bool SysGetDirectoryFromUser(const Path& currentDir, std::wstring& dir)
-{
-    return OSGetDirectoryFromUser(currentDir, dir);
-}
+//bool SysGetDirectoryFromUser(const Path& currentDir, std::wstring& dir)
+//{
+//    return OSGetDirectoryFromUser(currentDir, dir);
+//}
 
 //WARNING(CSH): Data here is a bit wacky and using new and delete be warned
 struct OpenSystemNavUserData {

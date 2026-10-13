@@ -63,3 +63,4 @@ bool FileWrite(const char* path, const std::string& data);
 bool FileDelete(const char* path);
 //
 [[nodiscard]] bool FileExists(const char* path);
+[[nodiscard]] bool FileIsDir(const char* path);

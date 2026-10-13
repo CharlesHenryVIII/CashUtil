@@ -43,8 +43,8 @@ i32 NumberLengthInString(const std::string& string, i32& i);
 std::string ToString(const char* fmt, ...);
 std::wstring ToString(const wchar_t* fmt, ...);
 std::string ToString(const Path& path);
-void ToLower(std::wstring& s);
 void ToLower(std::string& s);
+void ToLower(std::wstring& s);
 i32 StringToInt(const std::string& string, i32 i, i32 length);
 i32 StringToInt(const std::string& string, i32 i);
 void StringGetReadableByteSize(std::string& out, const u64 v);
@@ -58,7 +58,8 @@ template <size_t size>
 bool StringGetToken(char(&buf)[size], const char** input) { return StringGetToken(buf, size, input); }
 constexpr bool StringIsWhitespace(char c) { return c == ' '; }
 
-bool StringContains(const std::wstring& source, const std::wstring& find, StringCase case_insensitive);
+bool StringContains(const std::string& source,  const std::string& find,    StringCase case_insensitive);
+bool StringContains(const std::wstring& source, const std::wstring& find,   StringCase case_insensitive);
 const char* StringContains(const char* source, const char  find);
 const char* StringContains(const char* source, const char* find);
 bool StringCompare(StringCase case_sensitivity, const char* a,          const char* b,          const i32 num_chars );

@@ -164,3 +164,10 @@ bool FileDelete(const char* path)
 {
     return SDL_GetPathInfo(path, nullptr);
 }
+
+[[nodiscard]] bool FileIsDir(const char* path)
+{
+    SDL_PathInfo info;
+    SDL_GetPathInfo(path, &info);
+    return info.type == SDL_PATHTYPE_DIRECTORY;
+}

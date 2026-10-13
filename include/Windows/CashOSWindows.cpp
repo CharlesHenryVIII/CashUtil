@@ -1290,6 +1290,8 @@ void OSFlashWindow(SDL_Window* window)
     FlashWindowEx(&info);
 }
 
+#if 0
+
 //TODO(CSH): Create filepath helper functions
 void _ScanDirectoryForFileNames(const std::wstring& root, const std::wstring& dir, ScannedFiles& out, ScanDirectoryFlags flags)
 {
@@ -1374,62 +1376,138 @@ void OSScanDirectoryForFileNames(const Path& dir, ScannedFiles& out, ScanDirecto
     _ScanDirectoryForFileNames(dir, L"", out, flags);
 }
 
-#include "shlobj_core.h"
+#else
+struct ScanContext {
+    const std::string*      fs_dir;     // directory being enumerated (as passed to SDL)
+    const std::string*      rel_dir;    // path relative to the original root ("" at top level)
+    ScannedFiles*           out;
+    ScanDirectoryFlags      flags;
+    std::vector<std::string> subdirs;   // names of subdirectories, recursed into after enumeration
+};
 
-static int CALLBACK BrowseFolderCallback(HWND hwnd, UINT uMsg, LPARAM lParam, LPARAM lpData)
+static std::string _JoinPath(const std::string& a, const std::string& b)
 {
-    if (uMsg == BFFM_INITIALIZED) {
-        LPCTSTR path = LPCTSTR(lpData);
-        ::SendMessage(hwnd, BFFM_SETSELECTION, true, (LPARAM)path);
-    }
-    return 0;
+    if (a.empty())
+        return b;
+    if (a.back() == '/' || a.back() == '\\')
+        return a + b;
+    return a + "/" + b;
 }
 
-bool OSGetDirectoryFromUser(const Path& currentDir, std::wstring& dir)
+static SDL_EnumerationResult SDLCALL _ScanCallback(void* userdata, const char* /*dirname*/, const char* fname)
 {
-    std::wstring baseDir = currentDir;
-    if (currentDir.empty() == 0)
-    {
-        TCHAR buf[MAX_PATH] = { 0 };
-        GetModuleFileName(NULL, buf, MAX_PATH);
-        std::wstring::size_type pos = std::wstring(buf).find_last_of(L"\\/");
-        baseDir = std::wstring(buf).substr(0, pos);
-    }
-    dir.clear();
-    dir.resize(MAX_PATH);
-    int imageIndex = 0;
-    BROWSEINFO info = {
-        .hwndOwner = (HWND)OSGetWindowHandle(gfx.window),
-        .pidlRoot = NULL,
-        .pszDisplayName = NULL,//dir.data(),
-        .lpszTitle = L"Select Config Directory",
-        .ulFlags =  BIF_USENEWUI, //BIF_EDITBOX | BIF_NEWDIALOGSTYLE,
-        .lpfn = BrowseFolderCallback,//NULL,
-        .lParam = (LPARAM)baseDir.c_str(), //NULL,
-        .iImage = imageIndex,
-    };
-    CoInitializer co_initializer;
-    PIDLIST_ABSOLUTE pidl = SHBrowseForFolder(&info);
-    if (pidl == NULL)
-        return false;
-    BOOL result = SHGetPathFromIDList(pidl, dir.data());
+    ScanContext* ctx = (ScanContext*)userdata;
 
-    auto pos = dir.find_first_of(L'\0');
-    if (pos != std::wstring::npos)
-        dir.resize(pos);
+    // Don't trust dirname's trailing-slash format, build the path from our own copy
+    const std::string full = _JoinPath(*ctx->fs_dir, fname);
 
-    if (result)
+    SDL_PathInfo info;
+    if (!SDL_GetPathInfo(full.c_str(), &info))
+        return SDL_ENUM_CONTINUE;   // vanished, or no permission. Skip it and keep going
+
+    const std::string rel = _JoinPath(*ctx->rel_dir, fname);
+
+    if (info.type == SDL_PATHTYPE_DIRECTORY)
     {
-        std::wstring_view dir1 = dir;
-        std::wstring_view dir2 = baseDir;
-        if (dir1.find(dir2) != std::wstring::npos && dir2.find(dir1) != std::wstring::npos)
-        {
-            dir.clear();
-        }
-        return true;
+        if (ctx->flags & ScanDirectoryFlags_IncludeDirs)
+            ctx->out->push_back({ rel, true });
+        if (ctx->flags & ScanDirectoryFlags_Recursive)
+            ctx->subdirs.push_back(fname);
     }
-    return false;
+    else if (info.type == SDL_PATHTYPE_FILE)
+    {
+        ctx->out->push_back({ rel, false });
+    }
+    return SDL_ENUM_CONTINUE;
 }
+
+static void _ScanDirectoryForFileNames(const std::string& fs_dir, const std::string& rel_dir, ScannedFiles& out, ScanDirectoryFlags flags)
+{
+    ScanContext ctx;
+    ctx.fs_dir  = &fs_dir;
+    ctx.rel_dir = &rel_dir;
+    ctx.out     = &out;
+    ctx.flags   = flags;
+
+    if (!SDL_EnumerateDirectory(fs_dir.c_str(), _ScanCallback, &ctx))
+    {
+        DebugPrint(ToString("Error finding files: %s : %s", fs_dir.c_str(), SDL_GetError()).c_str());
+        return;
+    }
+
+    // Recurse after enumeration finishes so only one directory handle is open at a time
+    for (const std::string& name : ctx.subdirs)
+    {
+        _ScanDirectoryForFileNames(_JoinPath(fs_dir, name), _JoinPath(rel_dir, name), out, flags);
+    }
+}
+
+void OSScanDirectoryForFileNames(const Path& dir, ScannedFiles& out, ScanDirectoryFlags flags)
+{
+    out.clear();
+    const std::string root = ToString(dir);
+    VALIDATE_M(FileIsDir(root.c_str()), LogLevel_Warning, "Trying to scan invalid directory: %s", root.c_str());
+    _ScanDirectoryForFileNames(root.empty() ? std::string(".") : root, "", out, flags);
+}
+#endif
+
+//TODO(CSH): Unused remove
+//#include "shlobj_core.h"
+//
+//static int CALLBACK BrowseFolderCallback(HWND hwnd, UINT uMsg, LPARAM lParam, LPARAM lpData)
+//{
+//    if (uMsg == BFFM_INITIALIZED) {
+//        LPCTSTR path = LPCTSTR(lpData);
+//        ::SendMessage(hwnd, BFFM_SETSELECTION, true, (LPARAM)path);
+//    }
+//    return 0;
+//}
+//
+//bool OSGetDirectoryFromUser(const Path& currentDir, std::wstring& dir)
+//{
+//    std::wstring baseDir = currentDir;
+//    if (currentDir.empty() == 0)
+//    {
+//        TCHAR buf[MAX_PATH] = { 0 };
+//        GetModuleFileName(NULL, buf, MAX_PATH);
+//        std::wstring::size_type pos = std::wstring(buf).find_last_of(L"\\/");
+//        baseDir = std::wstring(buf).substr(0, pos);
+//    }
+//    dir.clear();
+//    dir.resize(MAX_PATH);
+//    int imageIndex = 0;
+//    BROWSEINFO info = {
+//        .hwndOwner = (HWND)OSGetWindowHandle(gfx.window),
+//        .pidlRoot = NULL,
+//        .pszDisplayName = NULL,//dir.data(),
+//        .lpszTitle = L"Select Config Directory",
+//        .ulFlags =  BIF_USENEWUI, //BIF_EDITBOX | BIF_NEWDIALOGSTYLE,
+//        .lpfn = BrowseFolderCallback,//NULL,
+//        .lParam = (LPARAM)baseDir.c_str(), //NULL,
+//        .iImage = imageIndex,
+//    };
+//    CoInitializer co_initializer;
+//    PIDLIST_ABSOLUTE pidl = SHBrowseForFolder(&info);
+//    if (pidl == NULL)
+//        return false;
+//    BOOL result = SHGetPathFromIDList(pidl, dir.data());
+//
+//    auto pos = dir.find_first_of(L'\0');
+//    if (pos != std::wstring::npos)
+//        dir.resize(pos);
+//
+//    if (result)
+//    {
+//        std::wstring_view dir1 = dir;
+//        std::wstring_view dir2 = baseDir;
+//        if (dir1.find(dir2) != std::wstring::npos && dir2.find(dir1) != std::wstring::npos)
+//        {
+//            dir.clear();
+//        }
+//        return true;
+//    }
+//    return false;
+//}
 
 UINT GetWindowsEncoding(const StringEncoding encoding)
 {

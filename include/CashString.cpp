@@ -494,12 +494,10 @@ bool StringCompare(StringCase case_sensitivity, const char* a, const char* b)
 }
 
 
-bool StringContains(const std::wstring& source, const std::wstring& find, StringCase case_insensitive)
+bool StringContains(const std::string& source, const std::string& find, StringCase case_insensitive)
 {
-    std::string s;
-    SysConvertWideCharToMultiByte(s, source);
-    std::string f;
-    SysConvertWideCharToMultiByte(f, find);
+    std::string s = source;
+    std::string f = find;
     if (case_insensitive == StringCase_Insensitive)
     {
         ToLower(s);
@@ -508,6 +506,15 @@ bool StringContains(const std::wstring& source, const std::wstring& find, String
     if (s.find(f.c_str()))
         return true;
     return false;
+}
+
+bool StringContains(const std::wstring& source, const std::wstring& find, StringCase case_insensitive)
+{
+    std::string s;
+    SysConvertWideCharToMultiByte(s, source);
+    std::string f;
+    SysConvertWideCharToMultiByte(f, find);
+    return StringContains(s, f, case_insensitive);
 }
 
 const char* StringContains(const char* source, const char find)
