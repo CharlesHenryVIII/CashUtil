@@ -2,7 +2,7 @@
 #include "CashDebug.h"
 #include "CashSystem.h"
 #include "resource.h"
-#include "CashIdArray.h"
+#include "CashArray.h"
 #include "CashConsole.h"
 
 #define STB_IMAGE_IMPLEMENTATION

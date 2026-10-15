@@ -2,8 +2,7 @@
 #include "CashMath.h"
 #include "CashArrayView.h"
 #include "CashString.h"
-#include "CashIdArray.h"
-#include "CashStaticArray.h"
+#include "CashArray.h"
 
 #include "SDL3/SDL.h"
 

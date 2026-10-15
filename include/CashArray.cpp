@@ -1,4 +1,4 @@
-#include "CashIdArray.h"
+#include "CashArray.h"
 #include "CashSystem.h"
 
 void* _IdArrayReserve(u64 bytes)

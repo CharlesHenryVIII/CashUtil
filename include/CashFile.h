@@ -1,6 +1,6 @@
 #pragma once
 #include "CashMath.h"
-#include "CashIdArray.h"
+#include "CashArray.h"
 #include "CashArrayView.h"
 
 #include <string>

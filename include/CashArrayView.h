@@ -2,10 +2,6 @@
 
 #include "CashMath.h"
 
-#include <cstring>
-
-//#include <format>
-
 template <typename T>
 struct ArrayView {
     u64 count = 0;
