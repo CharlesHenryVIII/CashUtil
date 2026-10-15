@@ -1,6 +1,8 @@
 #pragma once
 
 #include "CashMath.h"
+#include "CashDebug.h"
+#include "CashLog.h"
 
 template <typename T>
 struct ArrayView {
@@ -56,15 +58,7 @@ struct ArrayView {
 
     bool CopyFrom(const ArrayView<T> source)
     {
-        if (Bytes() != source.Bytes())
-        {
-            //TODO(CSH): Fix this
-            //std::string msg = std::format("Trying to create SubArrayView with start + length: {} longer than the source: {}", source.Bytes(), Bytes());
-            //DebugPrint(msg.c_str());
-            //ASSERT_MSG(false, msg.c_str());
-            FAIL;
-            return false;
-        }
+        VALIDATE_VM(Bytes() != source.Bytes(), false, LogLevel_Error, "Trying to create SubArrayView with start + length: %i longer than the source: %i", source.Bytes(), Bytes());
         memmove((void*)data, (void*)source.data, source.Bytes());
         count = source.count;
     }
@@ -123,16 +117,7 @@ template<typename T>
 [[nodiscard]] ArrayView<T> CreateSubArrayView(const ArrayView<T> source, u64 length)
 {
     ArrayView<T> view;
-    if (length > source.count)
-    {
-        //TODO(CSH): Fix this
-        //std::string msg = std::format("Trying to create SubArrayView with start + length: {} longer than the source: {}", length, source.count);
-        //DebugPrint(msg.c_str());
-        //ASSERT_MSG(false, msg.c_str());
-        FAIL;
-        return source;
-    }
-
+    VALIDATE_VM(length > source.count, source, LogLevel_Error, "Trying to create SubArrayView with start + length: %i longer than the source: %i", length, source.count);
     view.count = length;
     view.data = source.data;
     return view;
@@ -146,26 +131,9 @@ template<typename T>
     ASSERT(start < source.count);
     ASSERT(length < source.count);
     const u64 end = start + length;
-    if (end > source.count)
-    {
 
-        //TODO(CSH): Fix this
-        //std::string msg = std::format("Trying to create SubArrayView with start + length: {} longer than the source: {}", end, source.count);
-        //DebugPrint(msg.c_str());
-        //ASSERT_MSG(false, msg.c_str());
-        FAIL;
-        return source;
-    }
-
-    if (length < 0)
-    {
-        //TODO(CSH): Fix this
-        //std::string msg = std::format("Trying to create SubArrayView with length: {} shorter than the source: {}", length, source.count);
-        //DebugPrint(msg.c_str());
-        //ASSERT_MSG(false, msg.c_str());
-        FAIL;
-        return {};
-    }
+    VALIDATE_VM(end > source.count, source, LogLevel_Error, "Trying to create SubArrayView with start + length: %i longer than the source: %i", end, source.count);
+    VALIDATE_VM(length < 0, {}, LogLevel_Error, "Trying to create SubArrayView with length: %i shorter than the source: %i", length, source.count);
 
     view.count = length;
     view.data = source.data + source.ElementBytes() * start;
@@ -175,15 +143,7 @@ template<typename T>
 template<typename T>
 bool CopyArrayView(const ArrayView<T> source, ArrayView<T>& dest)
 {
-    if (dest.Bytes() != source.Bytes())
-    {
-        //TODO(CSH): Fix this
-        //std::string msg = std::format("Trying to CopyArrayView but memory size is missmatched source: %{} dest: %{}", source.Bytes(), dest.Bytes());
-        //DebugPrint(msg.c_str());
-        //ASSERT_MSG(false, msg.c_str());
-        FAIL;
-        return false;
-    }
+    VALIDATE_VM(dest.Bytes() != source.Bytes(), false, LogLevel_Error, "Trying to CopyArrayView but memory size is missmatched source: %i dest: %i", source.Bytes(), dest.Bytes());
     ASSERT(source.count == dest.count);//what do we do here if this isn't true?
     //dest.count = source.count;
     memmove((void*)dest.data, (void*)source.data, source.Bytes());

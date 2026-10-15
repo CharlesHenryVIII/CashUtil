@@ -1,6 +1,6 @@
 #include "CashMemoryArena.h"
 #include "CashSystem.h"
-#include "CashConsole.h"
+#include "CashLog.h"
 
 bool ArenaCommit(Arena* arena, const u64 size)
 {
@@ -52,7 +52,7 @@ void* ArenaPush(Arena* arena, u64 size, u64 alignment, bool zero)
 
     if (size > committed_free)
     {
-        VALIDATE_MV(ArenaCommit(arena, size), nullptr, LogLevel_Error, "%s: needed: %i", "Failed to commit memory for Arena", size);
+        VALIDATE_VM(ArenaCommit(arena, size), nullptr, LogLevel_Error, "%s: needed: %i", "Failed to commit memory for Arena", size);
     }
     void* new_data_pointer = (void*)((u64)arena->data + arena->used);
     arena->used += size;
@@ -67,7 +67,7 @@ void* ArenaPush(Arena* arena, u64 size, u64 alignment, bool zero)
         return nullptr;
 
     char* r = (char*)ArenaPush(arena, (u64)len + 1, CASH_DEFAULT_ALIGNMENT, false);
-    VALIDATE_MV(r, nullptr, LogLevel_Error, "nullptr return from _ArenaPush()!");
+    VALIDATE_VM(r, nullptr, LogLevel_Error, "nullptr return from _ArenaPush()!");
     const i32 size = Min<i32>(len, sizeof(temp) - 1);
     memmove(r, temp, (size_t)size + 1);
     return r;

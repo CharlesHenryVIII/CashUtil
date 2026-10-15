@@ -1,7 +1,7 @@
 #include "CashString.h"
 #include "CashSystem.h"
 //#include "CashStaticArray.h"
-#include "CashConsole.h"
+#include "CashLog.h"
 
 
 const char* ReadEntireFileAsString(const char* fileName)

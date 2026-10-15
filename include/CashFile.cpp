@@ -1,6 +1,6 @@
 #include "CashFile.h"
 #include "CashSystem.h"
-#include "CashConsole.h"
+#include "CashLog.h"
 
 
 
@@ -23,10 +23,10 @@ static StaticIdArray<File, FileID, 256> s_files;
 
 [[nodiscard]] FileID FileOpen(const char* path, FileMode mode)
 {
-    VALIDATE_MV(mode != FileMode_Invalid && mode != FileMode_Count, {}, LogLevel_Error, "Invalid FileMode for %s", path);
+    VALIDATE_VM(mode != FileMode_Invalid && mode != FileMode_Count, {}, LogLevel_Error, "Invalid FileMode for %s", path);
 
     SDL_IOStream* io = SDL_IOFromFile(path, s_op[mode]);
-    VALIDATE_MV(io, {}, LogLevel_Warning, "Failed to open file: %s", path);
+    VALIDATE_VM(io, {}, LogLevel_Warning, "Failed to open file: %s", path);
 
     File* f = s_files.CreateNew();
     f->io = io;
@@ -44,9 +44,9 @@ void FileClose(FileID id)
 bool FileRead(FileID id, std::vector<u8> out_data)
 {
     File* f = s_files.TryGet(id);
-    VALIDATE_MV(f, false, LogLevel_Error, "Could not retrieve File from handle: %i:%i", id.index, id.generation);
+    VALIDATE_VM(f, false, LogLevel_Error, "Could not retrieve File from handle: %i:%i", id.index, id.generation);
     const i64 size = SDL_GetIOSize(f->io);
-    VALIDATE_MV(size > 0, false, LogLevel_Warning, "Failed to get file size: %s : %s", f->path.c_str(), SDL_GetError());
+    VALIDATE_VM(size > 0, false, LogLevel_Warning, "Failed to get file size: %s : %s", f->path.c_str(), SDL_GetError());
     out_data.resize(size);
     const size_t read = SDL_ReadIO(f->io, out_data.data(), out_data.size());
     return read == size;
@@ -54,9 +54,9 @@ bool FileRead(FileID id, std::vector<u8> out_data)
 size_t FileWrite(FileID id, const void* data, const size_t bytes)
 {
     File* f = s_files.TryGet(id);
-    VALIDATE_MV(f, 0, LogLevel_Error, "Could not retrieve File from handle: %i:%i", id.index, id.generation);
-    VALIDATE_MV(data, 0, LogLevel_Error, "Invalid data passed to FileWrite(): %s", f->path.c_str());
-    VALIDATE_MV(bytes, 0, LogLevel_Error, "Invalid bytes passed to FileWrite(): %i : %s", bytes, f->path.c_str());
+    VALIDATE_VM(f, 0, LogLevel_Error, "Could not retrieve File from handle: %i:%i", id.index, id.generation);
+    VALIDATE_VM(data, 0, LogLevel_Error, "Invalid data passed to FileWrite(): %s", f->path.c_str());
+    VALIDATE_VM(bytes, 0, LogLevel_Error, "Invalid bytes passed to FileWrite(): %i : %s", bytes, f->path.c_str());
     const size_t r = SDL_WriteIO(f->io, data, bytes);
     if (r < bytes)
     {
@@ -68,7 +68,7 @@ size_t FileWrite(FileID id, const void* data, const size_t bytes)
 [[nodiscard]] u64 FileGetTime(FileID id)
 {
     File* f = s_files.TryGet(id);
-    VALIDATE_MV(f, 0, LogLevel_Error, "Could not retrieve File from handle: %i:%i", id.index, id.generation);
+    VALIDATE_VM(f, 0, LogLevel_Error, "Could not retrieve File from handle: %i:%i", id.index, id.generation);
     SDL_GetPathInfo(f->path.c_str(), &f->info);
     FAIL; // what even is this time.  "Time since epoch"
     return (u64)f->info.modify_time;
@@ -76,7 +76,7 @@ size_t FileWrite(FileID id, const void* data, const size_t bytes)
 bool FileDelete(FileID id)
 {
     File* f = s_files.TryGet(id);
-    VALIDATE_MV(f, false, LogLevel_Error, "Could not retrieve File from handle: %i:%i", id.index, id.generation);
+    VALIDATE_VM(f, false, LogLevel_Error, "Could not retrieve File from handle: %i:%i", id.index, id.generation);
     return FileDelete(f->path.c_str());
 }
 

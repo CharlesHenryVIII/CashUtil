@@ -3,6 +3,7 @@
 #include "CashSystem.h"
 #include "resource.h"
 #include "CashArray.h"
+#include "CashLog.h"
 #include "CashConsole.h"
 
 #define STB_IMAGE_IMPLEMENTATION
@@ -386,10 +387,10 @@ bool DeleteSokolTexture(GfxTexture* tex)
 
 bool UpdateTextureInternal(GfxTexture* tex)
 {
-    VALIDATE_MV(tex, false, LogLevel_Error, "Tried to resize invalid texture");
+    VALIDATE_VM(tex, false, LogLevel_Error, "Tried to resize invalid texture");
 
     tex->image = sg_make_image(&tex->image_desc);
-    VALIDATE_MV(tex->image.id != SG_INVALID_ID, false, LogLevel_Error, "Failed to create texture: %s", tex->name.data);
+    VALIDATE_VM(tex->image.id != SG_INVALID_ID, false, LogLevel_Error, "Failed to create texture: %s", tex->name.data);
 
     const char* read_view_name = ArenaPush(&g_arena, "%s Read View", tex->name.data);
     tex->read_view_desc.label = read_view_name;
@@ -401,7 +402,7 @@ bool UpdateTextureInternal(GfxTexture* tex)
 
     tex->read_view_desc.texture.image = tex->image;
     tex->read_view = sg_make_view(&tex->read_view_desc);
-    VALIDATE_MV(tex->read_view.id != SG_INVALID_ID, false, LogLevel_Error, "Failed to create read view for texture: %s", tex->name.data);
+    VALIDATE_VM(tex->read_view.id != SG_INVALID_ID, false, LogLevel_Error, "Failed to create read view for texture: %s", tex->name.data);
 
     switch (tex->parameters.type)
     {
@@ -419,7 +420,7 @@ bool UpdateTextureInternal(GfxTexture* tex)
         tex->write_view_desc.color_attachment.image = tex->image;
         tex->write_view_desc.label = write_view_name;
         tex->write_view = sg_make_view(&tex->write_view_desc);
-        VALIDATE_MV(tex->write_view.id != SG_INVALID_ID, false, LogLevel_Error, "Failed to create write view for color texture: %s", tex->name.data);
+        VALIDATE_VM(tex->write_view.id != SG_INVALID_ID, false, LogLevel_Error, "Failed to create write view for color texture: %s", tex->name.data);
         break;
     }
     case TextureFlag_DepthStencil:
@@ -428,7 +429,7 @@ bool UpdateTextureInternal(GfxTexture* tex)
         tex->write_view_desc.depth_stencil_attachment.image = tex->image;
         tex->write_view_desc.label = write_view_name;
         tex->write_view = sg_make_view(&tex->write_view_desc);
-        VALIDATE_MV(tex->write_view.id != SG_INVALID_ID, false, LogLevel_Error, "Failed to create write view for depth texture: %s", tex->name.data);
+        VALIDATE_VM(tex->write_view.id != SG_INVALID_ID, false, LogLevel_Error, "Failed to create write view for depth texture: %s", tex->name.data);
         break;
     }
     //tex->view_desc.storage_buffer; //Unorderd Access View equivilent for Computer Shaders I think
@@ -1718,17 +1719,17 @@ FontID CreateFont(const char* name, ArrayView<u8> font_data, u32 height_in_pixel
     Defer{ free(temp_font_bitmap); };
 
     CashFont* f = s_fonts.CreateNew();
-    VALIDATE_MV(f, {}, LogLevel_Error, "%s", "Failed to create new font");
+    VALIDATE_VM(f, {}, LogLevel_Error, "%s", "Failed to create new font");
 
     stbrp_context pack_ctx;
     stbrp_node pack_nodes[FONT_CHAR_COUNT];
     stbrp_init_target(&pack_ctx, FONT_BITMAP_SIZE_X, FONT_BITMAP_SIZE_Y, pack_nodes, FONT_CHAR_COUNT);
 
     FT_Library ft;
-    VALIDATE_MV(!FT_Init_FreeType(&ft), {}, LogLevel_Error, "%s", "Failed to create FreeType Library");
+    VALIDATE_VM(!FT_Init_FreeType(&ft), {}, LogLevel_Error, "%s", "Failed to create FreeType Library");
     FT_Face face;
-    VALIDATE_MV(!FT_New_Memory_Face(ft, font_data.data, (FT_Long)font_data.Bytes(), 0, &face), {}, LogLevel_Error, "%s", "Failed to create FreeType Memory Face");
-    VALIDATE_MV(!FT_Set_Pixel_Sizes(face, 0, height_in_pixels), {}, LogLevel_Error, "%s", "Failed to set Pixel Sizes");
+    VALIDATE_VM(!FT_New_Memory_Face(ft, font_data.data, (FT_Long)font_data.Bytes(), 0, &face), {}, LogLevel_Error, "%s", "Failed to create FreeType Memory Face");
+    VALIDATE_VM(!FT_Set_Pixel_Sizes(face, 0, height_in_pixels), {}, LogLevel_Error, "%s", "Failed to set Pixel Sizes");
 
     f->info.ascender = (face->size->metrics.ascender >> 6);
     f->info.descender = (face->size->metrics.descender >> 6);
@@ -1745,7 +1746,7 @@ FontID CreateFont(const char* name, ArrayView<u8> font_data, u32 height_in_pixel
     for (i32 i = 0; i < FONT_CHAR_COUNT; i++)
     {
         const i32 codepoint = FONT_CHAR_START + i;
-        VALIDATE_MV(!FT_Load_Char(face, codepoint, flags), {}, LogLevel_Error, "Failed to load char %i", codepoint);
+        VALIDATE_VM(!FT_Load_Char(face, codepoint, flags), {}, LogLevel_Error, "Failed to load char %i", codepoint);
 
         rects[i].id = codepoint;
         rects[i].w = (face->glyph->bitmap.width / 3) + pad;
@@ -1762,7 +1763,7 @@ FontID CreateFont(const char* name, ArrayView<u8> font_data, u32 height_in_pixel
         if (!rect.was_packed)
             continue;
 
-        VALIDATE_MV(!FT_Load_Char(face, codepoint, flags), {}, LogLevel_Error, "Failed to load char %i", codepoint);
+        VALIDATE_VM(!FT_Load_Char(face, codepoint, flags), {}, LogLevel_Error, "Failed to load char %i", codepoint);
         if (face->glyph->format != FT_GLYPH_FORMAT_BITMAP)
         {
             FAIL;

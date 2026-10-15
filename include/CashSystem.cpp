@@ -2,10 +2,11 @@
 #include "CashRendering.h"
 #include "CashArrayView.h"
 #include "CashOS.h"
-#include "CashConsole.h"
+#include "CashLog.h"
 #include "CashFile.h"
+#include "CashConsole.h"
 
-#include <array>
+//#include <array>
 
 #include "ImGui/backends/imgui_impl_sdl3.h"
 #include "ImGui/backends/imgui_impl_sdlrenderer3.h"
@@ -14,8 +15,8 @@ SysInfo g_sysinfo;
 
 bool CashInit(ArrayView<const ArrayView<const u8>> app_icons, const ArrayView<const char*>& logo)
 {
-    VALIDATE_MV(CashRenderInit(app_icons), false, LogLevel_Error, "Failed to init Renderer");
-    VALIDATE_MV(OSInit(), false, LogLevel_Error, "Failed to init OS");
+    VALIDATE_VM(CashRenderInit(app_icons), false, LogLevel_Error, "Failed to init Renderer");
+    VALIDATE_VM(OSInit(), false, LogLevel_Error, "Failed to init OS");
     CashImguiInit();
     ConsoleInit(logo);
     SDL_StartTextInput(gfx.window);
