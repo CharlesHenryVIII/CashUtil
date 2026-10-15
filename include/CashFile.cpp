@@ -119,13 +119,9 @@ bool FileDelete(FileID id)
     return true;
 }
 
-bool FileWrite(const char* path, ArrayView<u8> data)
+bool FileWrite(const char* path, const void* data, const size_t bytes)
 {
-    return SDL_SaveFile(path, data.data, data.Bytes());
-}
-bool FileWrite(const char* path, const std::string& data)
-{
-    return SDL_SaveFile(path, data.c_str(), data.size());
+    return SDL_SaveFile(path, data, bytes);
 }
 
 [[nodiscard]] u64 FileGetCreateTime(const char* path)

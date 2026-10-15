@@ -1587,20 +1587,24 @@ void OSConvertWideCharToMultiByte(std::string& out, const std::wstring& in, Stri
         out.pop_back();
 }
 
-void OSExpandEnvironemntVariable(std::wstring& out, const std::wstring& in)
+void OSExpandEnvironemntVariable(std::string& out, const std::string& in)
 {
-    DWORD size = ExpandEnvironmentStringsW(in.c_str(), nullptr, 0);
+    VALIDATE_M(!in.empty(), LogLevel_Warning, "Empty args for OSExpandEnvironmentVariable");
+    std::wstring win;
+    SysConvertMultibyteToWideChar(win, in);
+    DWORD size = ExpandEnvironmentStringsW(win.c_str(), nullptr, 0);
     if (size == 0)
     {
         std::string var;
-        SysConvertWideCharToMultiByte(var, in);
-        DebugPrint("Failed to expand string: \"%s\" error: %i", var.c_str(), GetLastError());
+        SysConvertWideCharToMultiByte(var, win);
+        LOG(LogLevel_Error, "Failed to expand string: \"%s\" to \"%s\" error: %i", in.c_str(), var.c_str(), GetLastError());
         return;
     }
 
-    out.resize(size);
-    ExpandEnvironmentStringsW(in.c_str(), out.data(), size);
-    out.resize(size - 1); //Remove trailing null inserted by API
+    std::wstring wout;
+    wout.resize(size);
+    ExpandEnvironmentStringsW(win.c_str(), wout.data(), size);
+    SysConvertWideCharToMultiByte(out, wout);
 }
 
 #ifdef _DEBUG

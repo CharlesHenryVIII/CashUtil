@@ -47,7 +47,7 @@ void OSScanDirectoryForFileNames(const Path& dir, ScannedFiles& out, ScanDirecto
 
 void OSConvertMultibyteToWideChar(std::wstring& out, const std::string& in, StringEncoding encoding = StringEncoding_UTF8);
 void OSConvertWideCharToMultiByte(std::string& out, const std::wstring& in, StringEncoding encoding = StringEncoding_UTF8);
-void OSExpandEnvironemntVariable(std::wstring& out, const std::wstring& in);
+void OSExpandEnvironemntVariable(std::string& out, const std::string& in);
 void* OSGetDataFromResource(i32* out_size, const i32 resource_id);
 
 u64 OSGetPageSize();

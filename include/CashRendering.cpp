@@ -147,12 +147,12 @@ void SgLogFunc(
         log_level_e = LogLevel_Info;
         break;
     default:
-        log_level_s = ArenaPush(&g_cash_arena, "UNKNOWN LOG LEVEL (%s)", log_level);
+        log_level_s = ArenaPush(&g_arena, "UNKNOWN LOG LEVEL (%s)", log_level);
         log_level_e = LogLevel_Error;
         FAIL; break;
     }
 
-    const char* log = ArenaPush(&g_cash_arena, "%s %s(%i) SG_LOGITEM_%i: %s",
+    const char* log = ArenaPush(&g_arena, "%s %s(%i) SG_LOGITEM_%i: %s",
         log_level_s,
         filename_or_null ? filename_or_null : "Unknown File",
         line_nr,
@@ -391,9 +391,9 @@ bool UpdateTextureInternal(GfxTexture* tex)
     tex->image = sg_make_image(&tex->image_desc);
     VALIDATE_MV(tex->image.id != SG_INVALID_ID, false, LogLevel_Error, "Failed to create texture: %s", tex->name.data);
 
-    const char* read_view_name = ArenaPush(&g_cash_arena, "%s Read View", tex->name.data);
+    const char* read_view_name = ArenaPush(&g_arena, "%s Read View", tex->name.data);
     tex->read_view_desc.label = read_view_name;
-    const char* write_view_name = ArenaPush(&g_cash_arena, "%s Write View", tex->name.data);
+    const char* write_view_name = ArenaPush(&g_arena, "%s Write View", tex->name.data);
 
     //========
     //  View
@@ -1703,7 +1703,7 @@ void DrawString(Vec2 location, Color color, FontID font, const SimpleRect& sciss
 {
     va_list args;
     va_start(args, fmt);
-    const char* buffer = ArenaPushArgs(&g_cash_arena, fmt, args);
+    const char* buffer = ArenaPushArgs(&g_arena, fmt, args);
     va_end(args);
 
     if (buffer)

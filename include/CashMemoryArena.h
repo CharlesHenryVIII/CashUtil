@@ -21,6 +21,7 @@ struct ArenaParams {
 
 [[nodiscard]]   Arena   ArenaAlloc(const u64 reserve_size = Mebibytes(64), const u64 commit_size = 0);
                 void    ArenaFree(Arena* arena);
+                void    ArenaClear(Arena* arena);
 [[nodiscard]]   void*   ArenaPush(Arena* arena, u64 size, u64 alignment = CASH_DEFAULT_ALIGNMENT, bool zero = true);
 
 #define ArenaPushStruct(arena, type)        (type*)_ArenaPush(arena, sizeof(size), alignof(type), true)
@@ -30,8 +31,3 @@ struct ArenaParams {
 
 [[nodiscard]]   char* ArenaPush(Arena* arena, const char* fmt, ...);
 [[nodiscard]]   char* ArenaPushArgs(Arena* arena, const char* fmt, va_list args);
-
-//Zeroes memory
-void ArenaClear  (Arena* arena);
-//Releases memory
-void ArenaRelease(Arena* arena);

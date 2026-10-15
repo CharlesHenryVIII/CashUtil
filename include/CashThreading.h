@@ -41,7 +41,7 @@ struct AsyncData {
 struct Job
 {
     Atomic<AsyncStatus>* status = nullptr;
-    virtual void RunJob(Arena& arena) = 0;
+    virtual void RunJob() = 0;
     virtual ~Job() = default;
 };
 
@@ -57,7 +57,6 @@ private:
     struct ThreadData {
         std::string name;
         u32 index;
-        Arena arena;
     };
 
     static i32 ThreadFunction(ThreadData data);

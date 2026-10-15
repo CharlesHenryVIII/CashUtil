@@ -1,6 +1,7 @@
 #include "CashString.h"
 #include "CashSystem.h"
 //#include "CashStaticArray.h"
+#include "CashConsole.h"
 
 
 const char* ReadEntireFileAsString(const char* fileName)
@@ -74,16 +75,6 @@ std::vector<i32> TextToIntArray(const char* text)
         }
     }
     return nums;
-}
-
-bool TextDetection(const std::string& string, const std::string& check)
-{
-    for (i32 i = 0; i + check.size() <= string.size(); i++)
-    {
-        if (string.substr(i, check.size()) == check)
-            return true;
-    }
-    return false;
 }
 
 void TextRemoval(std::string& string, const std::string& removalRef)
@@ -418,6 +409,41 @@ bool StringRemoveTrailing(std::string& s, const char r)
     return false;
 }
 
+const char* StringRemoveLeading(Arena* arena, const char* s, const char r)
+{
+    size_t i = 0;
+    const size_t len = strlen(s);
+    for (; i < len - 1; ++i)
+    {
+        if (s[i] != r)
+            break;
+    }
+    FAIL; //untested
+    if (i != 0)
+    {
+        return (const char*)ArenaPush(arena, s + i);
+    }
+    return (const char*)ArenaPush(arena, s);
+}
+
+const char* StringRemoveTrailing(Arena* arena, const char* s, const char r)
+{
+    const size_t len = strlen(s);
+    size_t i = len - 1;
+    for (; i >= 0; --i)
+    {
+        if (s[i] != r)
+            break;
+    }
+    i++;
+    FAIL; //untested
+    if (i != len)
+    {
+        return (const char*)ArenaPush(arena, i);
+    }
+    return (const char*)ArenaPush(arena, s);
+}
+
 const char* StringEatWhitespace(const char* input)
 {
     while (*input && StringIsWhitespace(*input))
@@ -494,7 +520,7 @@ bool StringCompare(StringCase case_sensitivity, const char* a, const char* b)
 }
 
 
-bool StringContains(const std::string& source, const std::string& find, StringCase case_insensitive)
+bool StringFindFirst(const std::string& source, const std::string& find, StringCase case_insensitive)
 {
     std::string s = source;
     std::string f = find;
@@ -508,22 +534,80 @@ bool StringContains(const std::string& source, const std::string& find, StringCa
     return false;
 }
 
-bool StringContains(const std::wstring& source, const std::wstring& find, StringCase case_insensitive)
+bool StringFindFirst(const std::wstring& source, const std::wstring& find, StringCase case_insensitive)
 {
     std::string s;
     SysConvertWideCharToMultiByte(s, source);
     std::string f;
     SysConvertWideCharToMultiByte(f, find);
-    return StringContains(s, f, case_insensitive);
+    return StringFindFirst(s, f, case_insensitive);
 }
 
-const char* StringContains(const char* source, const char find)
+const char* StringFindFirst(const char* source, const char find)
+{
+    return strchr(source, find);
+}
+const char* StringFindFirst(const char* source, const char* find)
+{
+    return strstr(source, find);
+}
+char* StringFindFirst(char* source, const char find)
+{
+    return strchr(source, find);
+}
+char* StringFindFirst(char* source, const char* find)
+{
+    return strstr(source, find);
+}
+
+const char* StringFindLast(const char* source, const char find)
 {
     return strrchr(source, find);
 }
-const char* StringContains(const char* source, const char* find)
+const char* StringFindLast(const char* source, const char* find)
 {
-    return strstr(source, find);
+    if (!source || !find)
+        return nullptr;
+    const size_t slen = strlen(source);
+    const size_t flen = strlen(find);
+    if (flen == 0 || slen == 0)
+        return nullptr;
+    if (flen > slen)
+        return nullptr;
+
+    for (const char* p = source + (slen - flen); ; --p)
+    {
+        if (memcmp(p, find, flen) == 0)
+            return p;
+        if (p == source)
+            break;
+    }
+    return nullptr;
+}
+
+char* StringFindLast(char* source, const char find)
+{
+    return strrchr(source, find);
+}
+char* StringFindLast(char* source, const char* find)
+{
+    if (!source || !find)
+        return nullptr;
+    const size_t slen = strlen(source);
+    const size_t flen = strlen(find);
+    if (flen == 0 || slen == 0)
+        return nullptr;
+    if (flen > slen)
+        return nullptr;
+
+    for (char* p = source + (slen - flen); ; --p)
+    {
+        if (memcmp(p, find, flen) == 0)
+            return p;
+        if (p == source)
+            break;
+    }
+    return nullptr;
 }
 
 bool CopyFile(const Path& source, const Path& dest)
@@ -644,55 +728,57 @@ u64 StringCopy(char* dest, const char* source, const u64 buffer_length)
     return len;
 }
 
-void PathRemoveExtension(std::wstring& path)
+std::string PathRemoveExtension(const std::string& path)
 {
-    size_t end = path.find_last_of(L".");
-    if (end == std::wstring::npos)
+    size_t end = path.find_last_of(".");
+    if (end == std::string::npos)
     {
-        DebugPrint("GetFilename() failed to find \".\" for %s", path.c_str());
-        return;
+        LOG(LogLevel_Warning, "GetFilename() failed to find \".\" for %s", path.c_str());
+        return path;
     }
 
-    path.erase(end, path.size() - end);
+    std::string r = path;
+    r.erase(end, path.size() - end);
+    return r;
 }
 
-std::wstring PathGetFilename(const std::wstring& path)
+std::string PathGetFilename(const std::string& path)
 {
-    size_t start = path.find_last_of(L"\\");
-    if (start == std::wstring::npos)
-        start = path.find_last_of(L"/");
-    if (start == std::wstring::npos)
+    size_t start = path.find_last_of("\\");
+    if (start == std::string::npos)
+        start = path.find_last_of("/");
+    if (start == std::string::npos)
     {
         DebugPrint("GetFilename() failed to find \"/\" or \"\\\" for %s", path.c_str());
         return path;
     }
 
-    size_t end = path.find_last_of(L".");
-    if (end == std::wstring::npos)
+    size_t end = path.find_last_of(".");
+    if (end == std::string::npos)
     {
         DebugPrint("GetFilename() failed to find \".\" for %s", path.c_str());
-        return L"";
+        return "";
     }
 
     if (start++ >= path.size() || start >= end)
     {
         DebugPrint("GetFilename() failed to get valid range for start(%i) and end(%i) for %s", start, end, path.c_str());
-        return L"";
+        return "";
     }
 
-    std::wstring_view view = path;
-    std::wstring result;
+    std::string_view view = path;
+    std::string result;
     result = view.substr(start, end - start);
     return result;
 }
 
-std::wstring PathGetFilenameWithExtension(const std::wstring& path)
+std::string PathGetFilenameWithExtension(const std::string& path)
 {
-    std::wstring result = L"";
-    size_t start = path.find_last_of(L"\\");
-    if (start == std::wstring::npos)
-        start = path.find_last_of(L"/");
-    if (start == std::wstring::npos)
+    std::string result = "";
+    size_t start = path.find_last_of("\\");
+    if (start == std::string::npos)
+        start = path.find_last_of("/");
+    if (start == std::string::npos)
     {
         DebugPrint("Failed to GetFilename() for %s", path.c_str());
         return result;
@@ -704,50 +790,43 @@ std::wstring PathGetFilenameWithExtension(const std::wstring& path)
         return result;
     }
 
-    std::wstring_view view = path;
+    std::string_view view = path;
     result = view.substr(start);
     return result;
 }
 
-std::wstring PathGetExtension(const std::wstring& path)
+std::string PathGetExtension(const std::string& path)
 {
-    std::wstring result = L"";
-    const size_t start = path.find_last_of(L'.');
-    if (start == std::wstring::npos)
+    std::string result = "";
+    const size_t start = path.find_last_of('.');
+    if (start == std::string::npos)
     {
         DebugPrint("Failed to GetFilenameExtension() for %s", path.c_str());
         return result;
     }
 
-    std::wstring_view view = path;
+    std::string_view view = path;
     result = view.substr(start);
     return result;
 }
 
-void PathCleanSlashs(std::wstring& s)
+std::string PathCleanSlashs(const std::string& s)
 {
-    size_t pos = s.find(L'\\');
-    while (pos != std::wstring::npos)
+    size_t pos = s.find('\\');
+    std::string r = s;
+    while (pos != std::string::npos)
     {
-        s.replace(pos, 1, L"/", 1);
-        pos = s.find(L'\\');
+        r.replace(pos, 1, "/", 1);
+        pos = s.find('\\');
     }
+    return r;
 }
 
-std::wstring PathAddEndSlash(const std::wstring& s)
+std::string PathAddEndSlash(const std::string& s)
 {
-    if (s.back() != L'/')
-        return s + L"/";
+    if (s.back() != '/')
+        return s + "/";
     return s;
-}
-
-std::wstring PathConcat(const std::wstring& a, const std::wstring& b)
-{
-    if (a.back() == L'/' || a.back() == L'\\')
-    {
-        return a + b;
-    }
-    return a + L"/" + b;
 }
 
 std::string PathConcat(const std::string& a, const std::string& b)
@@ -757,6 +836,152 @@ std::string PathConcat(const std::string& a, const std::string& b)
         return a + b;
     }
     return a + "/" + b;
+}
+
+
+
+
+
+//========================
+//   Path Arena + char*
+//========================
+
+const char* PathGetFilename(Arena* arena, const char* s)
+{
+    const char* start = StringFindLast(s, '\\');
+    if (!start)
+        start = StringFindLast(s, '/');
+    if (!start)
+    {
+        LOG(LogLevel_Info, "PathFilename() failed to find \"/\" or \"\\\" for %s", s);
+        const char* end = StringFindLast(s, '.');
+        if (end)
+        {
+            LOG(LogLevel_Warning, "PathFilename() failed to find \".\" for %s", s);
+            const size_t len = end - s;
+            char* r = (char*)ArenaPush(arena, len + 1);
+            memmove(r, s, len);
+            return r;
+        }
+        return ArenaPush(arena, s);
+    }
+    start++;
+
+    const char* end = StringFindLast(s, '.');
+    if (!end)
+    {
+        LOG(LogLevel_Warning, "PathFilename() failed to find \".\" for %s", s);
+        return ArenaPush(arena, start);
+    }
+
+    const size_t len = end - start;
+    if (start + 1 < s || start >= end)
+    {
+        LOG(LogLevel_Warning, "PathFilename() failed to get valid range for start(\"%s\") and end(\"%s\") for \"%s\"", start, end, s);
+        return ArenaPush(arena, start);
+    }
+
+    char* r = (char*)ArenaPush(arena, len + 1);
+    memmove(r, start, len);
+    r[len] = '\0';
+    return r;
+}
+
+const char* PathGetFilenameWithExtension(Arena* arena, const char* s)
+{
+    const char* start = StringFindLast(s, '\\');
+    if (!start)
+        start = StringFindLast(s, '/');
+    if (!start)
+    {
+        LOG(LogLevel_Info, "PathFilename() failed to find \"/\" or \"\\\" for %s", s);
+        return ArenaPush(arena, s);
+    }
+    start++;
+
+    const char* r = (const char*)ArenaPush(arena, start);
+    return r;
+}
+
+const char* PathGetExtension(Arena* arena, const char* s)
+{
+    const char* start = StringFindLast(s, '.');
+    if (!start)
+    {
+        LOG(LogLevel_Warning, "PathFilename() failed to find \".\" for %s", s);
+        return nullptr;
+    }
+
+    const char* r = (const char*)ArenaPush(arena, start);
+    return r;
+}
+
+const char* PathCleanSlashes(Arena* arena, const char* s)
+{
+    char* r = (char*)ArenaPush(arena, s);
+    while (char* c = StringFindFirst(r, '\\'))
+    {
+        *c = '/';
+    }
+    return r;
+}
+
+const char* PathRemoveExtension(Arena* arena, const char* s)
+{
+    const char* d = StringFindFirst(s, '.');
+    if (!d)
+        return (const char*)ArenaPush(arena, s);
+
+    const size_t len = d - s;
+    char* r = (char*)ArenaPush(arena, len + 1);
+    memmove(r, s, len);
+    r[len] = '\0';
+    return r;
+}
+
+const char* PathAddEndSlash(Arena* arena, const char* s)
+{
+    size_t len = strlen(s);
+    if (PathHasEndSlash(s))
+        len++;
+
+    char* r = (char*)ArenaPush(arena, len + 1);
+    memmove(r, s, len);
+    r[len - 1] = '/';
+    r[len] = '\0';
+    return r;
+}
+
+bool PathIsSlash(const char c)
+{
+    return (c == '\\' || c == '/');
+}
+
+bool PathHasEndSlash(const char* s)
+{
+    size_t len = strlen(s);
+    const char c = s[len - 1];
+    return PathIsSlash(c);
+}
+
+const char* PathConcat(Arena* arena, const char* a, const char* b)
+{
+    size_t alen = strlen(a);
+    size_t blen = strlen(b);
+    size_t bstart = 0;
+    if (PathIsSlash(a[alen - 1]))
+        alen--;
+    if (PathIsSlash(b[0]))
+        bstart++, blen--;
+    const size_t len = alen + blen + 1;
+    char* r = (char*)ArenaPush(arena, len + 1);
+    //
+    memmove(r, a, alen);
+    r[alen] = '/';
+    memmove(r + alen + 1, b + bstart, blen);
+    r[len] = '\0';
+    //
+    return r;
 }
 
 void CreateParentDirectories(const Path& path)

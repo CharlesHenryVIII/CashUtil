@@ -36,6 +36,12 @@ void ArenaFree(Arena* arena)
     *arena = {};
 }
 
+void ArenaClear(Arena* arena)
+{
+    memset(arena->data, 0, arena->committed);
+    arena->used = 0;
+}
+
 void* ArenaPush(Arena* arena, u64 size, u64 alignment, bool zero)
 {
     VALIDATE_V(arena->data, nullptr);
@@ -63,7 +69,7 @@ void* ArenaPush(Arena* arena, u64 size, u64 alignment, bool zero)
     char* r = (char*)ArenaPush(arena, (u64)len + 1, CASH_DEFAULT_ALIGNMENT, false);
     VALIDATE_MV(r, nullptr, LogLevel_Error, "nullptr return from _ArenaPush()!");
     const i32 size = Min<i32>(len, sizeof(temp) - 1);
-    memcpy(r, temp, (size_t)size + 1);
+    memmove(r, temp, (size_t)size + 1);
     return r;
 }
 
@@ -82,16 +88,4 @@ void* ArenaPush(Arena* arena, u64 size, u64 alignment, bool zero)
     char* r = (char*)ArenaPush(arena, len + 1, CASH_DEFAULT_ALIGNMENT, false);
     memcpy(r, string, len + 1);
     return r;
-}
-
-void ArenaClear(Arena* arena)
-{
-    memset(arena->data, 0, arena->committed);
-    arena->used = 0;
-}
-
-void ArenaRelease(Arena* arena)
-{
-    SysFreeMemory(arena->data, arena->reserved);
-    *arena = {};
 }

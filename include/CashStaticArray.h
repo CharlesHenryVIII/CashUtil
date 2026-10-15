@@ -146,10 +146,12 @@ template <typename T>
 struct DynamicArray
 {
     u64 used = 0;
-    u64 cap = 16; //default = 16
+    u64 cap = 0; //default = 16
     T* data = nullptr;
     Arena* arena = nullptr;
     //static constexpr u64 invalid_index = (u64)(-1);
+    DynamicArray(Arena* _arena) : arena(_arena) { Realloc(16); };
+    ~DynamicArray() { ArenaFree(arena); };
 
     T* Push(T& a)
     {
@@ -212,3 +214,22 @@ private:
         cap = new_cap;
     }
 };
+
+template <typename T>
+[[nodiscard]] constexpr inline ArrayView<T> CreateArrayView(DynamicArray<T>& source)
+{
+    ArrayView<T> view = {
+        .count = source.used,
+        .data = source.data,
+    };
+    return view;
+}
+template <typename T>
+[[nodiscard]] constexpr inline ArrayView<const T> CreateArrayView(const DynamicArray<T>& source)
+{
+    ArrayView<const T> view = {
+        .count = source.used,
+        .data = source.data,
+    };
+    return view;
+}

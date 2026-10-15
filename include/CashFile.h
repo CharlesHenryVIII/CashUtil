@@ -52,8 +52,10 @@ bool FileDelete(FileID ID);
 bool FileRead(const char* path, std::vector<u8>& out_data);
 bool FileRead(const char* path, std::string& out_data);
 //Will create if the file doesn't exist
-bool FileWrite(const char* path, const ArrayView<u8> data);
-bool FileWrite(const char* path, const std::string& data);
+bool FileWrite(const char* path, const void* data, const size_t bytes);
+inline bool FileWrite(const char* path, const std::string& data) { return FileWrite(path, data.c_str(), data.size()); };
+template <typename T>
+inline bool FileWrite(const char* path, const ArrayView<T> data) { return FileWrite(path, (void*)data.data, data.Bytes()); };
 //Returns time since epoch or something
 [[nodiscard]] u64 FileGetCreateTime(const char* path);
 [[nodiscard]] u64 FileGetModifyTime(const char* path);

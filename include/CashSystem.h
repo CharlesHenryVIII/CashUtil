@@ -362,7 +362,7 @@ enum StringEncoding : u32 {
 };
 void SysConvertMultibyteToWideChar(std::wstring& out, const std::string& in, StringEncoding encoding = StringEncoding_UTF8);
 void SysConvertWideCharToMultiByte(std::string& out, const std::wstring& in, StringEncoding encoding = StringEncoding_UTF8);
-void SysExpandEnvironemntVariable(std::wstring& out, const std::wstring& in);
+void SysExpandEnvironemntVariable(std::string& out, const std::string& in);
 ImFont* SysCreateImguiFont(const ArrayView<const u8> font_data, float font_size);
 ImFont* SysLoadFontForImgui(i32 resource_id, float fontSize);
 void* SysGetDataFromResource(i32* out_size, const i32 resource_id);
@@ -375,7 +375,7 @@ u64 SysGetOsPageSize();
 //        MEMORY
 //========================
 
-extern Arena g_cash_arena;
+extern thread_local Arena g_arena;
 
 void* SysReserveMemory(u64 bytes);
 void SysCommitMemory(void* p, u64 bytes);
@@ -453,7 +453,7 @@ struct RunProcessJob : Job
     //
 
     bool m_run_all_jobs = false;
-    virtual void RunJob(Arena& arena) override;
+    virtual void RunJob() override;
 };
 
 #include "stb/stb_sprintf.h"

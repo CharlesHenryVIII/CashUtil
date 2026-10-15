@@ -51,7 +51,7 @@ void CashFrameInit(double& delta_time, double& total_time)
         delta_time = delta_time;
     }
 
-    ArenaClear(&g_cash_arena);
+    ArenaClear(&g_arena);
     //TODO(CSH): vvvvvvvvvvvvvvvvv
 //#ifdef _DEBUG
 //    ArenaRelease(&g_cash_arena);
@@ -130,7 +130,7 @@ bool SysIsConsoleVisible()
 struct WaitForProcessJob : Job
 {
     SDL_Process* process = nullptr;
-    virtual void RunJob(Arena& arena)
+    virtual void RunJob()
     {
         VALIDATE(process);
         SDL_WaitProcess(process, true, nullptr);
@@ -627,7 +627,7 @@ void SysConvertWideCharToMultiByte(std::string& out, const std::wstring& in, Str
     OSConvertWideCharToMultiByte(out, in, encoding);
 }
 
-void SysExpandEnvironemntVariable(std::wstring& out, const std::wstring& in)
+void SysExpandEnvironemntVariable(std::string& out, const std::string& in)
 {
     OSExpandEnvironemntVariable(out, in);
 }
@@ -668,7 +668,7 @@ u64 SysGetOsPageSize()
     return OSGetPageSize();
 }
 
-Arena g_cash_arena = ArenaAlloc();
+thread_local Arena g_arena = ArenaAlloc();
 
 void* SysReserveMemory(u64 bytes) { return OSReserveMemory(bytes); };
 void SysCommitMemory(void* p, u64 bytes) { OSCommitMemory(p, bytes); };
@@ -922,7 +922,7 @@ void SysGetRenderSwapchain(sg_swapchain* env)       { OSGetRenderSwapchain(env);
 //========================
 
 
-void RunProcessJob::RunJob(Arena& arena)
+void RunProcessJob::RunJob()
 {
     VALIDATE(!m_args_string.empty() || m_args_array.size());
 

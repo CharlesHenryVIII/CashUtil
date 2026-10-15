@@ -61,7 +61,6 @@ i32 Threading::ThreadFunction(ThreadData data)
 {
     Threading& MT = GetInstance();
     tracy::SetThreadName(data.name.c_str());
-    data.arena = ArenaAlloc();
 
     while (true)
     {
@@ -79,7 +78,7 @@ i32 Threading::ThreadFunction(ThreadData data)
             ASSERT(*job->status == AsyncStatus_Empty);
             *job->status = AsyncStatus_Fetching;
         }
-        job->RunJob(data.arena);
+        job->RunJob();
         if (job->status)
         {
             ASSERT(*job->status == AsyncStatus_Fetching);
@@ -88,9 +87,8 @@ i32 Threading::ThreadFunction(ThreadData data)
 
         MT.m_jobsInFlight--;
         delete job;
-        ArenaClear(&data.arena);
+        ArenaClear(&g_arena);
     }
-    ArenaFree(&data.arena);
     return 0;
 }
 
