@@ -448,7 +448,7 @@ struct StaticArray
     [[nodiscard]] inline const T* end()     const   { return data + used; }
     [[nodiscard]] inline const T& First()   const   { ASSERT(count && used); return data[0]; }
     [[nodiscard]] inline const T& Last()    const   { ASSERT(count && used); return data[used - 1]; }
-    [[nodiscard]] inline const T& operator[](u64 i) const { ASSERT(i < count && i < used); return data[i]; } 
+    [[nodiscard]] inline const T& operator[](u64 i) const { ASSERT(i < count && i < used); return data[i]; }
     [[nodiscard]] inline u64 GetIndexOf(const T& a) const
     {
         for (u64 i = 0; i < used; i++)
@@ -468,7 +468,7 @@ struct StaticArray
 
     inline T* Add(const T& item)
     {
-        ASSERT(used < count);
+        VALIDATE_VM(used < count, nullptr, LogLevel_Warning, "Trying to insert past size of static array: %i elements", count);
         data[used] = item;
         T* element = &(data[used]);
         used++;
@@ -541,7 +541,7 @@ struct StaticArray
         }
         used = 0;
     }
-    
+
     [[nodiscard]] inline operator ArrayView<T>()
     {
         return { .count = count , .data = data };

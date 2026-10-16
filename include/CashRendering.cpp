@@ -325,11 +325,11 @@ bool DeleteVertexLayout(VertexID id)
 struct GfxTexture : public Texture {
     sg_image image = {};
     sg_image_desc image_desc = {};
-    //SRV (Shader Resource View) 
-    sg_view read_view = {}; 
+    //SRV (Shader Resource View)
+    sg_view read_view = {};
     sg_view_desc read_view_desc = {};
     //RTV (Render Target View)
-    sg_view write_view = {}; 
+    sg_view write_view = {};
     sg_view_desc write_view_desc = {};
 };
 
@@ -751,7 +751,7 @@ void GpuBuffer::Upload(const void* data, const size_t in_count, const u32 in_ele
 
         desc.data.ptr = data;
         desc.data.size = bytes;
-        
+
         const sg_range range = { .ptr = data, .size = bytes };
         sg_update_buffer(buf->buffer, range);
     }
@@ -1495,6 +1495,12 @@ struct CashFont
         }
         return char_data[utf8_index - FONT_CHAR_START];
     }
+
+    const Glyph& GetGlyph(u32 utf8_index) const
+    {
+        VALIDATE_VM(utf8_index >= FONT_CHAR_START && utf8_index < FONT_CHAR_FINAL_INDEX, char_data[0], LogLevel_Error, "Trying to get glyph that doesn't exist");
+        return char_data[utf8_index - FONT_CHAR_START];
+    }
 };
 
 static IdArray<CashFont, FontID> s_fonts;
@@ -1618,15 +1624,15 @@ void DrawRect(SimpleRect rect, Color color, const SimpleRect& scissor)
     CreateDrawCall("Console Draw Text", draw);
 }
 
-void DrawText(const char* string, Vec2 bot_left_p, Color color, FontID font, const SimpleRect& scissor)
+void DrawText(ArrayView<const char> string, Vec2 bot_left_p, Color color, FontID font, const SimpleRect& scissor)
 {
     CashFont* f = s_fonts.TryGet(font);
-    VALIDATE_M(f, LogLevel_Warning, "Trying to draw text (%s) with non-existant font", string);
+    VALIDATE_M(f, LogLevel_Warning, "Trying to draw text (%s) with non-existant font", string.data);
     const i32 start_index = (i32)s_font.vertices.used;
-    size_t len = strlen(string);
+    size_t len = string.Bytes();
     for (size_t i = 0; i < len; i++)
     {
-        const char& c = string[i];
+        const char& c = string.data[i];
         SimpleRect uv;
         SimpleRect vert;
         const Glyph& g = f->GetGlyph(c);
@@ -1708,7 +1714,11 @@ void DrawString(Vec2 location, Color color, FontID font, const SimpleRect& sciss
     va_end(args);
 
     if (buffer)
-        DrawText(buffer, location, color, font, scissor);
+        DrawText(CreateArrayView(buffer, (u64)strlen(buffer)), location, color, font, scissor);
+}
+void DrawString(Vec2 location, Color color, FontID font, const SimpleRect& scissor, ArrayView<const char> text)
+{
+    DrawText(text, location, color, font, scissor);
 }
 
 
@@ -1854,15 +1864,34 @@ void FontRenderUpdate()
 const FontInfo& GetFontInfo(FontID id)
 {
     const CashFont* f = s_fonts.TryGet(id);
-    if (f)
-    {
-        return f->info;
-    }
-    LOG(LogLevel_Error, "Failed to get font: %i", id.e);
-    FAIL;
-    return (s_fonts.data[0]).info;
+    VALIDATE_VM(f, (s_fonts.data[0]).info, LogLevel_Error, "Failed to get font: %i", id.e);
+    return f->info;
 }
 
+i32 CalcFontWidth(FontID id, u64 count, const char* s)
+{
+    const CashFont* f = s_fonts.TryGet(id);
+    VALIDATE_VM(f, 0, LogLevel_Error, "Failed to get font: %i", id.e);
+
+    i32 width = 0;
+    for (const char* c = s; *c; c++)
+        width += f->GetGlyph(*c).advance_x;
+    return width;
+}
+
+const char* FontGetCharacterAt(FontID id, const char* s, float pixel_loc)
+{
+    const CashFont* f = s_fonts.TryGet(id);
+
+    float width = 0;
+    for (const char* c = s; *c; c++)
+    {
+        width += f->GetGlyph(*c).advance_x;
+        if (width > pixel_loc)
+            return c;
+    }
+    return nullptr;
+}
 
 
 

@@ -143,6 +143,7 @@ struct Console
     float                       font_scale  = 1;// = font_scale = DEFAULT_FONT_SCALE;
     i32                         font_mono_width = -1;
     FontID                      font = {};
+    bool                        enable_word_wrap = true;
     Vec2I                       window_size;
 
     // Scrollbar
@@ -186,7 +187,7 @@ static void ConsoleClearInput()
     s_console.te_state.cursor = 0;
 }
 
-static SimpleRect ConsoleRect()
+static [[nodiscard]] SimpleRect ConsoleRect()
 {
     const Vec2I window_size = s_console.window_size;// GetWindowSize();
 
@@ -295,6 +296,29 @@ static SimpleRect ScrollbarRect()
     result.bot = Clamp(min.y, log_rect.top, log_rect.bot);
     result.top = Clamp(max.y, log_rect.top, log_rect.bot);
     return result;
+}
+
+typedef StaticArray<const char*, 256> ConsoleItemWrapLines;
+
+static ConsoleItemWrapLines ItemLineCount(const ConsoleItem& item)
+{
+    ConsoleItemWrapLines r = {};
+    r.Add(item.text.c_str());
+    if (!s_console.enable_word_wrap)
+        return r;
+    const u32 indent = CalcFontWidth(s_console.font, strlen(item.preamble), item.preamble);
+    const SimpleRect console = ConsoleRect();
+    const SimpleRect scroll = ScrollBackgroundRect();
+    const float width = console.Width() - scroll.Width();
+    const float start = width - indent;
+    for (float text_pixel_loc = start; ; text_pixel_loc += width)
+    {
+        const char* c = FontGetCharacterAt(s_console.font, item.text.c_str(), text_pixel_loc);
+        if (!c)
+            break;
+        r.Add(c);
+    }
+    return r;
 }
 
 static void sConsoleLog(LogLevel level, const char* string, const char* preamble = nullptr, Color* opt_color = nullptr)
@@ -668,7 +692,49 @@ void ConsoleRun()
     scissor_rect.right = Max(log_rect.left, log_rect.right);
     scissor_rect.top = s_console.window_size.y - Min(log_rect.bot, log_rect.top);
 
-    for (size_t i = 0; i < s_console.items.size(); i++)
+#if 1
+    const float height = ItemHeight();
+    float y = log_rect.bot + s_console.scroll_position * height;
+
+    for (i32 n = (i32)s_console.items.size() - 1; n >= 0; n--)
+    {
+        const ConsoleItem& item = s_console.items[n];
+        const ConsoleItemWrapLines wrap_lines = ItemLineCount(item);
+
+        if (y - height * (float)(wrap_lines.used - 1) > log_rect.bot + height)
+        {
+            y -= height * (float)wrap_lines.used;
+            continue;
+        }
+
+        for (i32 i = (i32)wrap_lines.used - 1; i >= 0; i--)
+        {
+            if (y < 0.0f) // rendering above the screen
+                goto Done_Rendering_Lines;
+
+            if (y <= log_rect.bot + height) // visible
+            {
+                Vec2 p = { min.x, y };
+                if (i == 0)
+                    DrawString(p, item.color, s_console.font, scissor_rect, "%s%s", item.preamble, item.text.c_str());
+                else
+                {
+                    const char* line = wrap_lines[i];
+                    u64 chars;
+                    if (i == wrap_lines.used - 1)
+                        chars = strlen(line);
+                    else
+                        chars = wrap_lines[i + 1] - line; //(line below) - (this line)
+
+                    DrawString(p, item.color, s_console.font, scissor_rect, CreateArrayView(line, chars));
+                }
+            }
+            y -= height; // move up one line
+        }
+    }
+    Done_Rendering_Lines:
+#else
+    for (size_t i = 0; i < NumItems(); i++)
     {
         float y_offset = float((NumItems() - 1) - i) * ItemHeight() - s_console.scroll_position * ItemHeight();
         min.y = log_rect.bot - y_offset;
@@ -682,6 +748,7 @@ void ConsoleRun()
         DrawString(min, item.color, s_console.font, scissor_rect, "%s%s", item.preamble, item.text.c_str());
         min.y += ItemHeight();//font->AdvanceY();
     }
+#endif
 
     // Scrollbar
     {

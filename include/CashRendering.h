@@ -679,7 +679,7 @@ struct PipelineParams {
 
     //Textures
     RenderTarget targets[MAX_SHADER_TEXTURES] = {};
-    
+
     //Depth
     Texture* depth;
     GpuCompareFunc depth_compare_func;
@@ -840,8 +840,13 @@ struct FontInfo {
 
 FontID CreateFont(const char* name, ArrayView<u8> font_data, u32 height_in_pixels);
 void DrawString(Vec2 location, Color color, FontID font, const SimpleRect& scissor, const char* text, ...);
+void DrawString(Vec2 location, Color color, FontID font, const SimpleRect& scissor, ArrayView<const char> text);
 void DrawRect(SimpleRect rect, Color color, const SimpleRect& scissor);
-const FontInfo& GetFontInfo(FontID id);
+        [[nodiscard]] const FontInfo& GetFontInfo(FontID id);
+        [[nodiscard]] i32 CalcFontWidth(FontID id, u64 count, const char* s);
+inline  [[nodiscard]] i32 CalcFontWidth(FontID id, const char* s)         { return CalcFontWidth(id, strlen(s), s); }
+inline  [[nodiscard]] i32 CalcFontWidth(FontID id, const std::string& s)  { return CalcFontWidth(id, s.size(), s.c_str()); }
+[[nodiscard]] const char* FontGetCharacterAt(FontID id, const char* s, float pixel_loc);
 
 
 
