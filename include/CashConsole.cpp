@@ -12,10 +12,10 @@ typedef uint32_t Pos;
 #define NOT_IMPLEMENTED FAIL
 
 // STB TextEdit implementation defines
-#define STB_TEXTEDIT_CHARTYPE char
-#define STB_TEXTEDIT_POSITIONTYPE int
-#define STB_TEXTEDIT_UNDOSTATECOUNT 32
-#define STB_TEXTEDIT_UNDOCHARCOUNT 1024
+#define STB_TEXTEDIT_CHARTYPE char      // the character type
+#define STB_TEXTEDIT_POSITIONTYPE int   // small type that is a valid cursor position
+#define STB_TEXTEDIT_UNDOSTATECOUNT 32  // the number of undo states to allow
+#define STB_TEXTEDIT_UNDOCHARCOUNT 1024 // the number of characters to store in the undo buffer
 
 #include "stb/stb_textedit.h"
 
@@ -39,30 +39,33 @@ static bool  stbInsertChars(TextEditString* string, int start, char* characters,
 #define STB_TEXTEDIT_INSERTCHARS(obj,i,c,n)     stbInsertChars(obj, i, c, n)
 
 
-#define STB_TEXTEDIT_K_SHIFT       (SDL_KMOD_SHIFT << 16)
+#define STB_TEXTEDIT_K_CTRL         (SDL_KMOD_CTRL << 16) // Not used in STB
+#define STB_TEXTEDIT_K_SHIFT        (SDL_KMOD_SHIFT << 16)
+#define STB_TEXTEDIT_K_ALT          (SDL_KMOD_ALT << 16) // Not used in STB
+
 #define STB_TEXTEDIT_K_LEFT        SDLK_LEFT
 #define STB_TEXTEDIT_K_RIGHT       SDLK_RIGHT
 #define STB_TEXTEDIT_K_UP          SDLK_UP
 #define STB_TEXTEDIT_K_DOWN        SDLK_DOWN
 #define STB_TEXTEDIT_K_LINESTART   SDLK_HOME
 #define STB_TEXTEDIT_K_LINEEND     SDLK_END
-#define STB_TEXTEDIT_K_TEXTSTART   (SDLK_HOME | (SDL_KMOD_CTRL << 16))
-#define STB_TEXTEDIT_K_TEXTEND     (SDLK_END| (SDL_KMOD_CTRL  << 16))
+#define STB_TEXTEDIT_K_TEXTSTART   (SDLK_HOME | STB_TEXTEDIT_K_CTRL)
+#define STB_TEXTEDIT_K_TEXTEND     (SDLK_END  | STB_TEXTEDIT_K_CTRL)
 #define STB_TEXTEDIT_K_DELETE      SDLK_DELETE
 #define STB_TEXTEDIT_K_BACKSPACE   SDLK_BACKSPACE
-#define STB_TEXTEDIT_K_UNDO        (SDLK_Z | (SDL_KMOD_CTRL << 16))
-#define STB_TEXTEDIT_K_REDO        (SDLK_Z | (SDL_KMOD_CTRL << 16) | (SDL_KMOD_SHIFT << 16))
+#define STB_TEXTEDIT_K_UNDO        (SDLK_Z | STB_TEXTEDIT_K_CTRL)
+#define STB_TEXTEDIT_K_REDO        (SDLK_Z | STB_TEXTEDIT_K_CTRL | STB_TEXTEDIT_K_SHIFT)
 //NOTE(CSH): Using vim keybinds for this:
-#define STB_TEXTEDIT_K_PGDOWN      (SDLK_J | (SDL_KMOD_CTRL << 16))
-#define STB_TEXTEDIT_K_PGUP        (SDLK_K | (SDL_KMOD_CTRL << 16))
+#define STB_TEXTEDIT_K_PGDOWN      (SDLK_J | STB_TEXTEDIT_K_CTRL)
+#define STB_TEXTEDIT_K_PGUP        (SDLK_K | STB_TEXTEDIT_K_CTRL)
 
 // Optional:
 #define STB_TEXTEDIT_K_INSERT              SDLK_INSERT
 #define STB_TEXTEDIT_IS_SPACE(ch)          ((ch) == ' ')
 //    STB_TEXTEDIT_MOVEWORDLEFT(obj,i)   custom handler for WORDLEFT, returns index to move cursor to
 //    STB_TEXTEDIT_MOVEWORDRIGHT(obj,i)  custom handler for WORDRIGHT, returns index to move cursor to
-#define STB_TEXTEDIT_K_WORDLEFT            SDLK_LEFT  | (SDL_KMOD_CTRL << 16)
-#define STB_TEXTEDIT_K_WORDRIGHT           SDLK_RIGHT | (SDL_KMOD_CTRL << 16)
+#define STB_TEXTEDIT_K_WORDLEFT            SDLK_LEFT  | STB_TEXTEDIT_K_CTRL
+#define STB_TEXTEDIT_K_WORDRIGHT           SDLK_RIGHT | STB_TEXTEDIT_K_CTRL
 //    STB_TEXTEDIT_K_LINESTART2          secondary keyboard input to move cursor to start of line
 //    STB_TEXTEDIT_K_LINEEND2            secondary keyboard input to move cursor to end of line
 //    STB_TEXTEDIT_K_TEXTSTART2          secondary keyboard input to move cursor to start of text
@@ -594,6 +597,7 @@ void ConsoleRun()
     const SimpleRect input_rect = InputRect();
     DrawRect(input_rect, input_color, empty_scissor);
 
+    // Terminal Prompt
     const char* terminal_prompt = "> ";
     i32 char_width = s_console.font_mono_width;// s_font_size.x * s_console.font_scale;
     i32 prompt_width = char_width * (i32)strlen(terminal_prompt); // font->StringWidth(terminal_prompt); // TODO:
@@ -951,23 +955,29 @@ static struct ConsoleInputHandler : InputHandler
         const bool          control = FlagIntersects(mods, SDL_KMOD_CTRL);
         const bool          shift   = FlagIntersects(mods, SDL_KMOD_SHIFT);
         const bool          alt     = FlagIntersects(mods, SDL_KMOD_ALT);
+        const bool          has_mod = control || shift || alt;
+        const int           text_val = stbKeyToText(key);
         if (key == SDLK_GRAVE)
         {
             ConsoleToggle(shift);
             return true;
         }
         if (!ConsoleWantsInput()) return false;
-        if (event.repeat) return true;
+        if (event.repeat && text_val != -1) return true;
         //We do not want to process text keys here but we need to consume them
-        if (stbKeyToText(key) >= 0) return true;
+        if (!has_mod && text_val >= 0) return true;
 
-        const STB_TEXTEDIT_KEYTYPE key_mod = key | (mods << 16);
+        STB_TEXTEDIT_KEYTYPE key_mod_mods = 0;
+        if (control)
+            key_mod_mods |= STB_TEXTEDIT_K_CTRL;
+        if (shift)
+            key_mod_mods |= STB_TEXTEDIT_K_SHIFT;
+        if (alt)
+            key_mod_mods |= STB_TEXTEDIT_K_ALT;
+        const STB_TEXTEDIT_KEYTYPE key_mod = key | key_mod_mods;
 
         STB_TexteditState* state = &s_console.te_state;
         bool clear_autocomplete = false;
-
-        //STB_TEXTEDIT_KEYTYPE mods = 0;
-        //STB_TEXTEDIT_KEYTYPE stb_mods = (mods << 16);
 
         if (key == SDLK_RETURN || key == SDLK_KP_ENTER)
         {
@@ -983,7 +993,7 @@ static struct ConsoleInputHandler : InputHandler
         }
         else if (control && (key == SDLK_BACKSPACE || key == SDLK_W))
         {
-            stb_textedit_key(&s_console.input_buf, state, SDLK_LEFT | (SDL_KMOD_SHIFT << 16) | (SDL_KMOD_CTRL << 16));
+            stb_textedit_key(&s_console.input_buf, state, SDLK_LEFT | STB_TEXTEDIT_K_SHIFT | STB_TEXTEDIT_K_CTRL);
             stb_textedit_key(&s_console.input_buf, state, SDLK_BACKSPACE);
             clear_autocomplete = true;
         }
@@ -995,7 +1005,7 @@ static struct ConsoleInputHandler : InputHandler
         }
         else if (control && key == SDLK_DELETE)
         {
-            stb_textedit_key(&s_console.input_buf, state, SDLK_RIGHT | (SDL_KMOD_SHIFT << 16) | (SDL_KMOD_CTRL << 16));
+            stb_textedit_key(&s_console.input_buf, state, SDLK_RIGHT | STB_TEXTEDIT_K_SHIFT | STB_TEXTEDIT_K_CTRL);
             stb_textedit_key(&s_console.input_buf, state, SDLK_DELETE);
             clear_autocomplete = true;
         }
@@ -1041,7 +1051,7 @@ static struct ConsoleInputHandler : InputHandler
         }
         else
         {
-            stb_textedit_key(&s_console.input_buf, state, key);
+            stb_textedit_key(&s_console.input_buf, state, key_mod);
         }
 
         if (clear_autocomplete)
