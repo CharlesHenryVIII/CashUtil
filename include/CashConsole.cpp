@@ -116,10 +116,11 @@ struct ConsoleCommand
 
 struct ConsoleItem
 {
-    LogLevel     level;
-    Color        color;
-    std::string  text;
-    char         preamble[4] = {};
+    LogLevel    level;
+    Color       color;
+    std::string text;
+    char        preamble[4] = {};
+    bool        word_wrap;
 };
 
 struct Console
@@ -239,14 +240,46 @@ static float NumVisibleItems()
     return visible_items;
 }
 
+typedef StaticArray<const char*, 256> ConsoleItemWrapLines;
+static ConsoleItemWrapLines ItemLineCount(const ConsoleItem& item)
+{
+    ConsoleItemWrapLines r = {};
+    r.Add(item.text.c_str());
+    if (!s_console.enable_word_wrap || !item.word_wrap)
+        return r;
+    const u32 indent = CalcFontWidth(s_console.font, strlen(item.preamble), item.preamble);
+    const SimpleRect console = ConsoleRect();
+    const float width = console.Width() - SCROLLBAR_WIDTH;
+    const float start = width - indent;
+    for (float text_pixel_loc = start; ; text_pixel_loc += width)
+    {
+        const char* c = FontGetCharacterAt(s_console.font, item.text.c_str(), text_pixel_loc);
+        if (!c)
+            break;
+        r.Add(c);
+    }
+    return r;
+}
+
 static float NumItems()
 {
     return static_cast<float>(s_console.items.size());
 }
+static float NumLines()
+{
+    u64 count = 0;
+    for (i32 n = (i32)s_console.items.size() - 1; n >= 0; n--)
+    {
+        const ConsoleItem& item = s_console.items[n];
+        const ConsoleItemWrapLines wrap_lines = ItemLineCount(item);
+        count += wrap_lines.used;
+    }
+    return (float)count;
+}
 
 static float MaxScroll()
 {
-    float max_scroll = Max(NumItems() - NumVisibleItems(), 0.0f);
+    float max_scroll = Max(NumLines() - NumVisibleItems(), 0.0f);
     return max_scroll;
 }
 
@@ -254,7 +287,7 @@ static SimpleRect ScrollBackgroundRect()
 {
     SimpleRect log_rect = LogRect();
     float visible_items = NumVisibleItems();
-    if (NumItems() < visible_items)
+    if (NumLines() < visible_items)
         return {};
 
     Vec2 min = log_rect.BotLeft();
@@ -298,33 +331,10 @@ static SimpleRect ScrollbarRect()
     return result;
 }
 
-typedef StaticArray<const char*, 256> ConsoleItemWrapLines;
-
-static ConsoleItemWrapLines ItemLineCount(const ConsoleItem& item)
-{
-    ConsoleItemWrapLines r = {};
-    r.Add(item.text.c_str());
-    if (!s_console.enable_word_wrap)
-        return r;
-    const u32 indent = CalcFontWidth(s_console.font, strlen(item.preamble), item.preamble);
-    const SimpleRect console = ConsoleRect();
-    const SimpleRect scroll = ScrollBackgroundRect();
-    const float width = console.Width() - scroll.Width();
-    const float start = width - indent;
-    for (float text_pixel_loc = start; ; text_pixel_loc += width)
-    {
-        const char* c = FontGetCharacterAt(s_console.font, item.text.c_str(), text_pixel_loc);
-        if (!c)
-            break;
-        r.Add(c);
-    }
-    return r;
-}
-
-static void sConsoleLog(LogLevel level, const char* string, const char* preamble = nullptr, Color* opt_color = nullptr)
+static void sConsoleLog(LogLevel level, const char* string, bool word_wrap = true, const char* preamble = nullptr, const Color* opt_color = nullptr)
 {
     Color color = opt_color != nullptr ? *opt_color : LogColor(level);
-    s_console.items.push_back(ConsoleItem{ level, color, std::string(string) });
+    s_console.items.push_back(ConsoleItem{ .level = level, .color = color, .text = std::string(string), .word_wrap = word_wrap });
     if (preamble && preamble[0])
     {
         ConsoleItem& item = s_console.items.back();
@@ -354,7 +364,7 @@ static void AddLog(const char* preamble, const char* fmt, ...)
     vsnprintf(buf, arrsize(buf), fmt, args);
     buf[arrsize(buf) - 1] = 0;
     va_end(args);
-    sConsoleLog(LogLevel_Internal, buf, preamble, nullptr);
+    sConsoleLog(LogLevel_Internal, buf, true, preamble, nullptr);
 }
 
 static void ConsoleClearAutoComplete()
@@ -517,15 +527,9 @@ CONSOLE_FUNCTION(ConsoleClear)
 
 CONSOLE_FUNCTION(Logo)
 {
-    Color logo_color = Mint;
-
-    auto WriteLine = [&logo_color](const char* line) {
-        sConsoleLog(LogLevel_Internal, line, nullptr, &logo_color);
-    };
-
     for (u64 i = 0; i < s_logo_string.count; i++)
     {
-        WriteLine(s_logo_string[i]);
+        sConsoleLog(LogLevel_Internal, s_logo_string[i], false, nullptr, &Mint);
     }
 }
 
@@ -714,9 +718,11 @@ void ConsoleRun()
 
             if (y <= log_rect.bot + height) // visible
             {
-                Vec2 p = { min.x, y };
+                const Vec2 p = { min.x, y };
                 if (i == 0)
+                {
                     DrawString(p, item.color, s_console.font, scissor_rect, "%s%s", item.preamble, item.text.c_str());
+                }
                 else
                 {
                     const char* line = wrap_lines[i];
