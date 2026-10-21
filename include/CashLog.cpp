@@ -32,11 +32,11 @@ void LogInternal(const char* category, const LogLevel level, const char* message
 
     char time_str[32] = {};
 #if 1
-    snprintf(time_str, sizeof(time_str), "%02d:%02d:%02d",
-             dt.hour, dt.minute, dt.second);
+    Sprintf(time_str, sizeof(time_str), "%02d:%02d:%02d",
+            dt.hour, dt.minute, dt.second);
 #else
-    snprintf(time_str, sizeof(time_str), "%04d-%02d-%02d %02d:%02d:%02d",
-             dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second);
+    Sprintf(time_str, sizeof(time_str), "%04d-%02d-%02d %02d:%02d:%02d",
+            dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second);
 #endif
 
 #if 1
@@ -60,7 +60,7 @@ void Log(const char* category, LogLevel level, const char* fmt, ...)
     va_list list;
     va_start(list, fmt);
     char format_string[4096] = {};
-    SYS_VSNPRINTF(format_string, arrsize(format_string), fmt, list);
+    Sprintf(format_string, arrsize(format_string), fmt, list);
     va_end(list);
 
     LogInternal(category, level, format_string);
@@ -71,11 +71,11 @@ void Log(const char* category, u32 line, const LogLevel level, const char* fmt, 
     va_list list;
     va_start(list, fmt);
     char format_string[Kibibytes(4)] = {};
-    const i32 end = SYS_VSNPRINTF(format_string, arrsize(format_string), fmt, list);
+    const i32 end = Sprintf(format_string, arrsize(format_string), fmt, list);
     va_end(list);
 
     char filenumber[256] = {};
-    snprintf(filenumber, sizeof(filenumber), "%s(%d)", category, line);
+    Sprintf(filenumber, sizeof(filenumber), "%s(%d)", category, line);
     LogInternal(filenumber, level, format_string);
 }
 

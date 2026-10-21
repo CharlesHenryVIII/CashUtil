@@ -1704,20 +1704,20 @@ void OsAssert(bool expr, const char* message, const char* file, int line)
         char info_buffer[1024];
         ArrayView<char> info_buffer_view = CreateArrayView(info_buffer);
 #if WINVER == 0x0501
-        sprintf_s(info_buffer_view.data, (size_t)info_buffer_view.Bytes(), "%s(%d)\n\n"
-                                                     "This has been hit %d time%s.\n\n"
-                                                     "Cancel    : Break into debugger\n"
-                                                     "Try Again : Continue execution\n"
-                                                     "Continue  : Ignore this assert in the future",
-                                                     file, line, record->hit_counter, s);
+        Sprintf(info_buffer_view,   "%s(%d)\n\n"
+                                    "This has been hit %d time%s.\n\n"
+                                    "Cancel    : Break into debugger\n"
+                                    "Try Again : Continue execution\n"
+                                    "Continue  : Ignore this assert in the future",
+                                    file, line, record->hit_counter, s);
 #else
-        sprintf_s(info_buffer_view.data, (size_t)info_buffer_view.Bytes(), "%s(%d)\n\n"
-                                                     "This has been hit %d time%s.\n\n"
-                                                     "Yes   : Break into debugger\n"
-                                                     "No    : Continue execution\n"
-                                                     "Retry : Ignore this assert in the future\n"
-                                                     "Close : Abort the program",
-                                                     file, line, record->hit_counter, s);
+        Sprintf(info_buffer_view,   "%s(%d)\n\n"
+                                    "This has been hit %d time%s.\n\n"
+                                    "Yes   : Break into debugger\n"
+                                    "No    : Continue execution\n"
+                                    "Retry : Ignore this assert in the future\n"
+                                    "Close : Abort the program",
+                                    file, line, record->hit_counter, s);
 #endif
         WCHAR winfo[1024];
         auto winfo_view = CreateArrayView(winfo);

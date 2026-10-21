@@ -137,3 +137,20 @@ bool CopyFolderRelative(const Path& source, const Path& dest, const Path& relati
 void CreateParentDirectories(const Path& path);
 
 void TuiProgressBar(u64 count, u64 max);
+
+i32 Sprintf(char* buffer, i32 count, char const* fmt, ...);
+i32 Sprintf(ArrayView<char> buffer, char const* fmt, ...);
+i32 SprintfArgs(char* buffer, i32 count, char const* fmt, va_list args);
+i32 SprintfArgs(ArrayView<char> buffer, char const* fmt, va_list args);
+//
+// Case Insensitive String Compare
+//
+#if defined(_WIN32) || defined(_MSC_VER)
+    #define SYS_STRICMP _stricmp
+    #define SYS_STRNLEN strnlen_s
+    #define SYS_STRNICMP _strnicmp
+#else
+    #include <strings.h>
+    #define SYS_STRICMP strcasecmp
+    #define SYS_STRNLEN strnlen
+#endif

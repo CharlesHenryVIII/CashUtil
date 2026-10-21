@@ -361,7 +361,7 @@ static void AddLog(const char* preamble, const char* fmt, ...)
     char buf[1024];
     va_list args;
     va_start(args, fmt);
-    vsnprintf(buf, arrsize(buf), fmt, args);
+    SprintfArgs(buf, arrsize(buf), fmt, args);
     buf[arrsize(buf) - 1] = 0;
     va_end(args);
     sConsoleLog(LogLevel_Internal, buf, true, preamble, nullptr);
@@ -787,7 +787,7 @@ void ConsoleLog(LogLevel level, const char* fmt, ...)
     char buf[1024];
     va_list args;
     va_start(args, fmt);
-    vsnprintf(buf, arrsize(buf), fmt, args);
+    SprintfArgs(buf, arrsize(buf), fmt, args);
     buf[arrsize(buf) - 1] = 0;
     va_end(args);
 
@@ -804,7 +804,7 @@ void ConsoleLog(const char* fmt, ...)
     char buf[1024];
     va_list args;
     va_start(args, fmt);
-    vsnprintf(buf, arrsize(buf), fmt, args);
+    SprintfArgs(buf, arrsize(buf), fmt, args);
     buf[arrsize(buf) - 1] = 0;
     va_end(args);
 

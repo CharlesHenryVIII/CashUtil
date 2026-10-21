@@ -74,7 +74,7 @@ void SysDebugPrintDirect(const char* fmt, ...)
     va_list list;
     va_start(list, fmt);
     char buffer[4096];
-    vsnprintf(buffer, sizeof(buffer), fmt, list);
+    SprintfArgs(buffer, sizeof(buffer), fmt, list);
     OSDebugOutput(buffer);
     OSDebugOutput("\n");
     va_end(list);
@@ -87,21 +87,9 @@ void DebugPrint(const char* fmt, ...)
     va_list list;
     va_start(list, fmt);
     char buffer[4096] = {};
-    SYS_VSNPRINTF(buffer, arrsize(buffer), fmt, list);
+    SprintfArgs(buffer, arrsize(buffer), fmt, list);
     OSDebugOutput(buffer);
     OSDebugOutput("\n");
-    va_end(list);
-
-    //OSWriteToAttachedConsole(buffer, true);
-}
-void DebugPrint(const wchar_t* fmt, ...)
-{
-    va_list list;
-    va_start(list, fmt);
-    wchar_t buffer[4096] = {};
-    SYS_VSNWPRINTF(buffer, arrsize(buffer), fmt, list);
-    OSDebugOutput(buffer);
-    OSDebugOutput(L"\n");
     va_end(list);
 
     //OSWriteToAttachedConsole(buffer, true);
@@ -227,11 +215,11 @@ i32 SysRunProcess(ArrayView<const char*> args, AsyncData<std::string>* output, A
 
     if (!process)
     {
-        const std::string errorBoxTitle = ToString("SDL_CreateProcess Error: %s", SDL_GetError());
-        const std::string errorText = ToString("Command Line Params: %s", zone_text.c_str());
-        DebugPrint("%s\n", errorBoxTitle.c_str());
-        DebugPrint(errorText.c_str());
-        DebugPrint("\n");
+        const char* errorBoxTitle = ArenaPush(&g_arena, "SDL_CreateProcess Error: %s", SDL_GetError());
+        const char* errorText = ArenaPush(&g_arena, "Command Line Params: %s", zone_text.c_str());
+        LOG(LogLevel_Error, "%s\n", errorBoxTitle);
+        LOG(LogLevel_Error, errorText);
+        LOG(LogLevel_Error, "\n");
         SysShowErrorWindow(errorBoxTitle, errorText);
         FAIL;
         return 2;

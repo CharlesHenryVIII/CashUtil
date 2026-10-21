@@ -213,7 +213,7 @@ struct SysMacAddress {
         for (i32 i = 0; i < tot; i++)
         {
             char s[4] = {};
-            sprintf(s, "%.2X%s", bytes[i], (i == (tot - 1)) ? "" : "-");
+            Sprintf(s, arrsize(s), "%.2X%s", bytes[i], (i == (tot - 1)) ? "" : "-");
             out = out + s;
         }
     }
@@ -270,7 +270,6 @@ void* SysGetWindowHandle(SDL_Window* window);
 i32 SysMain(i32 argc, char** argv);
 
 void DebugPrint(const char* fmt, ...);
-void DebugPrint(const wchar_t* fmt, ...);
 //No new line
 void SysDebugPrintDirect(const char* fmt, ...);
 bool SysIsConsoleAttached();
@@ -455,21 +454,3 @@ struct RunProcessJob : Job
     bool m_run_all_jobs = false;
     virtual void RunJob() override;
 };
-
-#include "stb/stb_sprintf.h"
-//
-// Case Insensitive String Compare
-//
-#if defined(_WIN32) || defined(_MSC_VER)
-    #define SYS_STRICMP _stricmp
-    #define SYS_STRNLEN strnlen_s
-    #define SYS_STRNICMP _strnicmp
-    #define SYS_VSNPRINTF(_buffer, _size, _format, _args)   vsnprintf_s ((_buffer), (_size), _TRUNCATE, (_format), (_args))
-    #define SYS_VSNWPRINTF(_buffer, _size, _format, _args) _vsnwprintf_s((_buffer), (_size), _TRUNCATE, (_format), (_args))
-#else
-    #include <strings.h>
-    #define SYS_STRICMP strcasecmp
-    #define SYS_STRNLEN strnlen
-    #define SYS_VSNPRINTF vsnprintf
-    #define SYS_VSNWPRINTF(_buffer, _size, _format, _args) vswprintf((_buffer), (_size), (_format), (_args))
-#endif

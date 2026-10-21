@@ -14,4 +14,3 @@
 //TODO(CSH): move this project to a seperate dependency in premake
 //TODO(CSH): Rewrite gbRect and Rectangle to be consistant and use TopLeft vs BotRight or have those as functions
 // Maybe also do Rect2 and Rect3 for 2d and 3d.
-//TODO(CSH): Look into stb_sprintf

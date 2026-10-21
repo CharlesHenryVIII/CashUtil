@@ -3,6 +3,10 @@
 //#include "CashStaticArray.h"
 #include "CashLog.h"
 
+#define STB_SPRINTF_IMPLEMENTATION
+#include "stb/stb_sprintf.h"
+
+
 
 const char* ReadEntireFileAsString(const char* fileName)
 {
@@ -301,7 +305,7 @@ std::string ToString(const char* fmt, ...)
     va_list args;
     va_start(args, fmt);
     char buffer[4096];
-    const i32 char_written = SYS_VSNPRINTF(buffer, arrsize(buffer), fmt, args);
+    const i32 char_written = Sprintf(buffer, arrsize(buffer), fmt, args);
     ASSERT(char_written < sizeof(buffer));
     va_end(args);
     return buffer;
@@ -1018,4 +1022,29 @@ void TuiProgressBar(u64 count, u64 max)
     printf("] %.2f%%", progress * 100);
 
     fflush(stdout);
+}
+
+i32 Sprintf(char* buffer, i32 count, char const* fmt, ...)
+{
+    va_list args;
+    va_start(args, fmt);
+    i32 r = stbsp_vsnprintf(buffer, count, fmt, args);
+    va_end(args);
+    return r;
+}
+i32 Sprintf(ArrayView<char> buffer, char const* fmt, ...)
+{
+    va_list args;
+    va_start(args, fmt);
+    i32 r = stbsp_vsnprintf(buffer.data, (i32)buffer.count, fmt, args);
+    va_end(args);
+    return r;
+}
+i32 SprintfArgs(char* buffer, i32 count, char const* fmt, va_list args)
+{
+    return stbsp_vsnprintf(buffer, count, fmt, args);
+}
+i32 SprintfArgs(ArrayView<char> buffer, char const* fmt, va_list args)
+{
+    return stbsp_vsnprintf(buffer.data, (i32)buffer.count, fmt, args);
 }
