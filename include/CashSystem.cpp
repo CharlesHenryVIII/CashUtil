@@ -493,11 +493,77 @@ i32 SysShowCustomErrorWindow(const std::string& title, const std::string& text)
     return 1;
 }
 
-//TODO(CSH): Rewrite with SDL functions for cross compatability
+struct ScanContext {
+    const std::string*      fs_dir;     // directory being enumerated (as passed to SDL)
+    const std::string*      rel_dir;    // path relative to the original root ("" at top level)
+    ScannedFiles*           out;
+    ScanDirectoryFlags      flags;
+    std::vector<std::string> subdirs;   // names of subdirectories, recursed into after enumeration
+};
+
+static std::string _JoinPath(const std::string& a, const std::string& b)
+{
+    if (a.empty())
+        return b;
+    if (a.back() == '/' || a.back() == '\\')
+        return a + b;
+    return a + "/" + b;
+}
+
+static SDL_EnumerationResult SDLCALL _ScanCallback(void* userdata, const char* /*dirname*/, const char* fname)
+{
+    ScanContext* ctx = (ScanContext*)userdata;
+
+    // Don't trust dirname's trailing-slash format, build the path from our own copy
+    const std::string full = _JoinPath(*ctx->fs_dir, fname);
+
+    SDL_PathInfo info;
+    if (!SDL_GetPathInfo(full.c_str(), &info))
+        return SDL_ENUM_CONTINUE;   // vanished, or no permission. Skip it and keep going
+
+    const std::string rel = _JoinPath(*ctx->rel_dir, fname);
+
+    if (info.type == SDL_PATHTYPE_DIRECTORY)
+    {
+        if (ctx->flags & ScanDirectoryFlags_IncludeDirs)
+            ctx->out->push_back({ rel, true });
+        if (ctx->flags & ScanDirectoryFlags_Recursive)
+            ctx->subdirs.push_back(fname);
+    }
+    else if (info.type == SDL_PATHTYPE_FILE)
+    {
+        ctx->out->push_back({ rel, false });
+    }
+    return SDL_ENUM_CONTINUE;
+}
+
+static void _ScanDirectoryForFileNames(const std::string& fs_dir, const std::string& rel_dir, ScannedFiles& out, ScanDirectoryFlags flags)
+{
+    ScanContext ctx;
+    ctx.fs_dir  = &fs_dir;
+    ctx.rel_dir = &rel_dir;
+    ctx.out     = &out;
+    ctx.flags   = flags;
+
+    if (!SDL_EnumerateDirectory(fs_dir.c_str(), _ScanCallback, &ctx))
+    {
+        DebugPrint(ToString("Error finding files: %s : %s", fs_dir.c_str(), SDL_GetError()).c_str());
+        return;
+    }
+
+    // Recurse after enumeration finishes so only one directory handle is open at a time
+    for (const std::string& name : ctx.subdirs)
+    {
+        _ScanDirectoryForFileNames(_JoinPath(fs_dir, name), _JoinPath(rel_dir, name), out, flags);
+    }
+}
+
 void SysScanDirectoryForFileNames(const Path& dir, ScannedFiles& out, ScanDirectoryFlags flags)
 {
-
-    OSScanDirectoryForFileNames(dir, out, flags);
+    out.clear();
+    const std::string root = ToString(dir);
+    VALIDATE_M(FileIsDir(root.c_str()), LogLevel_Warning, "Trying to scan invalid directory: %s", root.c_str());
+    _ScanDirectoryForFileNames(root.empty() ? std::string(".") : root, "", out, flags);
 }
 
 //bool SysGetDirectoryFromUser(const Path& currentDir, std::wstring& dir)

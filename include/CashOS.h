@@ -41,7 +41,6 @@ bool OSIsConsoleVisible();
 
 void OSShowErrorWindow(const std::string& title, const std::string& text);
 void OSFlashWindow(SDL_Window* window);
-void OSScanDirectoryForFileNames(const Path& dir, ScannedFiles& out, ScanDirectoryFlags flags);
 //TODO(CSH): Unused remove
 //bool OSGetDirectoryFromUser(const Path& currentDir, std::wstring& dir);
 
