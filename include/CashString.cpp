@@ -487,6 +487,15 @@ bool StringGetToken(char* buf, size_t size, const char** input)
     return int(len) > 0;
 }
 
+#if defined(_WIN32) || defined(_MSC_VER)
+    #define SYS_STRICMP _stricmp
+    #define SYS_STRNICMP _strnicmp
+#else
+    #include <strings.h>
+    #define SYS_STRICMP stricmp
+    #define SYS_STRICMP strcasecmp
+#endif
+
 bool StringCompare(StringCase case_sensitivity, const std::string& a, const std::string& b, const i32 num_chars)
 {
     if (a.empty() || a.empty())

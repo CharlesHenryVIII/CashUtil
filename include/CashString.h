@@ -146,11 +146,8 @@ i32 SprintfArgs(ArrayView<char> buffer, char const* fmt, va_list args);
 // Case Insensitive String Compare
 //
 #if defined(_WIN32) || defined(_MSC_VER)
-    #define SYS_STRICMP _stricmp
     #define SYS_STRNLEN strnlen_s
-    #define SYS_STRNICMP _strnicmp
 #else
     #include <strings.h>
-    #define SYS_STRICMP strcasecmp
     #define SYS_STRNLEN strnlen
 #endif

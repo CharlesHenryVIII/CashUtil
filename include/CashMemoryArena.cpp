@@ -62,7 +62,7 @@ void* ArenaPush(Arena* arena, u64 size, u64 alignment, bool zero)
 [[nodiscard]] char* ArenaPushArgs(Arena* arena, const char* fmt, va_list args)
 {
     char temp[4096];
-    const i32 len = Sprintf(temp, sizeof(temp), fmt, args);
+    const i32 len = SprintfArgs(temp, sizeof(temp), fmt, args);
     if (len < 0)
         return nullptr;
 
