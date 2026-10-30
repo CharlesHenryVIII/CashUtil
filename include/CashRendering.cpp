@@ -61,10 +61,10 @@ void RenderDrawCalls();
 inline [[nodiscard]] const _Private* AsGfx(const _Public* c) { return reinterpret_cast<const _Private*>(c); }
 #define _ASGFX_DEFINITION_COMMON(_name) _ASGFX_DEFINITION(_name, Gfx ## _name)
 
-_ASGFX_DEFINITION_COMMON(Texture);
-_ASGFX_DEFINITION_COMMON(GpuBuffer);
+//_ASGFX_DEFINITION_COMMON(Texture);
+//_ASGFX_DEFINITION_COMMON(GpuBuffer);
 //_ASGFX_DEFINITION_COMMON(GpuBinding);
-_ASGFX_DEFINITION_COMMON(Sampler);
+//_ASGFX_DEFINITION_COMMON(Sampler);
 _ASGFX_DEFINITION_COMMON(Shader);
 _ASGFX_DEFINITION_COMMON(Pipeline);
 //_ASGFX_DEFINITION_COMMON(DrawCall);
@@ -322,7 +322,8 @@ bool DeleteVertexLayout(VertexID id)
 //        Texture
 //========================
 
-struct GfxTexture : public Texture {
+struct GfxTexture {
+    TextureID data_id;
     sg_image image = {};
     sg_image_desc image_desc = {};
     //SRV (Shader Resource View)
@@ -331,7 +332,17 @@ struct GfxTexture : public Texture {
     //RTV (Render Target View)
     sg_view write_view = {};
     sg_view_desc write_view_desc = {};
+    TextureParams params;
 };
+IdArray<GfxTexture, TextureID> s_textures;
+GfxTexture* GetTexture(TextureID id)
+{
+    if (!id.IsValid())
+        return nullptr;
+    GfxTexture* a = s_textures.TryGet(id);
+    VALIDATE_VM(a, a, LogLevel_Error, "s_textures.TryGet() couldn't find id: %i:%i", id.index, id.generation);
+    return a;
+}
 
 constexpr sg_image_type ToSokol(TextureDimension d)
 {
@@ -390,11 +401,11 @@ bool UpdateTextureInternal(GfxTexture* tex)
     VALIDATE_VM(tex, false, LogLevel_Error, "Tried to resize invalid texture");
 
     tex->image = sg_make_image(&tex->image_desc);
-    VALIDATE_VM(tex->image.id != SG_INVALID_ID, false, LogLevel_Error, "Failed to create texture: %s", tex->name.data);
+    VALIDATE_VM(tex->image.id != SG_INVALID_ID, false, LogLevel_Error, "Failed to create texture: %s", tex->params.name.data);
 
-    const char* read_view_name = ArenaPush(&g_arena, "%s Read View", tex->name.data);
+    const char* read_view_name = ArenaPush(&g_arena, "%s Read View", tex->params.name.data);
     tex->read_view_desc.label = read_view_name;
-    const char* write_view_name = ArenaPush(&g_arena, "%s Write View", tex->name.data);
+    const char* write_view_name = ArenaPush(&g_arena, "%s Write View", tex->params.name.data);
 
     //========
     //  View
@@ -402,9 +413,9 @@ bool UpdateTextureInternal(GfxTexture* tex)
 
     tex->read_view_desc.texture.image = tex->image;
     tex->read_view = sg_make_view(&tex->read_view_desc);
-    VALIDATE_VM(tex->read_view.id != SG_INVALID_ID, false, LogLevel_Error, "Failed to create read view for texture: %s", tex->name.data);
+    VALIDATE_VM(tex->read_view.id != SG_INVALID_ID, false, LogLevel_Error, "Failed to create read view for texture: %s", tex->params.name.data);
 
-    switch (tex->parameters.type)
+    switch (tex->params.type)
     {
     case TextureType_Texture:
     {
@@ -420,7 +431,7 @@ bool UpdateTextureInternal(GfxTexture* tex)
         tex->write_view_desc.color_attachment.image = tex->image;
         tex->write_view_desc.label = write_view_name;
         tex->write_view = sg_make_view(&tex->write_view_desc);
-        VALIDATE_VM(tex->write_view.id != SG_INVALID_ID, false, LogLevel_Error, "Failed to create write view for color texture: %s", tex->name.data);
+        VALIDATE_VM(tex->write_view.id != SG_INVALID_ID, false, LogLevel_Error, "Failed to create write view for color texture: %s", tex->params.name.data);
         break;
     }
     case TextureFlag_DepthStencil:
@@ -429,7 +440,7 @@ bool UpdateTextureInternal(GfxTexture* tex)
         tex->write_view_desc.depth_stencil_attachment.image = tex->image;
         tex->write_view_desc.label = write_view_name;
         tex->write_view = sg_make_view(&tex->write_view_desc);
-        VALIDATE_VM(tex->write_view.id != SG_INVALID_ID, false, LogLevel_Error, "Failed to create write view for depth texture: %s", tex->name.data);
+        VALIDATE_VM(tex->write_view.id != SG_INVALID_ID, false, LogLevel_Error, "Failed to create write view for depth texture: %s", tex->params.name.data);
         break;
     }
     //tex->view_desc.storage_buffer; //Unorderd Access View equivilent for Computer Shaders I think
@@ -442,37 +453,38 @@ bool UpdateTextureInternal(GfxTexture* tex)
     return true;
 }
 
-void TextureResize(Texture** texture, Vec3I new_size)
+void TextureResize(TextureID id, Vec3I new_size)
 {
-    VALIDATE_M(texture, LogLevel_Error, "Tried to resize invalid texture");
-    GfxTexture* tex = AsGfx(*texture);
+    VALIDATE_M(id.IsValid(), LogLevel_Error, "Tried to resize invalid texture");
+    GfxTexture* tex = GetTexture(id);
     VALIDATE_M(tex, LogLevel_Error, "Tried to resize invalid texture");
 
-    tex->image_desc.width = tex->parameters.size.x = new_size.x;
-    tex->image_desc.height = tex->parameters.size.y = new_size.y;
-    if (tex->parameters.dimension == TextureDimension_2D)
+    tex->image_desc.width = tex->params.size.x = new_size.x;
+    tex->image_desc.height = tex->params.size.y = new_size.y;
+    if (tex->params.dimension == TextureDimension_2D)
     {
         ASSERT(new_size.z == 1 || new_size.z == 0);
-        tex->parameters.size.z = 1;
+        tex->params.size.z = 1;
     }
-    tex->image_desc.num_slices = tex->parameters.size.z;
+    tex->image_desc.num_slices = tex->params.size.z;
     DeleteSokolTexture(tex);
     UpdateTextureInternal(tex);
 }
 
-bool CreateTextureAndUpload(Texture** texture, const char* name, const TextureParams& tp, ArrayView<u8> data)
+TextureID CreateTextureAndUpload(const char* name, const TextureParams& tp, ArrayView<u8> data)
 {
     ArrayView<u8> arr[CASH_GFX_MAX_MIPS] = {};
     arr[0] = data;
-    return CreateTextureAndUpload(texture, name, tp, arr);
+    return CreateTextureAndUpload(name, tp, arr);
 }
-bool CreateTextureAndUpload(Texture** texture, const char* name, const TextureParams& tp, ArrayView<u8> data[CASH_GFX_MAX_MIPS])
+TextureID CreateTextureAndUpload(const char* name, const TextureParams& tp, ArrayView<u8> data[CASH_GFX_MAX_MIPS])
 {
     ZoneScoped;
-    GfxTexture* tex = GfxGenericCreate<Texture, GfxTexture>(texture, name);
-    VALIDATE_V(tex, false);
-    tex->parameters = tp;
-    TextureParams& p = tex->parameters;
+    GfxTexture* tex = s_textures.CreateNew();
+    VALIDATE_V(tex, {});
+
+    TextureParams& p = tex->params;
+    p = tp;
     //const bool color_target = FlagIntersects(p.flags, TextureFlag_ColorTarget);
     //const bool depth_stencil = FlagIntersects(p.flags, TextureFlag_DepthStencil);
     //VALIDATE_V(color_target != depth_stencil, false);
@@ -530,9 +542,9 @@ bool CreateTextureAndUpload(Texture** texture, const char* name, const TexturePa
         }
     }
 
-    tex->image_desc.label = tex->name.data;
+    tex->image_desc.label = tex->params.name.data;
 
-    switch (tex->parameters.type)
+    switch (tex->params.type)
     {
     case TextureType_Texture: break;
     case TextureFlag_ColorTarget:
@@ -558,17 +570,18 @@ bool CreateTextureAndUpload(Texture** texture, const char* name, const TexturePa
     case TextureType_Count:     [[fallthrough]];
     default: FAIL; break;
     }
-    return UpdateTextureInternal(tex);
+    UpdateTextureInternal(tex);
+    return tex->data_id;
 }
 
-void DeleteTexture(Texture** texture)
+void DeleteTexture(TextureID& id)
 {
     ZoneScoped;
-    VALIDATE(texture);
-    GfxTexture* tex = AsGfx(*texture);
+    GfxTexture* tex = GetTexture(id);
     DEBUG_LOG("GPU Buffer deleted '%s': %i\n", tex->name.data, tex->image);
     DeleteSokolTexture(tex);
-    delete tex;
+    s_textures.Erase(id);
+    id = {};
 }
 
 
@@ -579,11 +592,21 @@ void DeleteTexture(Texture** texture)
 //       Sampler
 //========================
 
-struct GfxSampler : Sampler {
+struct GfxSampler {
+    SamplerID data_id;
     sg_sampler sampler;
     sg_sampler_desc sampler_desc = {};
+    SamplerParams params;
 };
-
+IdArray<GfxSampler, SamplerID> s_samplers;
+GfxSampler* GetSampler(SamplerID id)
+{
+    if (!id.IsValid())
+        return nullptr;
+    GfxSampler* a = s_samplers.TryGet(id);
+    VALIDATE_VM(a, a, LogLevel_Error, "s_samplers.TryGet() couldn't find id: %i:%i", id.index, id.generation);
+    return a;
+}
 
 constexpr sg_wrap ToSokol(const SamplerWrap a)
 {
@@ -639,13 +662,14 @@ constexpr sg_compare_func ToSokol(const GpuCompareFunc a)
 }
 
 
-bool CreateSampler(Sampler** sampler, const char* name, const SamplerParams& params)
+SamplerID CreateSampler(const SamplerParams& params)
 {
     ZoneScoped;
-    GfxSampler* sam = GfxGenericCreate<Sampler, GfxSampler>(sampler, name);
-    VALIDATE_V(sam, false);
-    sam->params = params;
+    GfxSampler* sam = s_samplers.CreateNew();
+    VALIDATE_V(sam, {});
+
     SamplerParams& p = sam->params;
+    p = params;
 
     sam->sampler_desc.min_filter    = ToSokol(p.min_filter);
     sam->sampler_desc.mag_filter    = ToSokol(p.mag_filter);
@@ -658,19 +682,20 @@ bool CreateSampler(Sampler** sampler, const char* name, const SamplerParams& par
     sam->sampler_desc.border_color  = ToSokol(p.border_color);
     sam->sampler_desc.compare       = ToSokol(p.compare_func);
     sam->sampler_desc.max_anisotropy = p.max_anisotropy;
-    sam->sampler_desc.label = sam->name.data;
+    sam->sampler_desc.label = p.name.data;
 
     sam->sampler = sg_make_sampler(&sam->sampler_desc);
-    return true;
+    return sam->data_id;
 }
-void DeleteSampler(Sampler** sampler)
+
+void DeleteSampler(SamplerID& id)
 {
     ZoneScoped;
-    VALIDATE(sampler);
-    GfxSampler* sam = AsGfx(*sampler);
-    DEBUG_LOG("GPU sampler deleted '%s': %i\n", sam->name.data, sam->sampler);
+    GfxSampler* sam = GetSampler(id);
+    DEBUG_LOG("GPU Buffer deleted '%s': %i\n", sam->name.data, sam->image);
     sg_destroy_sampler(sam->sampler);
-    delete sam;
+    s_samplers.Erase(id);
+    id = {};
 }
 
 
@@ -681,70 +706,82 @@ void DeleteSampler(Sampler** sampler)
 //       GpuBuffer
 //========================
 
-struct GfxGpuBuffer : public GpuBuffer
+struct GfxGpuBuffer
 {
+    GpuBufferID data_id;
     sg_buffer buffer;
+    GpuBufferParams params;
 };
+IdArray<GfxGpuBuffer, GpuBufferID> s_buffers;
+GfxGpuBuffer* GetGpuBuffer(GpuBufferID id)
+{
+    if (!id.IsValid())
+        return nullptr;
+    GfxGpuBuffer* a = s_buffers.TryGet(id);
+    VALIDATE_VM(a, a, LogLevel_Error, "s_buffers.TryGet() couldn't find id: %i:%i", id.index, id.generation);
+    return a;
+}
 
-bool CreateGpuBuffer(GpuBuffer** buffer, const char* name, GpuBufferType type, GpuBufferFlag flags, size_t max_size)
+GpuBufferID CreateGpuBuffer(const GpuBufferParams& params)
 {
     ZoneScoped;
-    GfxGpuBuffer* buf = GfxGenericCreate<GpuBuffer, GfxGpuBuffer>(buffer, name);
-    VALIDATE_V(buf, false);
-    buf->type = type;
-    buf->flags = flags;
-    buf->max_size = max_size;
+    GfxGpuBuffer* buf = s_buffers.CreateNew();
+    VALIDATE_V(buf, {});
+
+    buf->params = params;
     buf->buffer = sg_alloc_buffer();
 
-    return true;
+    return buf->data_id;
 }
 
-void DeleteBuffer(GpuBuffer** buffer)
+void DeleteGpuBuffer(GpuBufferID& id)
 {
     ZoneScoped;
-    VALIDATE(buffer);
-    GfxGpuBuffer* buf = AsGfx(*buffer);
-    DEBUG_LOG("GPU Buffer deleted '%s': %i\n", buf->name.data, buf->buffer);
+    GfxGpuBuffer* buf = GetGpuBuffer(id);
+    VALIDATE(buf);
+    DEBUG_LOG("GPU Buffer deleted '%s': %i\n", buf->name.data, buf->image);
     sg_destroy_buffer(buf->buffer);
-    delete buf;
+    s_buffers.Erase(id);
+    id = {};
 }
 
-void GpuBuffer::Upload(const void* data, const size_t in_count, const u32 in_element_size)
+void GpuBufferUpload(GpuBufferID id, const void* data, const size_t in_count, const u32 in_element_size)
 {
     ZoneScoped;
-    GfxGpuBuffer* buf = AsGfx(this);
+    GfxGpuBuffer* buf = GetGpuBuffer(id);
     VALIDATE(buf->buffer.id);
     VALIDATE(in_count && in_element_size);
-    count = in_count;
-    element_size = in_element_size;
+    GpuBufferParams& p = buf->params;
+    p.count = in_count;
+    p.element_size = in_element_size;
     const u64 bytes = in_count * in_element_size;
 
-    if (!buf->has_uploaded)
+    if (!p.has_uploaded)
     {
         sg_buffer_desc desc = {};
         //desc.size = bytes; //Not sure about this
-        if (FlagIntersects(buf->flags, GpuBufferFlag_Immutable))
+        if (FlagIntersects(p.flags, GpuBufferFlag_Immutable))
         {
             desc.data.ptr = data;
             desc.data.size = bytes;
         }
         else
         {
-            ASSERT(max_size);
-            desc.size = max_size;
+            ASSERT(p.max_size);
+            desc.size = p.max_size;
         }
-        desc.usage.vertex_buffer = buf->type == GpuBufferType_Vertex;
-        desc.usage.index_buffer = buf->type == GpuBufferType_Index;
-        desc.usage.storage_buffer = buf->type == GpuBufferType_Structure;
-        desc.usage.immutable = FlagIntersects(buf->flags, GpuBufferFlag_Immutable);
-        desc.usage.dynamic_update = FlagIntersects(buf->flags, GpuBufferFlag_Dynamic);
-        desc.usage.stream_update = FlagIntersects(buf->flags, GpuBufferFlag_StreamUpdate);
+        desc.usage.vertex_buffer = p.type == GpuBufferType_Vertex;
+        desc.usage.index_buffer = p.type == GpuBufferType_Index;
+        desc.usage.storage_buffer = p.type == GpuBufferType_Structure;
+        desc.usage.immutable = FlagIntersects(p.flags, GpuBufferFlag_Immutable);
+        desc.usage.dynamic_update = FlagIntersects(p.flags, GpuBufferFlag_Dynamic);
+        desc.usage.stream_update = FlagIntersects(p.flags, GpuBufferFlag_StreamUpdate);
         desc.usage.write_unsealed = false;//FlagIntersects(buf->flags, GpuBufferFlag_WriteUnsealed);
-        desc.label = buf->name.data;
+        desc.label = p.name.data;
         sg_init_buffer(buf->buffer, desc);
-        buf->has_uploaded = true;
+        p.has_uploaded = true;
 
-        if (FlagIntersects(buf->flags, GpuBufferFlag_Immutable))
+        if (FlagIntersects(p.flags, GpuBufferFlag_Immutable))
         {
             return;
         }
@@ -757,7 +794,7 @@ void GpuBuffer::Upload(const void* data, const size_t in_count, const u32 in_ele
     }
     else
     {
-        VALIDATE(FlagIntersects(buf->flags, GpuBufferFlag_Dynamic) || FlagIntersects(buf->flags, GpuBufferFlag_StreamUpdate));
+        VALIDATE(FlagIntersects(p.flags, GpuBufferFlag_Dynamic) || FlagIntersects(p.flags, GpuBufferFlag_StreamUpdate));
 
         sg_range update_data;
         update_data.ptr = data;
@@ -1302,7 +1339,7 @@ bool CreatePipeline(Pipeline** pipe, const char* name, const PipelineParams& par
     (*pipe) = p;
     p->name.CopyFrom(name);
     const GfxShader* shader = AsGfx(params.shader);
-    const GfxTexture* depth = AsGfx(params.depth);
+    const GfxTexture* depth = GetTexture(params.depth);
 
     sg_pipeline_desc& desc = p->pipe_desc;
     desc = {};
@@ -1329,18 +1366,19 @@ bool CreatePipeline(Pipeline** pipe, const char* name, const PipelineParams& par
     for (i32 i = 0; i < MAX_SHADER_TEXTURES; i++)
     {
         const RenderTarget& target = params.targets[i];
-        if (target.texture)
+        if (target.texture.IsValid())
         {
-            GfxTexture* t = AsGfx(target.texture);
+            if (const GfxTexture* t = GetTexture(target.texture))
+            {
+                VALIDATE_V(t->image_desc.sample_count == params.msaa_sample_count, false);
 
-            VALIDATE_V(t->image_desc.sample_count == params.msaa_sample_count, false);
+                sg_color_target_state& ts = desc.colors[i];
+                ts.pixel_format = t->image_desc.pixel_format;
+                ts.write_mask = ToSokol(target.mask);
+                ts.blend = ToSokol(target.blend);
 
-            sg_color_target_state& ts = desc.colors[i];
-            ts.pixel_format = t->image_desc.pixel_format;
-            ts.write_mask = ToSokol(target.mask);
-            ts.blend = ToSokol(target.blend);
-
-            desc.color_count = i + 1;
+                desc.color_count = i + 1;
+            }
         }
     }
     desc.primitive_type = ToSokol(params.primitive_type);
@@ -1458,7 +1496,7 @@ bool UpdateUniform(UniformID id, ArrayView<u8> data_array, const u32 slot)
 
 static struct FontData {
     StaticArray<Vertex_PTC, Mebibytes(2)> vertices;
-    GpuBuffer* vertex_buffer = nullptr;
+    GpuBufferID vertex_buffer = {};
     Pipeline* pipeline = nullptr;
     UniformID uniform = 0;
 } s_font;
@@ -1480,7 +1518,7 @@ struct CashFont
 {
     FontID data_id;
 
-    Texture* texture = nullptr;
+    TextureID texture = {};
     Glyph char_data[FONT_CHAR_COUNT] = {};
 
     FontInfo info;
@@ -1560,7 +1598,15 @@ void FontInit()
 
         CreatePipeline(&s_font.pipeline, "Console Pipeline", params);
     }
-    CreateGpuBuffer(&s_font.vertex_buffer, "Console Vertex Buffer", GpuBufferType_Vertex, GpuBufferFlag_StreamUpdate, MAX_VERTS * sizeof(Vertex_PTC));
+    {
+        GpuBufferParams params = {
+            .name = "Console Vertex Buffer",
+            .flags = GpuBufferFlag_StreamUpdate,
+            .type = GpuBufferType_Vertex,
+            .max_size = MAX_VERTS * sizeof(Vertex_PTC),
+        };
+        s_font.vertex_buffer = CreateGpuBuffer(params);
+    }
 
     ShaderConstants_Blit2D uniform;
     Get2DMatrix(uniform.orthographic);
@@ -1841,7 +1887,7 @@ FontID CreateFont(const char* name, ArrayView<u8> font_data, u32 height_in_pixel
         .update = TextureUpdateType_Immutable,
     };
     ArrayView<u8> font_bitmap_byte_view = CreateArrayView((u8*)temp_font_bitmap, FONT_BITMAP_SIZE_BYTES);
-    CreateTextureAndUpload(&f->texture, name, tp, font_bitmap_byte_view);
+    f->texture = CreateTextureAndUpload(name, tp, font_bitmap_byte_view);
 
     return f->data_id;
 }
@@ -1853,7 +1899,7 @@ void FontRenderUpdate()
     if (s_font.vertices.used)
     {
         ZoneScopedN("Uploading font vertices");
-        s_font.vertex_buffer->Upload(s_font.vertices);
+        GpuBufferUpload(s_font.vertex_buffer, s_font.vertices);
     }
     {
         ZoneScopedN("Clearing font vertices");
@@ -1957,9 +2003,9 @@ void RenderDrawCalls()
         const DrawCallParams& params = draw->params;
         const GfxPipeline* pipe = AsGfx(params.pipeline);
         const Bindings& bind = params.bindings;
-        GfxGpuBuffer* vert = AsGfx(bind.vertex_buffer);
+        GfxGpuBuffer* vert = GetGpuBuffer(bind.vertex_buffer);
         ASSERT(vert);
-        GfxGpuBuffer* ind = AsGfx(bind.index_buffer);
+        GfxGpuBuffer* ind = GetGpuBuffer(bind.index_buffer);
         if (!vert)
         {
             DebugPrint("No Vertex buffer bound to draw, skipping: %s", draw->name.data);
@@ -1997,13 +2043,13 @@ void RenderDrawCalls()
             //Offscreen Render Target
             for (i32 i = 0; i < SG_MAX_COLOR_ATTACHMENTS; i++)
             {
-                GfxTexture* t = AsGfx(params.color_targets[i]);
+                GfxTexture* t = GetTexture(params.color_targets[i]);
                 if (t)
                     pass.attachments.colors[i] = t->write_view;
 
                 //pass.attachments.resolves; //NOTE(CSH): Unsure what the point of this is
             }
-            GfxTexture* depth_texture = AsGfx(params.depth_stencil_target);
+            GfxTexture* depth_texture = GetTexture(params.depth_stencil_target);
             if (depth_texture)
                 pass.attachments.depth_stencil = depth_texture->write_view;
         }
@@ -2020,7 +2066,7 @@ void RenderDrawCalls()
 
         for (i32 i = 0; i < bind.read_textures.used; i++)
         {
-            GfxTexture* t = AsGfx(bind.read_textures[i]);
+            GfxTexture* t = GetTexture(bind.read_textures[i]);
             if (!t)
             {
                 DebugPrint("Added element to read_textures but no valid texture: %i '%s'", i, draw->name.data);
@@ -2031,15 +2077,18 @@ void RenderDrawCalls()
         }
         for (i32 i = 0; i < bind.samplers.used; i++)
         {
-            StaticArray<Sampler*, MAX_SHADER_SAMPLERS> samplers = {};
-            GfxSampler* s = AsGfx(bind.samplers[i]);
-            if (!s)
+            StaticArray<SamplerID, MAX_SHADER_SAMPLERS> samplers = {};
+            if (bind.samplers[i].IsValid())
             {
-                DebugPrint("Added element to samplers but no valid sampler: %i '%s'", i, draw->name.data);
-                FAIL;
-                continue;
+                GfxSampler* s = GetSampler(bind.samplers[i]);
+                if (!s)
+                {
+                    DebugPrint("Added element to samplers but no valid sampler: %i '%s'", i, draw->name.data);
+                    FAIL;
+                    continue;
+                }
+                sb.samplers[i] = s->sampler;
             }
-            sb.samplers[i] = s->sampler;
         }
 
         sb.samplers[SG_MAX_SAMPLER_BINDSLOTS] = {};
@@ -2077,7 +2126,7 @@ void RenderDrawCalls()
             sg_apply_scissor_rectf(r.left, r.bot, r.Width(), r.Height(), false);
         }
 
-        ASSERT(params.bindings.index_buffer == nullptr);//not implemented yet
+        ASSERT(!params.bindings.index_buffer.IsValid());//not implemented yet
         //sg_draw_ex(0, params.vertex_length, 1, params.vertex_index, 0);
         sg_draw(params.vertex_index, params.vertex_length, 1);
 
@@ -2125,9 +2174,9 @@ void RenderDestroySokol()
 
 void UpdateBackbuffers()
 {
-    if (gfx.hdr_target)
+    if (gfx.hdr_target.IsValid())
     {
-        TextureResize(&gfx.hdr_target, Vec3I(gfx.window_size, 0));
+        TextureResize(gfx.hdr_target, Vec3I(gfx.window_size, 0));
     }
     else
     {
@@ -2140,7 +2189,7 @@ void UpdateBackbuffers()
             .type = TextureFlag_ColorTarget,
             .update = TextureUpdateType_Immutable,
         };
-        CreateTextureAndUpload(&gfx.hdr_target, "HDR Render Target", params, {});
+        gfx.hdr_target = CreateTextureAndUpload("HDR Render Target", params, {});
     }
 }
 
@@ -2227,8 +2276,15 @@ bool CashRenderInit(ArrayView<const ArrayView<const u8>> app_icons)
             { { +3.0f, +1.0f }, White, { 2.0f, 0.0f }, }   // Top Right
         };
 
-        CreateGpuBuffer(&gfx.vertex_2d_verts, "Fullscreen Triangle VB", GpuBufferType_Vertex, GpuBufferFlag_Immutable);
-        gfx.vertex_2d_verts->Upload(verts);
+        {
+            GpuBufferParams params = {
+                .name = "Fullscreen Triangle VB",
+                .flags = GpuBufferFlag_Immutable,
+                .type = GpuBufferType_Vertex,
+            };
+            gfx.vertex_2d_verts = CreateGpuBuffer(params);
+        }
+        GpuBufferUpload(gfx.vertex_2d_verts, verts);
     }
 
     s_gfx.pass_action.colors[0].load_action = SG_LOADACTION_CLEAR;
@@ -2326,9 +2382,11 @@ bool CashRenderInit(ArrayView<const ArrayView<const u8>> app_icons)
         .compare_func = GpuCompareFunc_Never,
         .max_anisotropy = 16,
         };
-        CreateSampler(&gfx.common_anisotropic_sampler, "Basic Anisotropic Sampler", params);
+        params.name = "Basic Anisotropic Sampler";
+        gfx.common_anisotropic_sampler = CreateSampler(params);
         params.max_anisotropy = 1;
-        CreateSampler(&gfx.common_sampler, "Basic Sampler", params);
+        params.name = "Basic Sampler";
+        gfx.common_sampler = CreateSampler(params);
     }
     {
         u8 pixel_texture_data[] = { 255, 255, 255, 255 };
@@ -2342,7 +2400,7 @@ bool CashRenderInit(ArrayView<const ArrayView<const u8>> app_icons)
             .type = TextureType_Texture,
             .update = TextureUpdateType_Immutable,
         };
-        CreateTextureAndUpload(&gfx.plain_texture, "Plain Texture", params, CreateArrayView(pixel_texture_data));
+        gfx.plain_texture = CreateTextureAndUpload("Plain Texture", params, CreateArrayView(pixel_texture_data));
     }
 
     SDL_SetWindowPosition(gfx.window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
@@ -2510,7 +2568,7 @@ void CashImguiInit()
 
     simgui_desc_t desc = {};
     desc.max_vertices;// default: 65536
-    desc.color_format = AsGfx(gfx.hdr_target)->image_desc.pixel_format;
+    desc.color_format = GetTexture(gfx.hdr_target)->image_desc.pixel_format;
     desc.depth_format;
     desc.sample_count;
     desc.ini_filename;
@@ -2557,7 +2615,7 @@ void CashRender()
         pass.action.colors[0].load_action = SG_LOADACTION_LOAD;
         pass.action.colors[0].store_action = SG_STOREACTION_STORE;
         pass.action.colors[0].clear_value = { 0.0f, 0.0f, 0.0f, 1.0f };
-        pass.attachments.colors[0] = AsGfx(gfx.hdr_target)->write_view;
+        pass.attachments.colors[0] = GetTexture(gfx.hdr_target)->write_view;
         pass.swapchain;
         pass.label = "ImGui Render Pass";
 #else
@@ -2590,8 +2648,8 @@ void CashRender()
 
         sg_apply_pipeline(s_gfx.final_render_pipeline);
         sg_bindings bindings = {};
-        bindings.vertex_buffers[0] = AsGfx(gfx.vertex_2d_verts)->buffer;
-        bindings.views[0] = AsGfx(gfx.hdr_target)->read_view;
+        bindings.vertex_buffers[0] = GetGpuBuffer(gfx.vertex_2d_verts)->buffer;
+        bindings.views[0] = GetTexture(gfx.hdr_target)->read_view;
         bindings.samplers[0] = s_gfx.final_render_sampler;
         sg_apply_bindings(&bindings);
 

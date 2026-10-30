@@ -574,7 +574,41 @@ template <typename T, u64 count>
 template <u64 _count>
 struct InlineString : StaticArray<char, _count>
 {
-    u8* CopyFrom(const char* str) { return this->AddRaw((u8*)str, strlen(str) + 1); };
+    InlineString() = default;
+    InlineString(const char* str)
+    {
+        if (str)
+            CopyFrom(str);
+    }
+
+    u8* CopyFrom(const char* s, u64 len)
+    {
+        if (len <= _count)
+            return this->AddRaw((u8*)s, len);
+
+        FAIL;
+        len = _count - 1;
+        u8* c = this->AddRaw((u8*)s, len);
+        this->Add(0);
+        return c;
+    }
+
+    u8* CopyFrom(const char* str)           { return CopyFrom(str,      strlen(str) + 1); };
+    u8* CopyFrom(const InlineString& str)   { return CopyFrom(str.data, str.used); };
+
+    InlineString& operator=(const char* str)
+    {
+        this->used = 0;
+        if (str)
+            CopyFrom(str);
+        return *this;
+    }
+    InlineString& operator=(const InlineString& str)
+    {
+        this->used = 0;
+        CopyFrom(str);
+        return *this;
+    }
 };
 
 

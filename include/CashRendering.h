@@ -201,10 +201,13 @@ enum TextureUpdateType : u32 {
 };
 ENUMOPS(TextureUpdateType);
 
+DATAID_TYPE(TextureID)
 struct TextureParams {
+    InlineString<64> name;
     Vec3I size; // .x = width, .y = height, .z = "Depth" for 3D texture / "Slices" for Array / 6 Slices for cubemap
     i32 msaa_samples = 1; //1 = No MSAA, 2 = 2x MSAA, 4 = 4x MSAA, etc
     i32 mip_count = 1;
+    u32 mip_levels = 1;
 
     TextureDimension dimension = TextureDimension_2D;
     TextureFormat format = TextureFormat_RGBA8_UINT;
@@ -212,20 +215,13 @@ struct TextureParams {
     TextureUpdateType update = TextureUpdateType_Dynamic;
 };
 
-struct Texture {
-    InlineString<64> name;
-    //std::string name;
-    TextureParams parameters;
-    u32 mip_levels = 1;
-};
-
-bool CreateTextureAndUpload(Texture** texture, const char* name, const TextureParams& tp, ArrayView<u8> data);
-bool CreateTextureAndUpload(Texture** texture, const char* name, const TextureParams& tp, ArrayView<u8> data[CASH_GFX_MAX_MIPS]);
+TextureID CreateTextureAndUpload(const char* name, const TextureParams& tp, ArrayView<u8> data);
+TextureID CreateTextureAndUpload(const char* name, const TextureParams& tp, ArrayView<u8> data[CASH_GFX_MAX_MIPS]);
 //bool CreateTexture(Texture** texture, Vec3I size, TextureFormat format, i32 bytes_per_pixel, const std::string& name, TextureType type = TextureType_Texture);
 //bool CreateTexture(Texture** texture, TextureFormat format, TextureFilter filter, const std::string& name, TextureType type = TextureType_Texture);
 //bool UpdateTexture(Texture** texture, u32 mip_slice, void* data, u32 row_pitch_bytes, u32 depth_pitch_bytes);
-void TextureResize(Texture** texture, Vec3I new_size);
-void DeleteTexture(Texture** texture);
+void TextureResize(TextureID id, Vec3I new_size);
+void DeleteTexture(TextureID& id);
 
 
 
@@ -271,7 +267,9 @@ enum GpuCompareFunc : u32 {
 };
 ENUMOPS(GpuCompareFunc);
 
+DATAID_TYPE(SamplerID)
 struct SamplerParams {
+    InlineString<64> name;
     SamplerFilter min_filter = SamplerFilter_Linear;
     SamplerFilter mag_filter = SamplerFilter_Linear;
     SamplerFilter mipmap_filter = SamplerFilter_Linear;
@@ -285,14 +283,8 @@ struct SamplerParams {
     uint32_t max_anisotropy = 1; //must be between 1 and 16
 };
 
-struct Sampler {
-    //std::string name;
-    InlineString<64> name;
-    SamplerParams params;
-};
-
-bool CreateSampler(Sampler** buffer, const char* name, const SamplerParams& params);
-void DeleteSampler(Sampler** buffer);
+SamplerID CreateSampler(const SamplerParams& params);
+void DeleteSampler(SamplerID& buffer);
 
 
 
@@ -336,7 +328,8 @@ enum GpuBufferFlag : u32 {
 };
 ENUMOPS(GpuBufferFlag);
 
-struct GpuBuffer
+DATAID_TYPE(GpuBufferID)
+struct GpuBufferParams
 {
     //std::string name;
     InlineString<64> name;
@@ -344,42 +337,43 @@ struct GpuBuffer
     GpuBufferType type = GpuBufferType_Invalid;
     size_t count = 0;
     size_t element_size = 0;
+    //max_size must be non-zero for any buffer that doesn't have GpuBufferFlag_Immutable
     size_t max_size = 0;
     bool has_uploaded = false;
 
-    void Upload(const void* data, const size_t count, const u32 element_size);
-    template<typename T>
-    inline void Upload(const std::vector<T>& a)
-    {
-        ASSERT(a.size());
-        Upload(a.data(), a.size(), sizeof(T), false);
-    }
-    template<typename T>
-    inline void Upload(const ArrayView<T> a)
-    {
-        ASSERT(a.size());
-        Upload(a.data, a.size(), (u32)a.ElementBytes());
-    }
-    template<typename T, u64 size>
-    inline void Upload(const T (&source)[size])
-    {
-        Upload(source, size, sizeof(source[0]));
-    }
-    template<typename T>
-    inline void Upload(const T& a)
-    {
-        Upload(&a, 1, sizeof(a));
-    }
-    template<typename T, u64 size>
-    inline void Upload(const StaticArray<T, size>& a)
-    {
-        Upload(a.begin(), a.used, sizeof(T));
-    }
 };
 
-//max_size must be non-zero for any buffer that doesn't have GpuBufferFlag_Immutable
-bool CreateGpuBuffer(GpuBuffer** buffer, const char* name, GpuBufferType type, GpuBufferFlag flags, size_t max_size = 0);
-void DeleteBuffer(GpuBuffer** buffer);
+GpuBufferID CreateGpuBuffer(const GpuBufferParams& params);
+void DeleteGpuBuffer(GpuBufferID& buffer);
+
+void GpuBufferUpload(GpuBufferID id, const void* data, const size_t count, const u32 element_size);
+template<typename T>
+inline void GpuBufferUpload(GpuBufferID id, const std::vector<T>& a)
+{
+    ASSERT(a.size());
+    GpuBufferUpload(id, a.data(), a.size(), sizeof(T), false);
+}
+template<typename T>
+inline void Upload(GpuBufferID id, const ArrayView<T> a)
+{
+    ASSERT(a.size());
+    GpuBufferUpload(id, a.data, a.size(), (u32)a.ElementBytes());
+}
+template<typename T, u64 size>
+inline void GpuBufferUpload(GpuBufferID id, const T(&source)[size])
+{
+    GpuBufferUpload(id, source, size, sizeof(source[0]));
+}
+template<typename T>
+inline void GpuBufferUpload(GpuBufferID id, const T& a)
+{
+    GpuBufferUpload(id, &a, 1, sizeof(a));
+}
+template<typename T, u64 size>
+inline void GpuBufferUpload(GpuBufferID id, const StaticArray<T, size>& a)
+{
+    GpuBufferUpload(id, a.begin(), a.used, sizeof(T));
+}
 
 
 
@@ -494,8 +488,8 @@ struct ShaderConstantsContainer {
 };
 
 struct ShaderTexture {
-    Texture* texture;
-    Sampler* sampler;
+    TextureID texture;
+    SamplerID sampler;
     const char* name; //This must match OpenGL and WebGL shader name
 };
 
@@ -646,7 +640,7 @@ enum ColorMask : u32 {
 ENUMOPS_PURE(ColorMask);
 
 struct RenderTarget {
-    Texture* texture;
+    TextureID texture;
     BlendState blend;
     ColorMask mask = ColorMask_RGBA;
 };
@@ -681,7 +675,7 @@ struct PipelineParams {
     RenderTarget targets[MAX_SHADER_TEXTURES] = {};
 
     //Depth
-    Texture* depth;
+    TextureID depth;
     GpuCompareFunc depth_compare_func;
     float depth_bias = 0.0f;
     float depth_bias_slope_scale = 0.0f;
@@ -717,7 +711,7 @@ DATAID_TYPE(UniformID);
 //Max size is MAX_UNIFORM_BYTES
 UniformID CreateUniform();
 UniformID CreateUniform(ArrayView<u8> data_array, const u32 slot);
-void DeleteUniform(UniformID);
+void DeleteUniform(UniformID id);
 bool UpdateUniform(UniformID id, ArrayView<u8> data_array, const u32 slot);
 
 
@@ -751,10 +745,10 @@ struct ShaderUniformData {
 };
 
 struct Bindings {
-    GpuBuffer* vertex_buffer = nullptr;
-    GpuBuffer* index_buffer = nullptr;
-    StaticArray<Texture*, MAX_SHADER_READ_TEXTURES> read_textures = {};
-    StaticArray<Sampler*, MAX_SHADER_SAMPLERS> samplers = {};
+    GpuBufferID vertex_buffer = {};
+    GpuBufferID index_buffer = {};
+    StaticArray<TextureID, MAX_SHADER_READ_TEXTURES> read_textures = {};
+    StaticArray<SamplerID, MAX_SHADER_SAMPLERS> samplers = {};
 };
 
 DATAID_TYPE(DrawID);
@@ -771,8 +765,8 @@ struct DrawCallParams {
 
     StaticArray<UniformID, MAX_SHADER_UNIFORMS> uniforms = {};
 
-    Texture* color_targets[MAX_COLOR_ATTACHMENTS] = {};
-    Texture* depth_stencil_target = {};
+    TextureID color_targets[MAX_COLOR_ATTACHMENTS] = {};
+    TextureID depth_stencil_target = {};
     bool draw_to_backbuffer = {};
     //sg_view resolves[SG_MAX_COLOR_ATTACHMENTS];
 };
@@ -871,14 +865,14 @@ struct Renderer
     BlendState blend_no_color_write = {};
 
     StencilState stencil_2d = {};
-    Texture* hdr_target;
-    Texture* plain_texture; //1px x 1px White
+    TextureID hdr_target;
+    TextureID plain_texture; //1px x 1px White
 
 	VertexID vertex_2d_layout = {};
     VertexID vertex_pntc_layout = {};
-    GpuBuffer* vertex_2d_verts = {};
+    GpuBufferID vertex_2d_verts = {};
 
-    Sampler* common_anisotropic_sampler;
-    Sampler* common_sampler;
+    SamplerID common_anisotropic_sampler;
+    SamplerID common_sampler;
 };
 extern Renderer gfx;
