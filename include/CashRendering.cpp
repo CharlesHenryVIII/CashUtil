@@ -47,7 +47,6 @@ static struct GfxDevice {
 struct GfxTexture;
 struct GfxSampler;
 struct GfxGpuBuffer;
-//struct GfxGpuBinding;
 struct GfxShader;
 struct GfxPipeline;
 //struct GfxDrawCall;
@@ -56,37 +55,6 @@ void RenderDrawCalls();
 //========================
 //        Utility
 //========================
-
-#define _ASGFX_DEFINITION(_Public, _Private) inline [[nodiscard]] _Private* AsGfx(_Public* c) { return reinterpret_cast<_Private*>(c); }\
-inline [[nodiscard]] const _Private* AsGfx(const _Public* c) { return reinterpret_cast<const _Private*>(c); }
-#define _ASGFX_DEFINITION_COMMON(_name) _ASGFX_DEFINITION(_name, Gfx ## _name)
-
-//_ASGFX_DEFINITION_COMMON(Texture);
-//_ASGFX_DEFINITION_COMMON(GpuBuffer);
-//_ASGFX_DEFINITION_COMMON(GpuBinding);
-//_ASGFX_DEFINITION_COMMON(Sampler);
-_ASGFX_DEFINITION_COMMON(Shader);
-_ASGFX_DEFINITION_COMMON(Pipeline);
-//_ASGFX_DEFINITION_COMMON(DrawCall);
-
-template <typename Public, typename Private>
-Private* GfxGenericCreate(Public** object, const char* name)
-{
-    VALIDATE_V(object, nullptr);
-    if (*object != nullptr)
-    {
-        FAIL;
-        Private* ob = AsGfx(*object);
-        //Private* ob = reinterpret_cast<Private*>(object);
-        DebugPrint("Error: Render object not null during create: '%s'", ob->name.data);
-        return nullptr;
-    }
-
-    Private* ob = new Private;
-    (*object) = AsGfx(ob);
-    ob->name.CopyFrom(name);
-    return ob;
-}
 
 constexpr sg_backend ToSokol(CashRenderBackend d)
 {
@@ -812,86 +780,24 @@ void GpuBufferUpload(GpuBufferID id, const void* data, const size_t in_count, co
 
 
 //========================
-//       GpuBinding
-//========================
-
-//struct GfxGpuBinding : GpuBinding
-//{
-//    sg_bindings binding;
-//};
-//
-//bool CreateGpuBinding(GpuBinding** binding, const char* name)
-//{
-//    ZoneScoped;
-//    GfxGpuBinding* bind = GfxGenericCreate<GpuBinding, GfxGpuBinding>(binding, name);
-//    VALIDATE_V(bind, false);
-//    (*binding) = AsGfx(bind);
-//    return true;
-//}
-//
-//void DeleteBuffer(GpuBinding** binding)
-//{
-//    ZoneScoped;
-//    VALIDATE(binding);
-//    GfxGpuBinding* bin = AsGfx(*binding);
-//    DEBUG_LOG("GPU binding deleted '%s'\n", bin->name.data);
-//    delete bin;
-//}
-//
-//void GpuBinding::BindVertex(const GpuBuffer* buffer, const i32 slot)
-//{
-//    ZoneScoped;
-//    VALIDATE(buffer && buffer->type == GpuBufferType_Vertex);
-//    const GfxGpuBuffer* buf = AsGfx(buffer);
-//    GfxGpuBinding* bin = AsGfx(this);
-//
-//    sg_buffer& b = bin->binding.vertex_buffers[slot];
-//    if (b.id != 0)
-//        DebugPrint("Warning: Overwriting binding(%s) slot(%i) for vertex buffer (%s)", bin->name.data, slot, buf->name.data);
-//    b = buf->buffer;
-//}
-//void GpuBinding::BindIndex(const GpuBuffer* buffer)
-//{
-//    ZoneScoped;
-//    VALIDATE(buffer && buffer->type == GpuBufferType_Index);
-//    const GfxGpuBuffer* buf = AsGfx(buffer);
-//    GfxGpuBinding* bin = AsGfx(this);
-//    sg_buffer& b = bin->binding.index_buffer;
-//    if (b.id != 0)
-//        DebugPrint("Warning: Overwriting binding (%s) for index buffer (%s)", bin->name.data, buf->name.data);
-//    b = buf->buffer;
-//}
-//void GpuBinding::BindView(GpuBuffer* view)
-//{
-//    ZoneScoped;
-//    FAIL;
-//}
-//void GpuBinding::BindSampler(GpuBuffer* sampler)
-//{
-//    ZoneScoped;
-//    FAIL;
-//}
-//
-//void GpuBinding::Apply()
-//{
-//    ZoneScoped;
-//    GfxGpuBinding* bin = AsGfx(this);
-//    sg_apply_bindings(bin->binding);
-//}
-
-
-
-
-
-
-//========================
 //        Shader
 //========================
 
-struct GfxShader : Shader {
+struct GfxShader {
+    ShaderID data_id;
+    ShaderParams params;
     sg_shader shader;
     sg_shader_desc shader_desc;
 };
+IdArray<GfxShader, ShaderID> s_shaders;
+GfxShader* GetShader(ShaderID id)
+{
+    if (!id.IsValid())
+        return nullptr;
+    GfxShader* a = s_shaders.TryGet(id);
+    VALIDATE_VM(a, a, LogLevel_Error, "s_shaders.TryGet() couldn't find id: %i:%i", id.index, id.generation);
+    return a;
+}
 
 static_assert(MAX_SHADER_TEXTURES <= SG_MAX_VIEW_BINDSLOTS);
 static_assert(MAX_SHADER_TEXTURES <= SG_MAX_SAMPLER_BINDSLOTS);
@@ -1024,19 +930,18 @@ sg_sampler_type  GetSokolSamplerType(const sg_image_sample_type a, const bool is
 
 //const sg_shader_desc* Blit2D_shader_desc(sg_backend backend)
 
-bool CreateShader(Shader** shader, const char* name, const sg_shader_desc* shader_desc, VertexID vertex_layout)
+ShaderID CreateShader(const ShaderParams& params, const sg_shader_desc* shader_desc)
 {
-    VALIDATE_V(shader_desc, false);
-
     ZoneScoped;
-    GfxShader* s = GfxGenericCreate<Shader, GfxShader>(shader, name);
-    VALIDATE_V(s, false);
-    (*shader) = s;
+    GfxShader* s = s_shaders.CreateNew();
+    VALIDATE_V(s, {});
+    ShaderParams& p = s->params;
+    p = params;
+    //
     s->shader_desc = *shader_desc;
     s->shader = sg_make_shader(s->shader_desc);
-    s->params.vertex_layout = vertex_layout;
-
-    return true;
+    //
+    return s->data_id;
 }
 
 //bool CreateShader(Shader** shader, const char* name, const ShaderParams& params)
@@ -1159,14 +1064,14 @@ bool CreateShader(Shader** shader, const char* name, const sg_shader_desc* shade
 //    return true;
 //}
 
-void DeleteShader(Shader** shader)
+void DeleteShader(ShaderID& id)
 {
     ZoneScoped;
-    VALIDATE(shader);
-    GfxShader* s = AsGfx(*shader);
-    sg_destroy_shader(s->shader);
-    DEBUG_LOG("GPU SHader deleted '%s'\n", s->name.data);
-    delete s;
+    GfxShader* p = GetShader(id);
+    DEBUG_LOG("GPU Shader deleted '%s': %i\n", p->name.data, p->shader.id);
+    sg_destroy_shader(p->shader);
+    s_shaders.Erase(id);
+    id = {};
 }
 
 
@@ -1177,10 +1082,22 @@ void DeleteShader(Shader** shader)
 //       Pipeline
 //========================
 
-struct GfxPipeline : Pipeline {
-    sg_pipeline pipe;
+struct GfxPipeline
+{
+    PipelineID data_id;
+    sg_pipeline pipeline;
     sg_pipeline_desc pipe_desc;
+    PipelineParams params;
 };
+IdArray<GfxPipeline, PipelineID> s_pipelines;
+GfxPipeline* GetPipeline(PipelineID id)
+{
+    if (!id.IsValid())
+        return nullptr;
+    GfxPipeline* a = s_pipelines.TryGet(id);
+    VALIDATE_VM(a, a, LogLevel_Error, "s_pipelines.TryGet() couldn't find id: %i:%i", id.index, id.generation);
+    return a;
+}
 
 sg_stencil_op ToSokol(const StencilOp a)
 {
@@ -1331,17 +1248,17 @@ sg_color_mask  ToSokol(const ColorMask a)
     }
 }
 
-bool CreatePipeline(Pipeline** pipe, const char* name, const PipelineParams& params)
+PipelineID CreatePipeline(const PipelineParams& params)
 {
     ZoneScoped;
-    GfxPipeline* p = GfxGenericCreate<Pipeline, GfxPipeline>(pipe, name);
-    VALIDATE_V(p, false);
-    (*pipe) = p;
-    p->name.CopyFrom(name);
-    const GfxShader* shader = AsGfx(params.shader);
-    const GfxTexture* depth = GetTexture(params.depth);
+    GfxPipeline* pipe = s_pipelines.CreateNew();
+    VALIDATE_V(pipe, {});
+    PipelineParams& p = pipe->params;
+    p = params;
+    const GfxShader* shader = GetShader(p.shader);
+    const GfxTexture* depth = GetTexture(p.depth);
 
-    sg_pipeline_desc& desc = p->pipe_desc;
+    sg_pipeline_desc& desc = pipe->pipe_desc;
     desc = {};
     desc.compute = false;
     desc.shader = shader->shader;
@@ -1351,26 +1268,26 @@ bool CreatePipeline(Pipeline** pipe, const char* name, const PipelineParams& par
     //Depth
     if (depth)
     {
-        VALIDATE_V(depth->image_desc.sample_count == params.msaa_sample_count, false);
-        desc.depth.pixel_format = depth->image_desc.pixel_format;
-        desc.depth.compare = ToSokol(params.depth_compare_func);
-        desc.depth.write_enabled = false; //NOTE(CSH): Forced no write for now until needed
-        desc.depth.bias = params.depth_bias;
-        desc.depth.bias_slope_scale = params.depth_bias_slope_scale;
-        desc.depth.bias_clamp = params.depth_bias_clamp;
+        VALIDATE_V(depth->image_desc.sample_count == p.msaa_sample_count, false);
+        desc.depth.pixel_format         = depth->image_desc.pixel_format;
+        desc.depth.compare              = ToSokol(p.depth_compare_func);
+        desc.depth.write_enabled        = false; //NOTE(CSH): Forced no write for now until needed
+        desc.depth.bias                 = p.depth_bias;
+        desc.depth.bias_slope_scale     = p.depth_bias_slope_scale;
+        desc.depth.bias_clamp           = p.depth_bias_clamp;
     }
 
     //stencil
-    desc.stencil = ToSokol(params.stencil);
+    desc.stencil = ToSokol(p.stencil);
 
     for (i32 i = 0; i < MAX_SHADER_TEXTURES; i++)
     {
-        const RenderTarget& target = params.targets[i];
+        const RenderTarget& target = p.targets[i];
         if (target.texture.IsValid())
         {
             if (const GfxTexture* t = GetTexture(target.texture))
             {
-                VALIDATE_V(t->image_desc.sample_count == params.msaa_sample_count, false);
+                VALIDATE_V(t->image_desc.sample_count == p.msaa_sample_count, false);
 
                 sg_color_target_state& ts = desc.colors[i];
                 ts.pixel_format = t->image_desc.pixel_format;
@@ -1381,28 +1298,26 @@ bool CreatePipeline(Pipeline** pipe, const char* name, const PipelineParams& par
             }
         }
     }
-    desc.primitive_type = ToSokol(params.primitive_type);
-    desc.index_type = params.has_index_buffer ? SG_INDEXTYPE_UINT32 : SG_INDEXTYPE_NONE;
-    desc.cull_mode = ToSokol(params.cull_mode);
-    desc.face_winding = params.front_ccw_winding_order ? SG_FACEWINDING_CCW : SG_FACEWINDING_CW;
-    desc.sample_count = params.msaa_sample_count;
+    desc.primitive_type = ToSokol(p.primitive_type);
+    desc.index_type = p.has_index_buffer ? SG_INDEXTYPE_UINT32 : SG_INDEXTYPE_NONE;
+    desc.cull_mode = ToSokol(p.cull_mode);
+    desc.face_winding = p.front_ccw_winding_order ? SG_FACEWINDING_CCW : SG_FACEWINDING_CW;
+    desc.sample_count = p.msaa_sample_count;
     desc.blend_color = {}; //NOTE(CSH): Not sure what to do with this
-    desc.alpha_to_coverage_enabled = params.alpha_to_coverage_enabled;
-    desc.label = p->name.data;
-    p->pipe = sg_make_pipeline(desc);
-    return true;
-
+    desc.alpha_to_coverage_enabled = p.alpha_to_coverage_enabled;
+    desc.label = p.name.data;
+    pipe->pipeline = sg_make_pipeline(desc);
+    return pipe->data_id;
 }
 
-void DeletePipeline(Pipeline** pipeline)
+void DeletePipeline(PipelineID& id)
 {
     ZoneScoped;
-    VALIDATE(pipeline);
-    GfxPipeline* pipe = AsGfx(*pipeline);
-    VALIDATE(pipe);
-    sg_destroy_pipeline(pipe->pipe);
-    DEBUG_LOG("Deleted pipeline'%s': %i\n", pipe->name.data, pipe->pipe);
-    delete pipe;
+    GfxPipeline* p = GetPipeline(id);
+    DEBUG_LOG("GPU Pipeline deleted '%s': %i\n", p->name.data, p->pipeline.id);
+    sg_destroy_pipeline(p->pipeline);
+    s_pipelines.Erase(id);
+    id = {};
 }
 
 
@@ -1497,7 +1412,7 @@ bool UpdateUniform(UniformID id, ArrayView<u8> data_array, const u32 slot)
 static struct FontData {
     StaticArray<Vertex_PTC, Mebibytes(2)> vertices;
     GpuBufferID vertex_buffer = {};
-    Pipeline* pipeline = nullptr;
+    PipelineID pipeline = 0;
     UniformID uniform = 0;
 } s_font;
 
@@ -1595,8 +1510,9 @@ void FontInit()
         //params.targets[0].blend.dst_factor_alpha = BlendFactor_Zero;
         //params.targets[0].blend.op_alpha    = BlendOp_Add;
         params.targets[0].mask = ColorMask_RGB;
+        params.name = "Console Pipeline";
 
-        CreatePipeline(&s_font.pipeline, "Console Pipeline", params);
+        s_font.pipeline = CreatePipeline(params);
     }
     {
         GpuBufferParams params = {
@@ -2001,7 +1917,7 @@ void RenderDrawCalls()
     foreach(draw, s_draws)
     {
         const DrawCallParams& params = draw->params;
-        const GfxPipeline* pipe = AsGfx(params.pipeline);
+        const GfxPipeline* pipe = GetPipeline(params.pipeline);
         const Bindings& bind = params.bindings;
         GfxGpuBuffer* vert = GetGpuBuffer(bind.vertex_buffer);
         ASSERT(vert);
@@ -2057,7 +1973,7 @@ void RenderDrawCalls()
         pass.label = draw->name.data;
         sg_begin_pass(&pass);
 
-        sg_apply_pipeline(pipe->pipe);
+        sg_apply_pipeline(pipe->pipeline);
         sg_bindings sb = {};
         sb.vertex_buffers[0] = vert->buffer;
         sb.vertex_buffer_offsets[0] = {};
@@ -2292,7 +2208,11 @@ bool CashRenderInit(ArrayView<const ArrayView<const u8>> app_icons)
 
     {
         const sg_shader_desc* desc = Blit2D_shader_desc(ToSokol(gfx.backend));
-        CreateShader(&gfx.blit2d_shader, "Blit 2D Shader", desc, gfx.vertex_2d_layout);
+        const ShaderParams params = {
+            .name = "Blit 2D Shader",
+            .vertex_layout = gfx.vertex_2d_layout,
+        };
+        gfx.blit2d_shader = CreateShader(params, desc);
     }
 
     gfx.blend_normal = {
@@ -2339,7 +2259,7 @@ bool CashRenderInit(ArrayView<const ArrayView<const u8>> app_icons)
     {
         sg_swapchain swapchain;
         SysGetRenderSwapchain(&swapchain);
-        GfxShader* shader = AsGfx(gfx.blit2d_shader);
+        GfxShader* shader = GetShader(gfx.blit2d_shader);
 
         VertexData* vertex_layout = s_gfx.vertex_layouts.TryGet(shader->params.vertex_layout);
         sg_pipeline_desc desc = {

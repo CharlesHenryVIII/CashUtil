@@ -340,7 +340,6 @@ struct GpuBufferParams
     //max_size must be non-zero for any buffer that doesn't have GpuBufferFlag_Immutable
     size_t max_size = 0;
     bool has_uploaded = false;
-
 };
 
 GpuBufferID CreateGpuBuffer(const GpuBufferParams& params);
@@ -374,27 +373,6 @@ inline void GpuBufferUpload(GpuBufferID id, const StaticArray<T, size>& a)
 {
     GpuBufferUpload(id, a.begin(), a.used, sizeof(T));
 }
-
-
-
-
-
-//========================
-//       GpuBinding
-//========================
-
-//struct GpuBinding
-//{
-//    std::string name;
-//
-//    void BindVertex(const GpuBuffer* buffer, const i32 slot);
-//    void BindIndex(const GpuBuffer* buffer);
-//    void BindView(GpuBuffer* view);
-//    void BindSampler(GpuBuffer* sampler);
-//    void Apply();
-//};
-//bool CreateGpuBinding(GpuBinding** binding, const char* name);
-//void DeleteBuffer(GpuBinding** binding);
 
 
 
@@ -493,47 +471,46 @@ struct ShaderTexture {
     const char* name; //This must match OpenGL and WebGL shader name
 };
 
+DATAID_TYPE(ShaderID);
 struct ShaderParams
 {
-    ShaderFile vertex;
-    ShaderFile pixel;
-    //ShaderFile compute;
+    InlineString<64> name;
+//    ShaderFile vertex;
+//    ShaderFile pixel;
+//    //ShaderFile compute;
     VertexID vertex_layout = {};
-    ShaderConstantsContainer constants_container[MAX_SHADER_UNIFORMS];
-    ShaderTexture textures[MAX_SHADER_TEXTURES] = {};
-
-    //Path vertex_file;
-    //Path pixel_file;
-    //Path compute_file;
-    ////
-    //const char* vertex_text = nullptr;
-    //const char* pixel_text = nullptr;
-    //const char* compute_text = nullptr;
-
-    std::vector<ShaderMacro> macros;
-    u32 vertex_component_count = 0;
-    u32 input_stride_bytes = 0;
-    std::vector<InlineString<256>> reference_file_names;
-    std::vector<u64>         reference_file_times;
+//    ShaderConstantsContainer constants_container[MAX_SHADER_UNIFORMS];
+//    ShaderTexture textures[MAX_SHADER_TEXTURES] = {};
+//
+//    //Path vertex_file;
+//    //Path pixel_file;
+//    //Path compute_file;
+//    ////
+//    //const char* vertex_text = nullptr;
+//    //const char* pixel_text = nullptr;
+//    //const char* compute_text = nullptr;
+//
+//    std::vector<ShaderMacro> macros;
+//    u32 vertex_component_count = 0;
+//    u32 input_stride_bytes = 0;
+//    std::vector<InlineString<256>> reference_file_names;
+//    std::vector<u64>         reference_file_times;
 };
 
-struct Shader
-{
+//struct Shader
+//{
     //static const u32 vertex_component_max = 4;
-
+    //
     //~Shader();
     //void CheckForUpdate();
-
-    InlineString<64> name;
-    ShaderParams params;
-
+    //
     //bool CompileShader(std::string text, const std::string& file_name, ShaderType shader_type, std::string entry_name = "");
     //bool CompileShader(std::string text, const std::string& file_name, ShaderType shader_type);
-};
+//};
 struct sg_shader_desc;
-bool CreateShader(Shader** shader, const char* name, const sg_shader_desc* shader_desc, VertexID vertex_layout);
+ShaderID CreateShader(const ShaderParams& params, const sg_shader_desc* shader_desc);
 //bool CreateShader(Shader** shader, const char* name, const ShaderParams& params);
-void DeleteShader(Shader** shader);
+void DeleteShader(ShaderID& id);
 
 
 
@@ -661,8 +638,10 @@ struct StencilState {
     u8 ref_value    = 0;
 };
 
+DATAID_TYPE(PipelineID)
 struct PipelineParams {
-    Shader* shader;
+    InlineString<64> name;
+    ShaderID shader;
     PrimitiveType primitive_type;
     RenderCullMode cull_mode;
     i32 msaa_sample_count = 1;
@@ -687,14 +666,8 @@ struct PipelineParams {
     StencilState stencil;
 };
 
-struct Pipeline {
-    //std::string name;
-    InlineString<64> name;
-    PipelineParams params;
-};
-
-bool CreatePipeline(Pipeline** pipeline, const char* name, const PipelineParams& params);
-void DeletePipeline(Pipeline** pipeline);
+PipelineID CreatePipeline(const char* name, const PipelineParams& params);
+void DeletePipeline(PipelineID& id);
 
 
 
@@ -753,7 +726,7 @@ struct Bindings {
 
 DATAID_TYPE(DrawID);
 struct DrawCallParams {
-    Pipeline* pipeline;
+    PipelineID pipeline;
     Bindings bindings = {};
     i32 vertex_index = 0;
     i32 vertex_length = 0;
@@ -860,7 +833,7 @@ struct Renderer
     Vec2I window_size;
     CashRenderBackend backend;
 
-    Shader* blit2d_shader = {};
+    ShaderID blit2d_shader = {};
     BlendState blend_normal = {};
     BlendState blend_no_color_write = {};
 
