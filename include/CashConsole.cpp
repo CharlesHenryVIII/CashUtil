@@ -1150,7 +1150,11 @@ static struct ConsoleInputHandler : InputHandler
         return true;
     }
 
-    virtual bool OnMouseMotion(const SDL_MouseMotionEvent& event) override { return false; }
+    virtual bool OnMouseMotion(const SDL_MouseMotionEvent& event) override
+    {
+        Vec2 p(event.x, event.y);
+        return Contains(ConsoleRect(), p);
+    }
     bool OnMouseDownInternal(const SDL_MouseButtonEvent& event)
     {
         const bool pressed = event.down;
