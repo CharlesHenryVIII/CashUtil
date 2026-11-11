@@ -30,12 +30,24 @@ enum AsyncStatus : u32 {
     AsyncStatus_Completed       = AsyncStatus_FetchedSuccess | AsyncStatus_FetchedFailed,
 };
 ENUMOPS_PURE(AsyncStatus);
+const char* GetAsyncStatusString(AsyncStatus status);
 
 template<typename T>
 struct AsyncData {
     T data;
     TRACY_MUTEX(lock);
     Atomic<AsyncStatus> state = {};
+
+    void Start()
+    {
+        lock.lock();
+        state = AsyncStatus_Fetching;
+    }
+    void End(bool success)
+    {
+        state = success ? AsyncStatus_FetchedSuccess : AsyncStatus_FetchedFailed;
+        lock.unlock();
+    }
 };
 
 struct Job

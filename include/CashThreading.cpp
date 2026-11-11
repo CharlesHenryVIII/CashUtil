@@ -106,3 +106,15 @@ bool OnMainThread()
 {
     return mainThreadID == std::this_thread::get_id();
 }
+
+const char* GetAsyncStatusString(AsyncStatus status)
+{
+    switch (status)
+    {
+    case AsyncStatus_Empty:             return "Empty";
+    case AsyncStatus_Fetching:          return "Fetching";
+    case AsyncStatus_FetchedSuccess:    return "FetchedSuccess";
+    case AsyncStatus_FetchedFailed:     return "FetchedFailed";
+    case AsyncStatus_Completed:         return "Completed";
+    }
+}

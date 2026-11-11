@@ -459,12 +459,14 @@ struct StaticArray
         return invalid_index;
     }
 
+
     // ===========================
     //          GENERAL
     // ===========================
 
     //Bytes of currently used array
     [[nodiscard]] inline u64 Bytes() const { return sizeof(T) * used; }
+    [[nodiscard]] inline u64 GetCount() const { return count; }
 
     inline T* Add(const T& item)
     {
@@ -595,6 +597,12 @@ struct InlineString : StaticArray<char, _count>
 
     u8* CopyFrom(const char* str)           { return CopyFrom(str,      strlen(str) + 1); };
     u8* CopyFrom(const InlineString& str)   { return CopyFrom(str.data, str.used); };
+
+    //TODO: Fix this so that it will not recursivly compile
+    //void Sprintf()
+    //{
+    //    SprintfArgs(data, arrsize(buf), fmt, args);
+    //}
 
     InlineString& operator=(const char* str)
     {

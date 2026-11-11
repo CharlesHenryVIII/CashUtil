@@ -338,9 +338,15 @@ void ToLower(std::wstring& s)
 
 void ToLower(std::string& s)
 {
+#if 1
+    for (char& c : s)
+        c = (char)tolower((unsigned char)c);
+    FAIL; //untested
+#else
     std::transform(s.begin(), s.end(), s.begin(),
         [](unsigned char c) { return std::tolower(c); }
     );
+#endif
 }
 
 
@@ -530,6 +536,59 @@ bool StringCompare(StringCase case_sensitivity, const char* a, const char* b)
     default: FAIL; break;
     }
     return false;
+}
+
+[[nodiscard]] i32 StringNaturalCompare(const char* a, const char* b)
+{
+    const char* a_start = a;
+    const char* b_start = b;
+
+    while (*a && *b)
+    {
+        if (isdigit((u8)*a) && isdigit((u8)*b))
+        {
+            // Skip leading zeros, then compare the numeric runs
+            const char* a_num = a;
+            const char* b_num = b;
+            while (*a_num == '0') a_num++;
+            while (*b_num == '0') b_num++;
+
+            const char* a_end = a_num;
+            const char* b_end = b_num;
+            while (isdigit((u8)*a_end)) a_end++;
+            while (isdigit((u8)*b_end)) b_end++;
+
+            // More digits means a bigger number (no overflow, any length works)
+            const i64 a_len = a_end - a_num;
+            const i64 b_len = b_end - b_num;
+            if (a_len != b_len)
+                return a_len < b_len ? -1 : 1;
+
+            const i32 c = strncmp(a_num, b_num, (size_t)a_len);
+            if (c != 0)
+                return c < 0 ? -1 : 1;
+
+            a = a_end;
+            b = b_end;
+            continue;
+        }
+
+        // Case-insensitive compare for everything else
+        const i32 ca = tolower((u8)*a);
+        const i32 cb = tolower((u8)*b);
+        if (ca != cb)
+            return ca < cb ? -1 : 1;
+
+        a++;
+        b++;
+    }
+
+    if (*a) return  1;   // b is a prefix of a
+    if (*b) return -1;   // a is a prefix of b
+
+    // Equal under natural/case-insensitive rules ("a01" vs "a1", "Tag" vs "tag").
+    // Fall back to strcmp so the ordering is deterministic.
+    return strcmp(a_start, b_start);
 }
 
 

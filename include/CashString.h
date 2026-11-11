@@ -80,6 +80,8 @@ template <size_t size>
 [[nodiscard]] bool StringCompare(StringCase case_sensitivity, const char* a,          const char* b                               );
 [[nodiscard]] bool StringCompare(StringCase case_sensitivity, const std::string& a,   const std::string& b                        );
 
+[[nodiscard]] i32 StringNaturalCompare(const char* a, const char* b);
+
 u64 StringCopy(char* dest, const char* source, const u64 buffer_length);
 template <size_t buf_size>
 size_t StringCopy(char(&dest)[buf_size], const char* source) { return StringCopy(dest, source, buf_size); }
@@ -140,6 +142,7 @@ void TuiProgressBar(u64 count, u64 max);
 
 i32 Sprintf(char* buffer, i32 count, char const* fmt, ...);
 i32 Sprintf(ArrayView<char> buffer, char const* fmt, ...);
+
 i32 SprintfArgs(char* buffer, i32 count, char const* fmt, va_list args);
 i32 SprintfArgs(ArrayView<char> buffer, char const* fmt, va_list args);
 //
