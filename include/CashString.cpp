@@ -75,7 +75,7 @@ std::vector<i32> TextToIntArray(const char* text)
         else if (index)
         {
             //nums.push_back(atoi(workingText.substr(i - index, index).c_str()));
-            nums.push_back(atoi(test.substr(i - index, index).data()));
+            nums.push_back(StringToInt(test.substr(i - index, index).data()));
             index = 0;
         }
     }
@@ -292,11 +292,11 @@ std::vector<i32> FileToIntArray(const char* fileName)
         return TextToIntArray(str);
 }
 
-i32 NumberLengthInString(const std::string& string, i32& i)
+i32 NumberLengthInString(const char* string)
 {
 
     i32 j = 0;
-    while (string[i + j] >= '0' && string[i + j] <= '9')
+    while (string[j] >= '0' && string[j] <= '9')
         j++;
     return j;
 }
@@ -352,14 +352,17 @@ void ToLower(std::string& s)
 
 
 
-i32 StringToInt(const std::string& string, i32 i, i32 length)
+i32 StringToInt(const char* string, i32 length)
 {
-    return atoi(string.substr(i, length).c_str());
+    i32 r = 0;
+    const auto [ptr, ec] = std::from_chars(string, string + length, r);
+    FAIL; //untested
+    return (ec == std::errc()) ? r : 0;
 }
 
-i32 StringToInt(const std::string& string, i32 i)
+i32 StringToInt(const char* string)
 {
-    return StringToInt(string, i, NumberLengthInString(string, i));
+    return atoi(string);
 }
 
 void StringGetReadableByteSize(std::string& out, const u64 v)

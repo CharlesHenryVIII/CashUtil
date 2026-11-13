@@ -71,7 +71,7 @@ void Log(const char* category, u32 line, const LogLevel level, const char* fmt, 
     va_list list;
     va_start(list, fmt);
     char format_string[Kibibytes(4)] = {};
-    const i32 end = Sprintf(format_string, arrsize(format_string), fmt, list);
+    const i32 end = SprintfArgs(format_string, arrsize(format_string), fmt, list);
     va_end(list);
 
     char filenumber[256] = {};

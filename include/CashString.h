@@ -38,14 +38,14 @@ std::vector<std::string> TextToStringArray(const char* text, const char* lineEnd
 std::vector<std::string> TextCsvToStringArray(const char* text);
 std::vector<std::string> FileToStringArray(const char* fileName);
 std::vector<std::string> FileToStringArray(const char* fileName, const char* lineEnd);
-i32 NumberLengthInString(const std::string& string, i32& i);
+[[nodiscard]] i32 NumberLengthInString(const char* string);
 std::string ToString(const char* fmt, ...);
 std::wstring ToString(const wchar_t* fmt, ...);
 std::string ToString(const Path& path);
 void ToLower(std::string& s);
 void ToLower(std::wstring& s);
-[[nodiscard]] i32 StringToInt(const std::string& string, i32 i, i32 length);
-[[nodiscard]] i32 StringToInt(const std::string& string, i32 i);
+[[nodiscard]] i32 StringToInt(const char* string, i32 length);
+[[nodiscard]] i32 StringToInt(const char* string);
 void StringGetReadableByteSize(std::string& out, const u64 v);
 
 bool StringRemoveLeading (std::string& string, const char remove);
