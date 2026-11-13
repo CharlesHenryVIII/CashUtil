@@ -2,6 +2,7 @@
 #include "CashSystem.h"
 //#include "CashStaticArray.h"
 #include "CashLog.h"
+#include "CashMath.h"
 
 #define STB_SPRINTF_IMPLEMENTATION
 #include "stb/stb_sprintf.h"
@@ -1108,6 +1109,7 @@ i32 Sprintf(ArrayView<char> buffer, char const* fmt, ...)
     va_end(args);
     return r;
 }
+
 i32 SprintfArgs(char* buffer, i32 count, char const* fmt, va_list args)
 {
     return stbsp_vsnprintf(buffer, count, fmt, args);

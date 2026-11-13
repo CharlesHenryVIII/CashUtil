@@ -598,7 +598,7 @@ struct InlineString : StaticArray<char, _count>
     u8* CopyFrom(const char* str)           { return CopyFrom(str,      strlen(str) + 1); };
     u8* CopyFrom(const InlineString& str)   { return CopyFrom(str.data, str.used); };
 
-    //TODO: Fix this so that it will not recursivly compile
+    //TODO(CSH): Fix this so that it will not recursivly compile
     //void Sprintf()
     //{
     //    SprintfArgs(data, arrsize(buf), fmt, args);

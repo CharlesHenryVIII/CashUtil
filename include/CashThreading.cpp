@@ -12,16 +12,15 @@ Threading::Threading()
     : m_semaphore(0)
 {
 #ifdef ASYNC
-    u32 usableCores = (u32)Max<i32>(1, g_sysinfo.threads - 1);
+    i32 usableCores = Max<i32>(1, g_sysinfo.threads - 1);
 #else
     u32 usableCores = 1;
 #endif
-    for (u32 i = 0; i < usableCores; ++i)
+    for (i32 i = 0; i < usableCores; ++i)
     {
-        ThreadData data = {
-            .name = ToString("Thread: %i", i),
-            .index = i
-        };
+        ThreadData data;
+        Sprintf(data.name, "Thread: %i", i);
+        data.index = i;
         m_threads.push_back(std::thread(&Threading::ThreadFunction, data));
     }
     m_running = true;
@@ -60,7 +59,7 @@ void Threading::SubmitJob(Job* job)
 i32 Threading::ThreadFunction(ThreadData data)
 {
     Threading& MT = GetInstance();
-    tracy::SetThreadName(data.name.c_str());
+    tracy::SetThreadName(data.name.data);
 
     while (true)
     {
@@ -116,5 +115,6 @@ const char* GetAsyncStatusString(AsyncStatus status)
     case AsyncStatus_FetchedSuccess:    return "FetchedSuccess";
     case AsyncStatus_FetchedFailed:     return "FetchedFailed";
     case AsyncStatus_Completed:         return "Completed";
+    default: FAIL; return "";
     }
 }

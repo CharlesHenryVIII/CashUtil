@@ -2,6 +2,7 @@
 #include "CashMath.h"
 #include "CashDebug.h"
 #include "CashMemoryArena.h"
+#include "CashArray.h"
 
 #include "Tracy.hpp"
 
@@ -67,8 +68,8 @@ private:
     std::vector<std::thread>    m_threads;
 
     struct ThreadData {
-        std::string name;
-        u32 index;
+        InlineString<32> name;
+        i32 index;
     };
 
     static i32 ThreadFunction(ThreadData data);

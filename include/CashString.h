@@ -143,8 +143,17 @@ void TuiProgressBar(u64 count, u64 max);
 i32 Sprintf(char* buffer, i32 count, char const* fmt, ...);
 i32 Sprintf(ArrayView<char> buffer, char const* fmt, ...);
 
+template<u64 count, typename... Args>
+i32 Sprintf(InlineString<count>& s, char const* fmt, Args... args)
+{
+    const i32 r = Sprintf(s.data, count, fmt, args...);
+    s.used = Clamp(r, 0, (i32)count);
+    return r;
+}
+
 i32 SprintfArgs(char* buffer, i32 count, char const* fmt, va_list args);
 i32 SprintfArgs(ArrayView<char> buffer, char const* fmt, va_list args);
+
 //
 // Case Insensitive String Compare
 //
